@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "revision": 30,
+  "revision": 31,
   "config": {
     "providerConfigRules": {
       "templateRules": [
@@ -2506,13 +2506,21 @@
           }
         },
         {
-          "modelMatch": ".*",
+          "modelMatch": "glm.*",
           "apiTypeMatch": "openai-chat-completions",
           "config": {
             "optionSpecs": {
               "reasoningLevel": {
                 "map": "{\n  \"thinking\": {\n    \"type\": reasoningLevel == \"disabled\" || reasoningLevel == \"none\" ? \"disabled\" : \"enabled\"\n  },\n  \"enable_thinking\": reasoningLevel != \"disabled\" && reasoningLevel != \"none\",\n  \"reasoning_effort\": reasoningLevel == \"disabled\" ? \"none\" : reasoningLevel == \"enabled\" ? \"high\" : reasoningLevel,\n  \"reasoning\": {\n    \"effort\": reasoningLevel == \"disabled\" ? \"none\" : reasoningLevel == \"enabled\" ? \"high\" : reasoningLevel\n  }\n}"
-              },
+              }
+            }
+          }
+        },
+        {
+          "modelMatch": ".*",
+          "apiTypeMatch": "openai-chat-completions",
+          "config": {
+            "optionSpecs": {
               "maxOutputTokens": {
                 "map": "{'max_completion_tokens': maxOutputTokens}"
               }
