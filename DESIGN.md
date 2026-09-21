@@ -182,7 +182,10 @@ The dynamic-workflow timeline draws with a feature-scoped token family:
 
 ### Font families
 
-- **UI Sans**: use the app's default `font-sans` stack for almost all interface text.
+- **UI Sans**: use the app's default `font-sans` stack for almost all interface text. The shared
+  UI stack prioritizes `PingFang SC` / `苹方-简` and falls back through `Segoe UI Variable`,
+  `Noto Sans SC`, `Microsoft YaHei UI`, and the platform sans-serif defaults so Chinese text
+  stays a system sans-serif on macOS, Windows, Linux, and Web.
 - **UI Mono**: use `font-mono` for paths, commands, code, identifiers, shortcuts, commit hashes, model IDs, and terminal-like data.
 
 ### UI font tokens

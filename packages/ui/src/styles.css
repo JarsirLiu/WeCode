@@ -61,6 +61,7 @@ body,
 body {
   margin: 0;
   overflow: hidden;
+  font-family: var(--font-sans);
 }
 
 /* 中文模板描述按单字断行会拆开“简报”等词组，并把标点挤到下一行。
@@ -135,6 +136,11 @@ body {
 /* === 主题变量 === */
 
 @theme {
+  /* UI 字体与 xai 对齐：macOS 优先使用苹方，Windows/Linux 使用可用的系统中文无衬线字体回退。 */
+  --font-sans:
+    "PingFang SC", "苹方-简", "Segoe UI Variable", "Noto Sans SC", "Microsoft YaHei UI",
+    "Microsoft YaHei", "Segoe UI", -apple-system, BlinkMacSystemFont, ui-sans-serif, system-ui,
+    sans-serif;
   /* Windows 的 Consolas 不含中文字形，Tailwind 默认栈最终会让中文落到宋体。
    * 保留各平台西文等宽字体，并在通用 monospace 前显式加入各平台 CJK 无衬线字体。 */
   --font-mono:
