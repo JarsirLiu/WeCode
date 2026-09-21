@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "revision": 31,
+  "revision": 32,
   "config": {
     "providerConfigRules": {
       "templateRules": [
@@ -2511,7 +2511,7 @@
           "config": {
             "optionSpecs": {
               "reasoningLevel": {
-                "map": "{\n  \"thinking\": {\n    \"type\": reasoningLevel == \"disabled\" || reasoningLevel == \"none\" ? \"disabled\" : \"enabled\"\n  },\n  \"enable_thinking\": reasoningLevel != \"disabled\" && reasoningLevel != \"none\",\n  \"reasoning_effort\": reasoningLevel == \"disabled\" ? \"none\" : reasoningLevel == \"enabled\" ? \"high\" : reasoningLevel,\n  \"reasoning\": {\n    \"effort\": reasoningLevel == \"disabled\" ? \"none\" : reasoningLevel == \"enabled\" ? \"high\" : reasoningLevel\n  }\n}"
+                "map": "{}"
               }
             }
           }
@@ -4317,6 +4317,21 @@
           "config": {
             "properties": {
               "supportsJsonSchemaOutput": true
+            }
+          }
+        },
+        {
+          "modelMatch": ".*",
+          "apiTypeMatch": "openai-chat-completions",
+          "baseUrlMatch": "https://integrate\\.api\\.nvidia\\.com/v1/?",
+          "config": {
+            "optionSpecs": {
+              "reasoningLevel": {
+                "map": "{}"
+              },
+              "maxOutputTokens": {
+                "map": "{\"max_tokens\": maxOutputTokens}"
+              }
             }
           }
         }
