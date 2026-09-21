@@ -343,6 +343,8 @@ export function SettingsPage({
   const setCodePreviewSettings = useZCodeStore((state) => state.setCodePreviewSettings);
   const uiFontSizePx = useZCodeStore((state) => state.uiFontSizePx);
   const setUiFontSizePx = useZCodeStore((state) => state.setUiFontSizePx);
+  const uiFontFamily = useZCodeStore((state) => state.uiFontFamily);
+  const setUiFontFamily = useZCodeStore((state) => state.setUiFontFamily);
   const notificationEnabled = useZCodeStore((state) => state.notificationEnabled);
   const setNotificationEnabled = useZCodeStore((state) => state.setNotificationEnabled);
   const notificationSoundEnabled = useZCodeStore((state) => state.notificationSoundEnabled);
@@ -1788,6 +1790,22 @@ export function SettingsPage({
                             theme={theme}
                             setTheme={(nextTheme) => handleFooterThemeChange(nextTheme)}
                             uiFontSizePx={uiFontSizePx}
+                            uiFontFamily={uiFontFamily}
+                            setUiFontFamily={(fontFamily) =>
+                              runUserAction({
+                                input: {
+                                  featureId: "settings.appearance",
+                                  action: "change_ui_font_family",
+                                  trigger: "select",
+                                },
+                                operation: () => setUiFontFamily(fontFamily),
+                                completed: {
+                                  resultSource: "local_commit",
+                                  valueAfter: fontFamily,
+                                },
+                                failureStage: "local_commit",
+                              })
+                            }
                             setUiFontSizePx={(fontSizePx) =>
                               runUserAction({
                                 input: {

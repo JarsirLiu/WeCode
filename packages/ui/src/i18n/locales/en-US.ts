@@ -1798,6 +1798,14 @@ const enUS: Record<string, string> = {
   "settings.uiFontSize": "UI font size",
   "settings.uiFontSizeDescription":
     "Adjust interface text without changing icons or layout dimensions.",
+  "settings.uiFontFamily": "UI font",
+  "settings.uiFontFamilyDescription":
+    "Choose the system font for the interface. Uninstalled fonts use the next fallback.",
+  "settings.uiFontFamily.option.system": "System default (PingFang first)",
+  "settings.uiFontFamily.option.pingfang": "PingFang",
+  "settings.uiFontFamily.option.yahei": "Microsoft YaHei",
+  "settings.uiFontFamily.option.notoSansSc": "Noto Sans SC",
+  "settings.uiFontFamily.option.segoe": "Segoe UI",
   "settings.systemTitle": "General",
   "settings.systemDescription": "These preferences affect the current window experience.",
   "settings.locale": "Language",

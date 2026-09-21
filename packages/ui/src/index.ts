@@ -86,6 +86,14 @@ export {
   loadUiFontSizePx,
   subscribeToUiFontSizeStorageChanges,
 } from "./lib/uiFontSize.js";
+export {
+  applyUiFontFamily,
+  loadUiFontFamily,
+  normalizeUiFontFamily,
+  UI_FONT_FAMILY_OPTIONS,
+  UI_FONT_FAMILY_STORAGE_KEY,
+} from "./lib/uiFontFamily.js";
+export type { UiFontFamily } from "./lib/uiFontFamily.js";
 export { reportUiLaunchToInput } from "./lib/uiPerfArmsTelemetry.js";
 export {
   RendererUserActionTelemetry,

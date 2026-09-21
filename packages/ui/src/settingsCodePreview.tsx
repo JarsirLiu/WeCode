@@ -22,6 +22,7 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type { CodePreviewSettings } from "@/store/index.js";
 import { THEME_MODES } from "@/settings/settingsPageConfig.js";
 import { MAX_UI_FONT_SIZE_PX, MIN_UI_FONT_SIZE_PX } from "@/lib/uiFontSize.js";
+import { UI_FONT_FAMILY_OPTIONS, type UiFontFamily } from "@/lib/uiFontFamily.js";
 
 function FontSizeInput({
   value,
@@ -85,6 +86,8 @@ export function AppearanceSectionContent({
   setTheme,
   uiFontSizePx,
   setUiFontSizePx,
+  uiFontFamily,
+  setUiFontFamily,
 }: {
   codePreviewSettings: CodePreviewSettings;
   setCodePreviewSettings: (settings: Partial<CodePreviewSettings>) => void;
@@ -92,6 +95,8 @@ export function AppearanceSectionContent({
   setTheme: (theme: Theme) => void;
   uiFontSizePx: number;
   setUiFontSizePx: (fontSizePx: number) => void;
+  uiFontFamily: UiFontFamily;
+  setUiFontFamily: (fontFamily: UiFontFamily) => void;
 }) {
   const { intl } = useZCodeIntl();
   const activePreviewMode = resolveTheme(theme);
@@ -130,6 +135,29 @@ export function AppearanceSectionContent({
                             id: `settings.themeMode.${mode}`,
                           })}
                         </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              }
+            />
+            <SettingsRow
+              label={intl.formatMessage({ id: "settings.uiFontFamily" })}
+              description={intl.formatMessage({
+                id: "settings.uiFontFamilyDescription",
+              })}
+              control={
+                <Select
+                  value={uiFontFamily}
+                  onValueChange={(value) => setUiFontFamily(value as UiFontFamily)}
+                >
+                  <SelectTrigger size="lg" className="w-[260px] min-w-0 justify-between">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {UI_FONT_FAMILY_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {intl.formatMessage({ id: option.labelId })}
                       </SelectItem>
                     ))}
                   </SelectContent>
