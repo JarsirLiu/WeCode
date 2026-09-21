@@ -83,6 +83,13 @@ test("non-NVIDIA GLM mappings and OpenCode Zen remain endpoint-specific", async 
   );
   assert.equal(
     resolveReasoningMap(rules, {
+      modelId: "nvidia/z-ai/glm-5.3-flash",
+      baseUrl: "https://api.example.com/v1",
+    }),
+    "{}",
+  );
+  assert.equal(
+    resolveReasoningMap(rules, {
       modelId: "glm-5.3-flash",
       baseUrl: "https://opencode.ai/zen/go/v1",
     }),

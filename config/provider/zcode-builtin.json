@@ -2506,7 +2506,7 @@
           }
         },
         {
-          "modelMatch": "glm.*",
+          "modelMatch": ".*(?:^|/)glm.*",
           "apiTypeMatch": "openai-chat-completions",
           "config": {
             "optionSpecs": {

@@ -5,7 +5,7 @@
 - 使用 NVIDIA NIM OpenAI-compatible endpoint（`https://integrate.api.nvidia.com/v1`）时，模型请求不得继承通用 GLM 推理参数映射。
 - NVIDIA endpoint 的 reasoning option 映射为空，保留模型选择和 UI 档位事实，但不向请求体注入 `reasoning`、`enable_thinking`、`thinking` 或 `reasoning_effort` 等未经该 endpoint 确认的方言字段。
 - NVIDIA endpoint 使用 NIM 兼容的 `max_tokens` 输出 token 字段。
-- 普通 OpenAI-compatible GLM 也不使用通用推理方言；OpenCode Zen 等已有 provider-site 专属映射继续优先于通用规则。
+- 普通 OpenAI-compatible GLM 也不使用通用推理方言；模型 ID 可以带多段 provider 命名空间（例如 `nvidia/z-ai/glm-5.3-flash`）。OpenCode Zen 等已有 provider-site 专属映射继续优先于通用规则。
 
 ## 所有者与边界
 
@@ -18,4 +18,5 @@
 1. NVIDIA endpoint + `glm-5.3-flash` 的解析结果中，reasoning map 为 `{}`，max output map 为 `max_tokens`。
 2. NVIDIA endpoint + `nvidia/nemotron-3-ultra-550b-a55b` 不继承 GLM reasoning map。
 3. 非 NVIDIA endpoint + 裸名 `glm-5.3-flash` 不注入推理方言。
-4. OpenCode Zen + `glm-5.3-flash` 仍使用该 endpoint 的 `reasoning_effort` 映射。
+4. 非 NVIDIA endpoint + 多段命名空间模型 `nvidia/z-ai/glm-5.3-flash` 也不注入推理方言。
+5. OpenCode Zen + `glm-5.3-flash` 仍使用该 endpoint 的 `reasoning_effort` 映射。
