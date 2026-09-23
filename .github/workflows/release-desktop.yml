@@ -1,0 +1,186 @@
+# 桌面安装包产物构建
+#
+# 触发方式：
+#   - 打 tag（v*）：五个目标全量构建，并创建 GitHub Release。这是主路径。
+#   - 手动 workflow_dispatch：用三个开关选子集，便于单独重跑某个平台。
+#
+# 注意：这不是交叉编译。每个 job 都在对应 OS 的原生 runner 上编自己那个平台。
+# node-pty 是原生模块，真正的跨平台交叉编译走不通；标准做法就是原生 runner 并行编。
+# 私有仓库拿不到 macos/windows 托管 runner，本流程按公开仓库配置。
+
+name: build-desktop
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      build_linux:
+        description: "构建 Linux（x64 + arm64）"
+        required: false
+        type: boolean
+        default: true
+      build_mac:
+        description: "构建 macOS（arm64 + x64）"
+        required: false
+        type: boolean
+        default: true
+      build_win:
+        description: "构建 Windows x64"
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # 桌面安装包不依赖 mock-cdn remote 资产（远端资源生产态运行时从 CDN 下载）。
+  # 开关见 prepare-runtime-assets.mjs，作者就是为 CI 加的：无条件准备 remote 资产
+  # 会把 CI 时间串行拉高到逼近 1 小时上限。
+  ZCODE_SKIP_REMOTE_ASSETS: "1"
+
+jobs:
+  build-linux:
+    if: github.event_name != 'workflow_dispatch' || inputs.build_linux == true
+    name: Linux ${{ matrix.arch }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      # Linux 走纯打包（AppImage/deb/rpm/zst），不涉及签名和 wine，
+      # x64 runner 上交叉编 arm64 是安全的。
+      matrix:
+        arch: [x64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.14.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build installer
+        # bundle:desktop 内部已含 pnpm run 的分隔符，这里再加 -- 会被原样透传成字符串参数。
+        run: pnpm bundle:desktop --os linux --arch ${{ matrix.arch }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-linux-${{ matrix.arch }}
+          path: packages/desktop/dist/*
+          if-no-files-found: error
+          retention-days: 30
+
+  build-mac:
+    if: github.event_name != 'workflow_dispatch' || inputs.build_mac == true
+    name: macOS ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      # macos-15 是 arm64 runner，macos-14 是 x64 runner。各自在自己架构上编，
+      # 不交叉：dmg-builder 和 arm64/x64 原生产物在跨架构时容易出 Mach-O 问题。
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-15
+          - arch: x64
+            runner: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.14.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build installer
+        run: pnpm bundle:desktop --os mac --arch ${{ matrix.arch }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-mac-${{ matrix.arch }}
+          path: packages/desktop/dist/*
+          if-no-files-found: error
+          retention-days: 30
+
+  build-win:
+    if: github.event_name != 'workflow_dispatch' || inputs.build_win == true
+    name: Windows x64
+    runs-on: windows-2022
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.14.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build installer
+        run: pnpm bundle:desktop --os win --arch x64
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-win-x64
+          path: packages/desktop/dist/*
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    name: Create release
+    needs: [build-linux, build-mac, build-win]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Collect artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          gh release create "$VERSION" release-assets/* \
+            --title "$VERSION" \
+            --generate-notes \
+            --verify-tag
