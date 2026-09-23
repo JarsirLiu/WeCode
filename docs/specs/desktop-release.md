@@ -5,7 +5,7 @@
 - A tag-triggered desktop release builds production installers for Linux x64/arm64, macOS x64/arm64, and Windows x64.
 - Production installers use the `ZCode` identity and omit the `_TEST` suffix. Their filenames use the normalized, explicitly selected target architecture (`x64` or `arm64`), not Electron Builder's target-specific `${arch}` expansion, which differs between Linux package formats.
 - Each Linux architecture validates the complete AppImage, deb, rpm, and pacman installer set before uploading its artifact. The build log lists generated filenames to make packaging mismatches visible at their source.
-- The publish job downloads the platform artifacts, validates the complete release set, then creates the GitHub Release for the triggering version tag.
+- The publish job downloads the platform artifacts, validates the complete release set, then creates the GitHub Release against the exact triggering `v`-prefixed tag. The unprefixed version is only the release title and installer version.
 
 ## Ownership and invariants
 

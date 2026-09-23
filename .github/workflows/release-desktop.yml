@@ -215,8 +215,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          TAG="$GITHUB_REF_NAME"
           VERSION="${GITHUB_REF_NAME#v}"
-          gh release create "$VERSION" release-assets/* \
+          gh release create "$TAG" release-assets/* \
             --title "$VERSION" \
             --generate-notes \
             --verify-tag
