@@ -134,6 +134,17 @@ node apps/zcode-cli/packages/cli/dist/zcode.cjs --help
 
 运行时变量可在启动命令的环境中显式设置。随客户端发布的默认配置见 [config/README.md](config/README.md)。
 
+## 文档入口
+
+- [AGENTS.md](AGENTS.md)：仓库规则、命令表与验证要求。
+- [DESIGN.md](DESIGN.md)：UI 设计约束。
+- [CONTEXT.md](CONTEXT.md)：插件商店领域词汇。
+- [docs/README.md](docs/README.md)：文档路由与问题定位入口。
+- [docs/notes/README.md](docs/notes/README.md)：变更留痕与决策追踪（Agent Note 门禁，双语）。
+- [architecture-policy.yaml](architecture-policy.yaml)：模块边界与依赖方向。
+
+文档门禁校验：`pnpm docs:check`（校验 Agent Note 结构、格式、双语配对与链接）。
+
 ## 打包
 
 第三方声明生成、发行校验流程及声明在发行物中的位置见 [third-party/README.md](third-party/README.md)。

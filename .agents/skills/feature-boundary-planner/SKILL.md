@@ -35,7 +35,7 @@ user action → surface draft → validation → owner command → event / persi
 
 Keep existing node IDs for unchanged semantic boundaries and add aliases for new terminology. Report missing seeds or changed relationships as `graph-drift-candidate`; static reachability alone does not establish a product dependency.
 
-In `impact-only` mode, report proposed graph changes without editing files. In planning or implementation, update only verified entries within the task's scope. Follow the [graph contract](../../../docs/skills/feature-boundary-graph.md): check YAML parsing, unique IDs, relationship endpoints and ranks, and tracked source paths and symbols. Do not restore missing historical docs or claim test coverage from a graph entry.
+In `impact-only` mode, report proposed graph changes without editing files. In planning or implementation, update only verified entries within the task's scope. Follow the [graph contract](../../../docs/README.md): check YAML parsing, unique IDs, relationship endpoints and ranks, and tracked source paths and symbols. Do not restore missing historical docs or claim test coverage from a graph entry.
 
 ## Plan And Prune
 
