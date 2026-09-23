@@ -7,7 +7,6 @@
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { walkAgentNoteTree, noteRoot } from "./agent-note-tree.mjs";
 
 /** Status-line grammar per lifecycle folder. */

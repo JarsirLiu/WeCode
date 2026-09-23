@@ -97,8 +97,8 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
   user,
   workspacePath,
   workspaceIdentity,
-  workspaceRemoteSessionId,
-  activeTaskId,
+  _workspaceRemoteSessionId,
+  _activeTaskId,
   isDesktop = false,
   className,
 }: {

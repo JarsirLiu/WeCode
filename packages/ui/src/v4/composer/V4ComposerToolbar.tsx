@@ -369,7 +369,7 @@ function V4ComposerModelControlsImpl({
   modelSelectionState = MODEL_SELECTION_LOADING_STATE,
   modelSelectionReload,
   provider,
-  isMobileViewport = false,
+  _isMobileViewport = false,
   draftMode = false,
   draftConfig,
   usage,
