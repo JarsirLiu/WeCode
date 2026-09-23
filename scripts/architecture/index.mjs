@@ -322,41 +322,9 @@ export async function changedFilesFromGit(cwd = process.cwd()) {
   return [...new Set([...diff, ...untracked])];
 }
 
-export async function generateContext({ cwd = process.cwd(), moduleId }) {
-  const policy = await loadPolicy(cwd);
-  const module = policy.modules.find((item) => item.id === moduleId);
-  if (!module) throw new Error(`未知模块: ${moduleId}`);
-  const files = await discoverFiles(policy);
-  const moduleFiles = files.filter((file) => moduleForFile(file, policy)?.id === moduleId);
-  const manifest = moduleFiles.find((file) => path.basename(file) === "module.ts");
-  const contracts = moduleFiles.filter((file) => path.basename(file).startsWith("contract."));
-  const dependencyContracts = module.requires.flatMap((dependencyId) => {
-    const dependencyFiles = files.filter(
-      (file) => moduleForFile(file, policy)?.id === dependencyId,
-    );
-    return dependencyFiles
-      .filter((file) => path.basename(file) === "contract.ts")
-      .map((file) => `- ${posix(path.relative(cwd, file))}`);
-  });
-  return [
-    `# Architecture context: ${module.id}`,
-    `owner: ${module.owner ?? "unassigned"}`,
-    `managed: ${module.managed}`,
-    `requires: ${module.requires.join(", ") || "none"}`,
-    "",
-    "## Files",
-    ...(manifest ? [`- ${posix(path.relative(cwd, manifest))}`] : ["- module.ts: missing"]),
-    ...contracts.map((file) => `- ${posix(path.relative(cwd, file))}`),
-    ...module.publicEntrypoints.map((entry) => `- public: ${entry}`),
-    "",
-    "## Direct dependency contracts",
-    ...(dependencyContracts.length > 0 ? dependencyContracts : ["- none discovered"]),
-    "",
-    "## Boundaries",
-    "- Cross-module imports must use declared requirements and public entrypoints.",
-    "- Add a contract example before exposing a new capability.",
-  ].join("\n");
-}
+// 文档卡片文件名：任一存在即视为该模块有手写导向文档。
+// 模块上下文生成（generateContext 及相关 helpers）已拆到 ./context.mjs。
+export { entryPointsFor, generateContext, moduleDocPaths, moduleTestFiles } from "./context.mjs";
 
 export function formatReport(result) {
   const lines = [

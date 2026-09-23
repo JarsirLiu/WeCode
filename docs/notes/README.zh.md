@@ -167,5 +167,8 @@ Status: <status>
 6. **`verify-doc-budgets`** — 按文档词预算（`scripts/doc-budgets.manifest.json`）；`pnpm docs:budgets` 列出当前计数。
 7. **`verify-doc-refs`** — TypeScript 源码中的 `docs/...md` 路径引用存在（链接检查的反向）。
 8. **`verify-archived-agent-notes`** — 归档笔记冻结（sha256 manifest）；`--write` 在有意变更后重新密封。
+9. **`verify-module-entrypoints`** — `architecture-policy.yaml` 声明的 `publicEntrypoints` 在磁盘上存在（无陈旧策略）。
+10. **`verify-module-coverage`** — 源文件数 ≥100 的模块有导向卡片（README/AGENTS/MODULE/CONTRACT）。
+11. **`verify-module-index`** — `docs/modules.md` 与生成器输出一致；`pnpm docs:modules` 重新生成。
 
 预提交提醒（不阻断）：`verify-agent-note-reminder` 在源码变更但无 note 时发出警告，但不失败。

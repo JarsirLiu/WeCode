@@ -161,5 +161,8 @@ Run `pnpm docs:check` from the repo root. This executes:
 6. **`verify-doc-budgets`** — word budget per document from `scripts/doc-budgets.manifest.json`; `pnpm docs:budgets` lists current counts.
 7. **`verify-doc-refs`** — `docs/...md` path references in TypeScript source exist (reverse of link check).
 8. **`verify-archived-agent-notes`** — archived notes are frozen (sha256 manifest); `--write` re-seals after intentional changes.
+9. **`verify-module-entrypoints`** — `architecture-policy.yaml` declared `publicEntrypoints` exist on disk (no stale policy).
+10. **`verify-module-coverage`** — modules with ≥100 source files have an orientation card (README/AGENTS/MODULE/CONTRACT).
+11. **`verify-module-index`** — `docs/modules.md` matches the generator output; `pnpm docs:modules` regenerates it.
 
 Pre-commit reminder (non-blocking): `verify-agent-note-reminder` warns when source files change without a note, but does not fail.

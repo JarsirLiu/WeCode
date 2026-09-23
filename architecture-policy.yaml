@@ -21,7 +21,6 @@ modules:
     roots: [packages/services/src/session]
     managed: false
     requires: [shared]
-    publicEntrypoints: [packages/services/src/session/contract.ts]
     owner: conversation
   - id: storage
     roots: [packages/services/src/storage]

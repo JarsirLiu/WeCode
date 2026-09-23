@@ -11,21 +11,25 @@
 
 以下命令从仓库根目录执行：
 
-| 用途             | 命令                                      |
-| ---------------- | ----------------------------------------- |
-| 类型检查         | `pnpm typecheck`                          |
-| Lint             | `pnpm lint` / `pnpm lint:fix`             |
-| 格式检查         | `pnpm fmt:check`                          |
-| 桌面开发         | `pnpm dev:desktop`                        |
-| Web 开发         | `pnpm dev:web`                            |
-| 提交前检查       | `pnpm verify:pre-push`（Lint 与架构检查） |
-| 架构检查         | `pnpm architecture:check --changed`       |
-| 模块阅读包       | `pnpm architecture:context <module-id>`   |
-| 未使用依赖与导出 | `pnpm knip`                               |
-| 导出引用查询     | `pnpm dep:refs --list-exports <file>`     |
+| 用途             | 命令                                          |
+| ---------------- | --------------------------------------------- |
+| 类型检查         | `pnpm typecheck`                              |
+| Lint             | `pnpm lint` / `pnpm lint:fix`                 |
+| 格式检查         | `pnpm fmt:check`                              |
+| 桌面开发         | `pnpm dev:desktop`                            |
+| Web 开发         | `pnpm dev:web`                                |
+| 提交前检查       | `pnpm verify:pre-push`（Lint 与架构检查）     |
+| 架构检查         | `pnpm architecture:check --changed`           |
+| 模块阅读包       | `pnpm architecture:context <module-id>`       |
+| 模块导航索引     | `pnpm docs:modules`（生成 `docs/modules.md`） |
+| 文档门禁         | `pnpm docs:check`                             |
+| 未使用依赖与导出 | `pnpm knip`                                   |
+| 导出引用查询     | `pnpm dep:refs --list-exports <file>`         |
 
 测试入口以目标包当前的 `package.json` 和实际测试文件为准，不假定存在统一的单测或 E2E 命令。
 
+- 定位模块先查 `docs/modules.md` 索引或运行 `pnpm architecture:context <id>`，按目录图与公开入口定位代码，不靠全仓关键词搜索。
+- 改模块 roots、`publicEntrypoints` 或包 `exports` 后，运行 `pnpm docs:modules` 重生成 `docs/modules.md`，否则 `pnpm docs:check` 的索引新鲜度门禁会失败。
 - `packages/desktop`：Electron main、host、renderer。
 - `packages/web`、`packages/server`：Web 客户端与服务端。
 - `packages/ui`：共享 React 组件、hooks 与 Zustand store。
