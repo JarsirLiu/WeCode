@@ -254,11 +254,13 @@ function printHelp() {
   --skip-prepare               跳过 prepare:runtime-assets
   --skip-build                 跳过 pnpm build
   --dry-run                    只打印最终命令，不执行打包
+  --publish <mode>             透传 electron-builder 发布策略；不传保持原有行为
   -h, --help                   查看帮助
 
 环境变量:
   ZCODE_TARGET_OS              与 --os 等价
   ZCODE_TARGET_ARCH            与 --arch 等价
+  ZCODE_PUBLISH_MODE           与 --publish 等价
 `);
 }
 
@@ -285,6 +287,7 @@ function parseArgs(argv) {
     skipPrepare: process.env.ZCODE_SKIP_PREPARE === "1",
     skipBuild: process.env.ZCODE_SKIP_BUILD === "1",
     dryRun: false,
+    publishMode: process.env.ZCODE_PUBLISH_MODE?.trim() || null,
     positionals: [],
   };
 
@@ -312,6 +315,17 @@ function parseArgs(argv) {
 
     if (arg === "--skip-build") {
       options.skipBuild = true;
+      continue;
+    }
+
+    if (arg === "--publish") {
+      options.publishMode = argv[index + 1]?.trim() || null;
+      index += 1;
+      continue;
+    }
+
+    if (arg.startsWith("--publish=")) {
+      options.publishMode = arg.slice("--publish=".length).trim() || null;
       continue;
     }
 
@@ -360,6 +374,7 @@ function parseArgs(argv) {
     skipPrepare: options.skipPrepare,
     skipBuild: options.skipBuild,
     dryRun: options.dryRun,
+    publishMode: options.publishMode,
   };
 }
 
@@ -699,7 +714,9 @@ function verifyPackagedRuntimeDependencies(os, arch) {
 }
 
 async function main() {
-  const { os, arch, skipPrepare, skipBuild, dryRun } = parseArgs(process.argv.slice(2));
+  const { os, arch, skipPrepare, skipBuild, dryRun, publishMode } = parseArgs(
+    process.argv.slice(2),
+  );
   const buildArgs = [
     "exec",
     "electron-builder",
@@ -707,6 +724,9 @@ async function main() {
     "electron-builder.config.js",
     osBuilderFlagMap[os],
     archBuilderFlagMap[arch],
+    // 不传时保持原有行为；显式 --publish never 用于 CI 场景——tag push 会让 electron-builder
+    // 隐式触发发布，而配置里的 generic feed 只是占位地址，CI 上没有对应服务端。
+    ...(publishMode ? ["--publish", publishMode] : []),
   ];
 
   console.log(`[bundle] target=${os}/${arch}`);
