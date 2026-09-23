@@ -1,7 +1,7 @@
 # 桌面安装包产物构建
 #
 # 触发方式：
-#   - 打 tag（v*）：五个目标全量构建，并创建 GitHub Release。这是主路径。
+#   - 打有效版本 tag（v*）：五个目标全量构建，并创建 GitHub Release。这是主路径。
 #   - 手动 workflow_dispatch：用三个开关选子集，便于单独重跑某个平台。
 #
 # 注意：这不是交叉编译。每个 job 都在对应 OS 的原生 runner 上编自己那个平台。
@@ -33,20 +33,52 @@ on:
         default: true
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: desktop-${{ github.ref }}
   cancel-in-progress: false
 
 env:
+  # Release 产物必须连接生产服务，不能依赖构建脚本的 test 默认值。
+  ZCODE_ENV: production
+  ZCODE_PREVIEW_IDENTITY: "0"
   # 桌面安装包不依赖 mock-cdn remote 资产（远端资源生产态运行时从 CDN 下载）。
   # 开关见 prepare-runtime-assets.mjs，作者就是为 CI 加的：无条件准备 remote 资产
   # 会把 CI 时间串行拉高到逼近 1 小时上限。
   ZCODE_SKIP_REMOTE_ASSETS: "1"
 
 jobs:
+  preflight:
+    name: Validate release ref
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Validate tag and package version
+        if: github.event_name == 'push'
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { readFile } from 'node:fs/promises';
+
+          const { version } = JSON.parse(await readFile('package.json', 'utf8'));
+          const expectedTag = `v${version}`;
+          if (!/^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?$/.test(process.env.TAG_NAME)) {
+            throw new Error(`Invalid release tag: ${process.env.TAG_NAME}`);
+          }
+          if (process.env.TAG_NAME !== expectedTag) {
+            throw new Error(`Release tag ${process.env.TAG_NAME} does not match package.json version (${expectedTag})`);
+          }
+          console.log(`Validated release tag ${expectedTag}`);
+          NODE
+
   build-linux:
+    needs: preflight
     if: github.event_name != 'workflow_dispatch' || inputs.build_linux == true
     name: Linux ${{ matrix.arch }}
     runs-on: ubuntu-24.04
@@ -60,7 +92,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          persist-credentials: false
 
       - uses: pnpm/action-setup@v4
         with:
@@ -93,6 +125,7 @@ jobs:
           retention-days: 30
 
   build-mac:
+    needs: preflight
     if: github.event_name != 'workflow_dispatch' || inputs.build_mac == true
     name: macOS ${{ matrix.arch }}
     runs-on: ${{ matrix.runner }}
@@ -110,7 +143,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          persist-credentials: false
 
       - uses: pnpm/action-setup@v4
         with:
@@ -136,6 +169,7 @@ jobs:
           retention-days: 30
 
   build-win:
+    needs: preflight
     if: github.event_name != 'workflow_dispatch' || inputs.build_win == true
     name: Windows x64
     runs-on: windows-2022
@@ -143,7 +177,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          persist-credentials: false
 
       - uses: pnpm/action-setup@v4
         with:
@@ -169,16 +203,19 @@ jobs:
           retention-days: 30
 
   publish:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     name: Create release
-    needs: [build-linux, build-mac, build-win]
+    needs: [preflight, build-linux, build-mac, build-win]
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
           # gh release create --verify-tag 要用 git 本地核对 tag 对象；job 默认不 checkout，
           # 目录里没有 .git 会直接 fatal。fetch-depth 0 同时拉全所有 tag。
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Collect artifacts
         uses: actions/download-artifact@v4
@@ -186,13 +223,45 @@ jobs:
           path: release-assets
           merge-multiple: true
 
+      - name: Validate installer set
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          VERSION="${VERSION#v}"
+          assets=()
+          for arch in x64 arm64; do
+            for ext in AppImage deb rpm pkg.tar.zst; do
+              asset="release-assets/ZCode-${VERSION}-linux-${arch}.${ext}"
+              test -s "$asset" || { echo "Missing Linux installer: $asset" >&2; exit 1; }
+              assets+=("$asset")
+            done
+          done
+          for arch in x64 arm64; do
+            for ext in dmg zip; do
+              asset="release-assets/ZCode-${VERSION}-mac-${arch}.${ext}"
+              test -s "$asset" || { echo "Missing macOS installer: $asset" >&2; exit 1; }
+              assets+=("$asset")
+            done
+          done
+          asset="release-assets/ZCode-${VERSION}-win-x64.exe"
+          test -s "$asset" || { echo "Missing Windows installer: $asset" >&2; exit 1; }
+          assets+=("$asset")
+          printf '%s\n' "${assets[@]}" > release-assets/installers.txt
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          VERSION="${GITHUB_REF_NAME#v}"
-          gh release create "$VERSION" release-assets/* \
-            --title "$VERSION" \
-            --generate-notes \
-            --verify-tag
+          VERSION="${VERSION#v}"
+          mapfile -t assets < release-assets/installers.txt
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
+              --title "$VERSION" \
+              --generate-notes \
+              --verify-tag
+          fi
