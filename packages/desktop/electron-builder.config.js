@@ -233,7 +233,8 @@ const PACKAGING_PRUNE_PATTERNS = [
 
 function buildDesktopArtifactName(platformName, extension = "${ext}") {
   // 测试环境产物必须和正式安装包文件名区分，避免上传、下载或人工验收时混用。
-  return `\${productName}-\${version}-${platformName}-\${arch}${desktopArtifactEnvSuffix}.${extension}`;
+  // Electron Builder 的 Linux 各 target 会把 ${arch} 展开成不同别名，产物名必须使用显式解析的目标架构。
+  return `\${productName}-\${version}-${platformName}-${targetPlatform.arch}${desktopArtifactEnvSuffix}.${extension}`;
 }
 
 function runAsarCommand(args) {
