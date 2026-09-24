@@ -267,9 +267,8 @@ function extractExecuteResultText(output: unknown): string | null {
 
 export function ExecuteToolCallBlock(context: ToolCallBlockRenderContext) {
   const { intl } = useZCodeIntl();
-  const { toolCallNode, isRunning, statusLabel, errorText, isOfficeMode = false } = context;
+  const { toolCallNode, isRunning, statusLabel, errorText } = context;
   const { toolCall } = toolCallNode;
-  const secondaryText = getExecuteSecondaryText(toolCall.input);
   const contentParts = getExecuteContentParts(toolCall.input);
   const outputText = extractExecuteResultText(toolCall.output);
   const rawOutputText = isPlainRecord(toolCall.raw)
@@ -288,12 +287,6 @@ export function ExecuteToolCallBlock(context: ToolCallBlockRenderContext) {
   }, [isRunning, toolCall.raw]);
   const failureVisibleText =
     toolCall.status === "failed" ? (errorText ?? resultText ?? undefined) : undefined;
-  const secondaryTextNode = useMemo(
-    // 收起态 command 属于摘要正文，使用 UI sans 与同一行文案保持一致；
-    // 展开后的完整命令仍保留 font-mono，便于阅读和复制技术内容。
-    () => <code className="truncate font-sans">{secondaryText}</code>,
-    [secondaryText],
-  );
   const renderContent = useCallback(
     () => (
       <div className="space-y-3 mb-2 rounded-xl border border-border bg-panel px-4 py-3">
@@ -333,47 +326,35 @@ export function ExecuteToolCallBlock(context: ToolCallBlockRenderContext) {
         toolId={toolCall.toolId}
         icon={EXECUTE_TOOL_ICON}
         showIcon={context.showIcon !== false}
-        canToggle={!isOfficeMode && (context.canToggle ?? true)}
-        forceOpen={!isOfficeMode && (context.forceOpen ?? false)}
+        canToggle={context.canToggle ?? true}
+        forceOpen={context.forceOpen ?? false}
         hideSecondaryTextWhenOpen
         kindLabel={
-          (isOfficeMode
-            ? intl.formatMessage({
-                id: isRunning
-                  ? "chat.toolCall.execute.running"
-                  : "chat.toolCall.execute.conciseCompleted",
-              })
-            : context.kindLabelOverride) ??
+          context.kindLabelOverride ??
           intl.formatMessage({
-            id: isRunning ? "chat.toolCall.execute.running" : "chat.toolCall.kind.terminal",
+            id: isRunning
+              ? "chat.toolCall.execute.running"
+              : "chat.toolCall.execute.conciseCompleted",
           })
         }
         sourceLabel={context.sourceLabel}
-        primaryText={
-          isOfficeMode || secondaryText
-            ? null
-            : (toolCall.title ??
-              toolCall.kind ??
-              intl.formatMessage({ id: "chat.toolCall.execute.execute" }))
-        }
-        secondaryText={isOfficeMode ? undefined : secondaryTextNode}
+        primaryText={null}
+        secondaryText={undefined}
         statusLabel={statusLabel}
-        statusTooltip={isOfficeMode ? undefined : failureVisibleText}
+        statusTooltip={failureVisibleText}
         showFailureStatus={toolCall.status === "failed"}
         isRunning={isRunning}
-        title={isOfficeMode ? undefined : toolCall.title}
+        title={undefined}
         renderContent={renderContent}
       />
-      {!isOfficeMode ? (
-        <ToolSnapshotFieldNotice
-          refs={toolCall.snapshotRefs ?? []}
-          onLoadFullToolCallFields={
-            context.onLoadFullToolCallFields
-              ? () => context.onLoadFullToolCallFields?.(toolCall.toolId)
-              : undefined
-          }
-        />
-      ) : null}
+      <ToolSnapshotFieldNotice
+        refs={toolCall.snapshotRefs ?? []}
+        onLoadFullToolCallFields={
+          context.onLoadFullToolCallFields
+            ? () => context.onLoadFullToolCallFields?.(toolCall.toolId)
+            : undefined
+        }
+      />
       {/* <pre className="text-[8px]">{JSON.stringify(toolCall, null, 2)}</pre> */}
     </>
   );

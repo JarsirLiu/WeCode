@@ -1914,7 +1914,7 @@ const zhCN: Record<string, string> = {
   "settings.interfaceMode.coding": "编程模式",
   "settings.interfaceMode.description":
     "办公模式侧重操作摘要与结果；编程模式显示命令、输出和代码变更详情。",
-  "chat.toolCall.execute.conciseCompleted": "已运行命令",
+  "chat.toolCall.execute.conciseCompleted": "运行了命令",
   "chat.contextOptimization.started": "正在优化对话",
   "chat.contextOptimization.skipped": "无需优化对话",
   "chat.contextOptimization.interrupted": "已停止优化对话",
