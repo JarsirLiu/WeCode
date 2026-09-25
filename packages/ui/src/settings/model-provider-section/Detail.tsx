@@ -391,6 +391,16 @@ export function ModelProviderSectionDetail({
   }, [selectedItemKey]);
 
   if (!selectedNavItem) {
+    if (navigationItems.length === 0) {
+      // 套餐模块关闭后导航项可能被过滤干净，没有任何可选项；这不是加载态，必须给明确空态。
+      return (
+        <div className="rounded-2xl bg-background/50 p-4">
+          <div className="text-ui-base text-foreground-subtle">
+            {intl.formatMessage({ id: "settings.modelProvider.noAvailableProviders" })}
+          </div>
+        </div>
+      );
+    }
     return <ModelProviderLoadingCard loadingLabel={loadingLabel} />;
   }
 

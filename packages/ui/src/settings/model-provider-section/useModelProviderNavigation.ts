@@ -23,6 +23,10 @@ import {
 } from "@/settings/model-provider-section/constants.js";
 import { pickCodingPlanEntitlementProvider } from "@/lib/codingPlanProvider.js";
 import {
+  isPlanModuleSurfaceVisible,
+  type PlanModuleCatalogState,
+} from "@/hooks/usePlanModuleCatalogState.js";
+import {
   createCodingPlanProviderNodeKey,
   createCustomProviderNodeKey,
   createPresetProviderNodeKey,
@@ -51,6 +55,8 @@ interface UseModelProviderNavigationOptions {
   modelProvidersLoading?: boolean;
   displayOrder?: ProviderOrderView;
   codingPlanEntitlements?: Partial<Record<string, CodingPlanEntitlementState>>;
+  /** 套餐模块 catalog 状态；查询中或模块关闭时过滤对应导航项。 */
+  planModuleCatalog?: PlanModuleCatalogState | null;
   providerFamilyDomain?: ProviderFamilyDomain | null;
   connectionSelections?: ProviderFamilyConnectionSelectionSettings;
   pendingConnectionSelections?: ProviderFamilyConnectionSelectionSettings;
@@ -70,6 +76,7 @@ export function useModelProviderNavigation({
   modelProvidersLoading = false,
   displayOrder,
   codingPlanEntitlements = {},
+  planModuleCatalog,
   providerFamilyDomain = null,
   connectionSelections = {},
   pendingConnectionSelections = {},
@@ -91,8 +98,11 @@ export function useModelProviderNavigation({
 
   const codingPlanItems = useMemo(
     () =>
-      CODING_PLAN_PROVIDER_SPECS.filter((spec) =>
-        shouldShowCodingPlanForProviderFamilyDomain(spec.oauthProviderId, providerFamilyDomain),
+      CODING_PLAN_PROVIDER_SPECS.filter(
+        (spec) =>
+          shouldShowCodingPlanForProviderFamilyDomain(spec.oauthProviderId, providerFamilyDomain) &&
+          // 模块关闭时不展示其导航项；团队项由个人套餐项派生，随这里一起消失。
+          isPlanModuleSurfaceVisible(planModuleCatalog, spec.id),
       ).map((spec) => {
         const provider = modelProviders.find((item) => item.providerId === spec.id) ?? null;
         const accountEntitled = entitledAccountProviderIds.has(spec.id);
@@ -147,6 +157,7 @@ export function useModelProviderNavigation({
       intl,
       modelProviders,
       modelProvidersLoading,
+      planModuleCatalog,
       providerFamilyDomain,
     ],
   );
@@ -183,30 +194,33 @@ export function useModelProviderNavigation({
         id: "preset",
         title: intl.formatMessage({ id: "settings.modelProvider.presetTitle" }),
         items: [
-          ...presetProviders.map(({ id, displayName, provider }) => {
-            const statusProvider = resolvePresetFamilyStatusProvider({
-              presetId: id,
-              provider,
-              connectionModeItems: connectionModeCodingPlanItems,
-              connectionSelections,
-              modelProviders,
-            });
-            return {
-              key: createPresetProviderNodeKey(id),
-              type: "preset" as const,
-              presetId: id,
-              label: displayName,
-              logo: modelProviders.find(
-                (candidate) =>
-                  candidate.providerId ===
-                  resolveModelProviderFamilySpecByProviderId(id)?.individualCodingPlanProviderId,
-              )?.config.logo,
-              provider,
-              displayName,
-              statusProvider,
-              statusActive: statusProvider?.executable === true,
-            };
-          }),
+          // 预置品牌入口沿用其 Start Plan provider ID，模块关闭时品牌入口一起隐藏。
+          ...presetProviders
+            .filter(({ id }) => isPlanModuleSurfaceVisible(planModuleCatalog, id))
+            .map(({ id, displayName, provider }) => {
+              const statusProvider = resolvePresetFamilyStatusProvider({
+                presetId: id,
+                provider,
+                connectionModeItems: connectionModeCodingPlanItems,
+                connectionSelections,
+                modelProviders,
+              });
+              return {
+                key: createPresetProviderNodeKey(id),
+                type: "preset" as const,
+                presetId: id,
+                label: displayName,
+                logo: modelProviders.find(
+                  (candidate) =>
+                    candidate.providerId ===
+                    resolveModelProviderFamilySpecByProviderId(id)?.individualCodingPlanProviderId,
+                )?.config.logo,
+                provider,
+                displayName,
+                statusProvider,
+                statusActive: statusProvider?.executable === true,
+              };
+            }),
           ...codingPlanItems.filter((item) => isStartPlanModelProviderId(item.presetId)),
         ],
       },
@@ -233,6 +247,7 @@ export function useModelProviderNavigation({
     intl,
     connectionSelections,
     pendingConnectionSelections,
+    planModuleCatalog,
     presetProviders,
     modelProviders,
   ]);

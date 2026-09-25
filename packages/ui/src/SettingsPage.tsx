@@ -30,6 +30,10 @@ import { toast } from "@/components/ui/toast.js";
 import { DesktopWindowFrame } from "@/DesktopWindowFrame.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
+import {
+  isPlanModuleSurfaceVisible,
+  usePlanModuleCatalogState,
+} from "@/hooks/usePlanModuleCatalogState.js";
 import { getPathLeaf } from "@/lib/path.js";
 import { useProviderSettingsView } from "@/hooks/useProviderSettingsView.js";
 import { useUsageEntitlement } from "@/hooks/useUsageEntitlement.js";
@@ -349,6 +353,8 @@ export function SettingsPage({
   const setNotificationEnabled = useZCodeStore((state) => state.setNotificationEnabled);
   const notificationSoundEnabled = useZCodeStore((state) => state.notificationSoundEnabled);
   const setNotificationSoundEnabled = useZCodeStore((state) => state.setNotificationSoundEnabled);
+  // 使用统计页的 Coding Plan 来源是套餐模块的 UI 投影：模块关闭时来源整体隐藏。
+  const planModuleCatalog = usePlanModuleCatalogState();
   const usageProviderSettingsRead = useProviderSettingsView();
   const usageProviderSettingsView =
     usageProviderSettingsRead.state.status === "ready"
@@ -526,8 +532,11 @@ export function SettingsPage({
     [usageProviderSettingsView, usageSubscribedTeamProducts],
   );
   const usageCodingPlanSources = useMemo(
-    () => [...usagePersonalCodingPlanSources, ...usageTeamCodingPlanSources],
-    [usagePersonalCodingPlanSources, usageTeamCodingPlanSources],
+    () =>
+      [...usagePersonalCodingPlanSources, ...usageTeamCodingPlanSources].filter((source) =>
+        isPlanModuleSurfaceVisible(planModuleCatalog, source.providerId),
+      ),
+    [planModuleCatalog, usagePersonalCodingPlanSources, usageTeamCodingPlanSources],
   );
   const selectedUsageCodingPlanSourceId =
     usageActiveTab === "codingPlan"

@@ -24,6 +24,7 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { Button } from "@/components/ui/button.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { useModelProviders } from "@/hooks/useModelProviders.js";
+import { usePlanModuleCatalogState } from "@/hooks/usePlanModuleCatalogState.js";
 import { resolveEntitledAccountProviderAccess } from "@/lib/accountProviderAccess.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useServices } from "@/hooks/useServices.js";
@@ -679,6 +680,7 @@ export function ModelProviderSection({
     };
   }, [presetSubscriptionProviderId]);
 
+  const planModuleCatalog = usePlanModuleCatalogState();
   const { navigationGroups, navigationItems, selectedNavItem, navigationUnavailable } =
     useModelProviderNavigation({
       presetProviders,
@@ -687,6 +689,7 @@ export function ModelProviderSection({
       modelProvidersLoading: loading,
       displayOrder,
       codingPlanEntitlements,
+      planModuleCatalog,
       subscribedTeamProducts,
       providerFamilyDomain: effectiveProviderFamilyDomain,
       connectionSelections: effectiveConnectionSelections,

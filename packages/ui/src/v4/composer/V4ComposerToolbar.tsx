@@ -64,6 +64,10 @@ import {
 import { useTabStore } from "@/store/TabStoreProvider.js";
 import type { ModelSelectionView } from "@zcode/services";
 import type { ModelSelectionState } from "@/hooks/useModelSelectionView.js";
+import {
+  isPlanModuleSurfaceVisible,
+  usePlanModuleCatalogState,
+} from "@/hooks/usePlanModuleCatalogState.js";
 import { useProviderSettingsView } from "@/hooks/useProviderSettingsView.js";
 import { useSettings } from "@/hooks/useSettingService.js";
 import {
@@ -477,6 +481,8 @@ function V4ComposerModelControlsImpl({
     [openSettingsTab],
   );
 
+  // 套餐余额/用量面板是套餐模块的 UI 投影，跟随模块 catalog 生命周期隐藏。
+  const planModuleCatalog = usePlanModuleCatalogState();
   const contextPlanConnection = useMemo(
     () =>
       resolveV4ContextPlanConnection({
@@ -497,6 +503,10 @@ function V4ComposerModelControlsImpl({
   );
   const contextStartPlanBalanceConfig = useMemo<ChatStartPlanBalanceConfig | undefined>(() => {
     if (contextPlanConnection.kind !== "start") {
+      return undefined;
+    }
+    // Start Plan 模块 catalog 关闭时余额面板随生命周期一起隐藏；查询中先隐藏避免闪现。
+    if (!isPlanModuleSurfaceVisible(planModuleCatalog, contextPlanConnection.providerId)) {
       return undefined;
     }
     const entitlement = entitlements[contextPlanConnection.providerId];
@@ -526,6 +536,7 @@ function V4ComposerModelControlsImpl({
     enabledStartPlanProviderIds,
     entitlements,
     handleOpenStartPlanUpgrade,
+    planModuleCatalog,
     providerSourcesLoading,
     refreshCodingPlanEntitlements,
   ]);
@@ -693,6 +704,14 @@ function V4ComposerModelControlsImpl({
     if (contextPlanConnection.kind !== "personalCoding" && !contextCodingPlanUsageTeamSource) {
       return undefined;
     }
+    // 用量面板挂在套餐 provider 上；对应模块 catalog 关闭时面板一起隐藏。
+    const usageProviderId =
+      contextPlanConnection.kind === "personalCoding"
+        ? contextPlanConnection.providerId
+        : contextCodingPlanUsageTeamSource?.providerId;
+    if (!usageProviderId || !isPlanModuleSurfaceVisible(planModuleCatalog, usageProviderId)) {
+      return undefined;
+    }
     return {
       availableProviders: contextCodingPlanUsageProviders,
       entitlements: codingPlanUsageEntitlements,
@@ -706,9 +725,10 @@ function V4ComposerModelControlsImpl({
     contextCodingPlanUsageProviders,
     contextCodingPlanUsageSelectedSourceId,
     contextCodingPlanUsageTeamSource,
-    contextPlanConnection.kind,
+    contextPlanConnection,
     codingPlanUsageEntitlements,
     handleUsageClick,
+    planModuleCatalog,
     providerSourcesLoading,
     refreshTaskEntitlements,
   ]);

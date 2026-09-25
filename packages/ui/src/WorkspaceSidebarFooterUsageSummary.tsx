@@ -15,6 +15,10 @@ import {
   type CodingPlanUsageAvailableProvider,
 } from "@/CodingPlanUsageRemainingPanel.js";
 import { useProviderSettingsView } from "@/hooks/useProviderSettingsView.js";
+import {
+  hasAnyPlanModuleSurfaceVisible,
+  usePlanModuleCatalogState,
+} from "@/hooks/usePlanModuleCatalogState.js";
 import { useUsageEntitlement } from "@/hooks/useUsageEntitlement.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useSettings } from "@/hooks/useSettingService.js";
@@ -93,6 +97,9 @@ export function useWorkspaceSidebarFooterUsageSummaryState({
   workspacePath?: string;
 }) {
   const { settings: sharedSettings } = useSettings();
+  // 套餐徽标与升级入口是套餐模块的 UI 投影：全部模块关闭时整体隐藏。
+  const planModuleCatalog = usePlanModuleCatalogState();
+  const planModulesVisible = hasAnyPlanModuleSurfaceVisible(planModuleCatalog);
   const providerFamilyDomain = normalizeProviderFamilyDomain(sharedSettings?.providerFamilyDomain);
   const providerSettingsRead = useProviderSettingsView();
   const providerSettingsView =
@@ -402,6 +409,7 @@ export function useWorkspaceSidebarFooterUsageSummaryState({
   return {
     audience: currentUsageSource?.audience,
     availableCodingPlanProviders,
+    planModulesVisible,
     providerSourcesLoading,
     providerEntitlements,
     profilePlanBadge,
@@ -436,6 +444,11 @@ export function WorkspaceSidebarFooterUsageSummaryContent({
   const upgradeActionLabelId = isMaxCodingPlanSnapshot(upgradeProviderSnapshot)
     ? "sidebar.usage.plan.renew"
     : "sidebar.usage.plan.upgrade";
+
+  if (!state.planModulesVisible) {
+    // 套餐模块全部关闭：使用统计与升级入口一起隐藏，连分隔线也不再出现。
+    return null;
+  }
 
   return (
     <>
@@ -487,6 +500,10 @@ export function WorkspaceSidebarFooterPlanBadge({
   state: WorkspaceSidebarFooterUsageSummaryState;
 }) {
   const { intl } = useZCodeIntl();
+  if (!state.planModulesVisible) {
+    // 套餐模块全部关闭时不展示头像旁的套餐徽标。
+    return null;
+  }
   const label =
     state.profilePlanBadge?.audience === "team"
       ? intl.formatMessage({ id: "sidebar.usage.plan.audienceTeam" })
