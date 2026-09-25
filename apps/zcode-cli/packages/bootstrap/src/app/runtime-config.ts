@@ -117,6 +117,11 @@ export function resolveAppRuntimeConfig(input: {
     options.runtimeConfig?.subagents?.builtInModelSelectionOverrides ?? {};
   const runtimeConfig: AgentRuntimeConfig = {
     ...options.runtimeConfig,
+    compact: {
+      promptVersion:
+        options.runtimeConfig?.compact?.promptVersion ?? configResult.config.compact.promptVersion,
+      ...options.runtimeConfig?.compact,
+    },
     bashTimeoutPolicy:
       options.runtimeConfig?.bashTimeoutPolicy ??
       resolveBashTimeoutPolicy(options.env ?? process.env),

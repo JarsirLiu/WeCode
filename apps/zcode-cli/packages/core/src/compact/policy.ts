@@ -14,6 +14,7 @@ export const DEFAULT_AUTOCOMPACT_THRESHOLD_PERCENT = 100;
 export const MAX_CONSECUTIVE_AUTOCOMPACT_FAILURES = 3;
 
 export interface AutoCompactPolicyConfig {
+  promptVersion?: "v1" | "v2";
   enabled?: boolean;
   contextWindow?: number;
   maxOutputTokens?: number;

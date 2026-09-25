@@ -108,12 +108,68 @@ When summarizing the conversation focus on typescript code changes and also reme
 When you are using compact - please focus on test output and code changes. Include file reads verbatim.
 </example>`;
 
-export function buildCompactPrompt(customInstructions: string | undefined): string {
+export type CompactPromptVersion = "v1" | "v2";
+
+const V2_COMPACT_PROMPT = `You are performing a CONTEXT CHECKPOINT COMPACTION. Create a handoff summary for another LLM that will resume the task.
+
+The previous compaction summary, if present in the conversation above, is the authoritative baseline for stable facts. Copy every still-valid stable entry verbatim. Do not silently paraphrase, shorten, normalize, or replace it. Only update a stable entry when newer explicit evidence appears; record the old value and the new evidence under Superseded Information.
+
+Return exactly one outer <summary>...</summary> block and no other XML wrapper. Do not put any unique fact only in hidden reasoning. Do not call tools and do not reproduce full source files or full tool output.
+
+Use this exact structure:
+
+<summary>
+## Stable User Preferences
+- Preserve exact user preferences, prohibitions, security constraints, and explicit instructions. Quote user wording when it matters.
+
+## Stable Project References
+- Preserve exact absolute paths, URLs, repository names, branch names, and reference projects. Never replace a path or URL with a nickname, relative path, or phrase such as "the project".
+
+## Stable Environment Facts
+- Preserve exact confirmed OS, workspace, runtime, configuration keys, protocol identifiers, and other facts needed to continue. Mark unknown values as UNVERIFIED.
+
+## Active Requirements and Acceptance Criteria
+- Preserve the current requested outcome, scope boundaries, and acceptance criteria. Do not turn optional suggestions into requested work.
+
+## Decisions and Architectural Constraints
+- Record decisions that remain in force, their rationale, and boundaries that must not be crossed.
+
+## Current Progress
+- Record concrete changes, files, symbols, commands, and the current point of work. Prefer path plus symbol plus behavior over copied source.
+
+## Verification
+- Record exact validation commands and their results. Distinguish passed, failed, skipped, and not run.
+
+## Open Issues and Unverified Assumptions
+- Record unresolved questions and label every unconfirmed fact UNVERIFIED. Never guess missing paths, versions, or results.
+
+## Superseded Information
+- Record explicit changes as old value -> new value and include the evidence or user instruction that caused the change. Do not present superseded decisions as active.
+
+## Explicit Next Action
+- State only the work explicitly requested or already in progress. If there is no explicit next action, write "None".
+</summary>
+
+Preservation rules:
+- Stable User Preferences, Stable Project References, and Stable Environment Facts are a compact ledger: deduplicate them, keep one canonical line per fact, and never drop them to make room for background detail.
+- If the previous summary and current workspace or system context disagree, current verified workspace/system facts win; record the correction instead of silently changing history.
+- Preserve exact spelling, casing, punctuation, drive letters, and path separators for paths, URLs, identifiers, and configuration keys.
+- Summarize completed exploration instead of carrying it forward. Spend the remaining budget on active constraints, decisions, verification, and open issues.
+- Do not list every historical user message. Preserve the effective requirement and quote the original wording only when necessary to prevent ambiguity.
+- The summary is a handoff record, not a transcript. The next model must continue the explicit task without asking for confirmation or starting optional follow-up work.`;
+
+export function buildCompactPrompt(
+  customInstructions: string | undefined,
+  version: CompactPromptVersion = "v2",
+): string {
+  const basePrompt = version === "v2" ? V2_COMPACT_PROMPT : BASE_COMPACT_PROMPT;
   const customInstructionBlock = customInstructions?.trim()
-    ? `\n\nAdditional Instructions:\n${customInstructions}`
+    ? version === "v2"
+      ? `\n\nAdditional Instructions (supplement the required format; do not override preservation rules):\n${customInstructions}`
+      : `\n\nAdditional Instructions:\n${customInstructions}`
     : "";
 
-  return `${NO_TOOLS_PREAMBLE}${BASE_COMPACT_PROMPT}${customInstructionBlock}${NO_TOOLS_TRAILER}`;
+  return `${NO_TOOLS_PREAMBLE}${basePrompt}${customInstructionBlock}${NO_TOOLS_TRAILER}`;
 }
 
 export function formatCompactSummary(text: string | undefined): string {

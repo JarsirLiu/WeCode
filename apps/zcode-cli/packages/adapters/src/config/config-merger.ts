@@ -48,6 +48,9 @@ export function mergeConfigs(...configs: PrioritizedConfig[]): RuntimeConfigPatc
     if (config.modelStream) {
       result.modelStream = { ...result.modelStream, ...config.modelStream };
     }
+    if (config.compact) {
+      result.compact = { ...result.compact, ...config.compact };
+    }
     if (config.permission) {
       result.permission = { ...result.permission, ...config.permission };
     }

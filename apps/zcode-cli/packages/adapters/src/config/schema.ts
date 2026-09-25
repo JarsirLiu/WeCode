@@ -10,6 +10,10 @@ const modelStreamSchema = z.object({
   idleTimeoutMs: positiveNumberSchema.optional(),
 });
 
+const compactSchema = z.object({
+  promptVersion: z.enum(["v1", "v2"]).optional(),
+});
+
 const permissionSchema = z.object({
   mode: z.enum(["plan", "build", "edit", "yolo", "auto"]).optional(),
   allowedTools: z.array(z.string()).optional(),
@@ -287,6 +291,7 @@ export const ZCodeConfigFileSchema = z
   .object({
     $schema: z.string().optional(),
     modelStream: modelStreamSchema.optional(),
+    compact: compactSchema.optional(),
     permission: permissionSchema.optional(),
     storage: storageSchema.optional(),
     network: networkSchema.optional(),
@@ -398,6 +403,7 @@ export function parseConfigFileToRuntimePatchWithDiagnostics(
 function parsedConfigFileToRuntimePatch(parsed: ZCodeConfigFile): RuntimeConfigPatch {
   const config: RuntimeConfigPatch = {};
   if (parsed.modelStream) config.modelStream = parsed.modelStream;
+  if (parsed.compact) config.compact = parsed.compact;
 
   if (parsed.permission) config.permission = parsed.permission;
   if (parsed.storage) config.storage = parsed.storage;

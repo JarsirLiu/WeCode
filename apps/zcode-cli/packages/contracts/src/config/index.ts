@@ -29,6 +29,9 @@ export const ConfigKey = {
   CaCertFile: "network.caCertFile",
   HttpTimeout: "network.timeout",
 
+  // Compact
+  CompactPromptVersion: "compact.promptVersion",
+
   // Features
   FeatureCompact: "features.compact",
   FeatureRewind: "features.rewind",
@@ -87,7 +90,9 @@ export type ConfigKey = (typeof ConfigKey)[keyof typeof ConfigKey];
 
 export type ConfigValue<K extends ConfigKey> = K extends "modelStream.idleTimeoutMs"
   ? number
-  : K extends "permission.mode"
+  : K extends "compact.promptVersion"
+    ? "v1" | "v2"
+    : K extends "permission.mode"
     ? CollaborationMode
     : K extends "permission.allowedTools" | "permission.disallowedTools"
       ? string[]
@@ -201,6 +206,9 @@ export interface SkillCommandOverride {
 
 export interface RuntimeConfig {
   modelStream: ModelStreamConfig;
+  compact: {
+    promptVersion: "v1" | "v2";
+  };
   permission: {
     mode: CollaborationMode;
     allowedTools: string[];
@@ -259,6 +267,7 @@ export interface RuntimeConfig {
 
 export interface RuntimeConfigPatch {
   modelStream?: Partial<ModelStreamConfig>;
+  compact?: Partial<RuntimeConfig["compact"]>;
   permission?: Partial<RuntimeConfig["permission"]>;
   storage?: Partial<RuntimeConfig["storage"]>;
   network?: Partial<RuntimeConfig["network"]>;
@@ -290,6 +299,9 @@ export interface ModelStreamConfig {
 export const DefaultRuntimeConfig: RuntimeConfig = {
   modelStream: {
     idleTimeoutMs: DEFAULT_MODEL_STREAM_IDLE_TIMEOUT_MS,
+  },
+  compact: {
+    promptVersion: "v2",
   },
   permission: {
     mode: "build",

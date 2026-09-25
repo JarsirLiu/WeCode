@@ -21,7 +21,7 @@ Navigation map from capability to code. For a deep dive into one module, run `pn
 | web | — | 16 | packages/web/src | — | — |
 | desktop | — | 265 | packages/desktop/src | out/main/index.js | [card](../packages/desktop/README.md) |
 | formal-proof | — | 2 | packages/formal-proof/src | ./src/model.ts | [card](../packages/formal-proof/README.md) |
-| zcode-cli | — | 1404 | apps/zcode-cli | — | [card](../apps/zcode-cli/README.md) |
+| zcode-cli | — | 1406 | apps/zcode-cli | — | [card](../apps/zcode-cli/README.md) |
 
 ## Coverage
 
