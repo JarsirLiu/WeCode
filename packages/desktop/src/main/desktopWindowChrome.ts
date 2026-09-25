@@ -1,5 +1,6 @@
 /* eslint-disable max-lines -- 桌面窗口 chrome、webview 安全策略和 popup 路由共享同一 BrowserWindow 生命周期上下文。 */
 import { app, BrowserWindow, Menu, nativeImage, nativeTheme, screen, shell } from "electron";
+import { registerWindowForCaptureProtection } from "./windowCaptureProtection.js";
 import { join } from "node:path";
 import type {
   ContextMenuParams,
@@ -592,6 +593,7 @@ export function createBrowserWindow(options: {
       additionalArguments: [`--device-id=${options.deviceMid ?? ""}`],
     },
   });
+  registerWindowForCaptureProtection(win);
 
   // 缩放命令原本只改当前运行窗口，没有在重启后恢复。
   // 创建窗口时由 main 进程先应用 setting.json 中的桌面缩放档位，同时覆盖 Chromium 可能残留的 per-host zoom。

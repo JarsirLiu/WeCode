@@ -279,8 +279,8 @@ export function SettingsPage({
   captionWorkspacePath,
   onBack,
   onCreateTask,
-  _onOpenWorkspace,
-  _allowOpenWorkspace = true,
+  onOpenWorkspace: _onOpenWorkspace,
+  allowOpenWorkspace: _allowOpenWorkspace = true,
   onLogin,
   onLogout,
   user,
@@ -710,6 +710,7 @@ export function SettingsPage({
   const [taskAutoArchiveEnabled, setTaskAutoArchiveEnabled] = useState(false);
   const [taskAutoArchiveOlderThanDays, setTaskAutoArchiveOlderThanDays] = useState(7);
   const [closeToTrayOnWindows, setCloseToTrayOnWindows] = useState(true);
+  const [stealthModeEnabled, setStealthModeEnabled] = useState(false);
   const [
     desktopChromiumHardwareAccelerationEnabled,
     setDesktopChromiumHardwareAccelerationEnabled,
@@ -795,6 +796,7 @@ export function SettingsPage({
         setTaskAutoArchiveEnabled(settings.taskAutoArchiveEnabled ?? false);
         setTaskAutoArchiveOlderThanDays(settings.taskAutoArchiveOlderThanDays ?? 7);
         setCloseToTrayOnWindows(settings.closeToTrayOnWindows ?? true);
+        setStealthModeEnabled(settings.stealthModeEnabled ?? false);
         setDesktopChromiumHardwareAccelerationEnabled(
           settings.desktopChromiumHardwareAccelerationEnabled ?? true,
         );
@@ -1086,6 +1088,23 @@ export function SettingsPage({
       setCloseToTrayOnWindows(enabled);
     },
     [services.settingService, platform],
+  );
+  const handleStealthModeEnabledChange = useCallback(
+    async (enabled: boolean) => {
+      await runSettingsActionAsync({
+        featureId: "settings.desktop",
+        action: "toggle_stealth_mode",
+        trigger: "switch",
+        operation: () => services.settingService.update({ stealthModeEnabled: enabled }),
+        completed: {
+          resultSource: "setting_service",
+          stateAfter: enabled ? "enabled" : "disabled",
+        },
+      });
+      platform.syncAppSettings?.({ stealthModeEnabled: enabled });
+      setStealthModeEnabled(enabled);
+    },
+    [platform, services.settingService],
   );
   // keep-awake：走 useSettings 统一写盘 + syncAppSettings，和 Automations/创建页入口共享同一状态源。
   const handleKeepAwakeWhileRunningChange = useCallback(
@@ -1674,6 +1693,7 @@ export function SettingsPage({
                             notificationSoundEnabled={notificationSoundEnabled}
                             closeToTrayOnWindows={closeToTrayOnWindows}
                             keepAwakeWhileRunning={sharedSettings?.keepAwakeWhileRunning ?? false}
+                            stealthModeEnabled={stealthModeEnabled}
                             desktopChromiumHardwareAccelerationEnabled={
                               desktopChromiumHardwareAccelerationEnabled
                             }
@@ -1755,6 +1775,7 @@ export function SettingsPage({
                             }
                             onCloseToTrayOnWindowsChange={handleCloseToTrayOnWindowsChange}
                             onKeepAwakeWhileRunningChange={handleKeepAwakeWhileRunningChange}
+                            onStealthModeEnabledChange={handleStealthModeEnabledChange}
                             onDesktopChromiumHardwareAccelerationChange={
                               handleDesktopChromiumHardwareAccelerationChange
                             }

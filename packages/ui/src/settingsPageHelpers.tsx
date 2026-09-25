@@ -53,6 +53,7 @@ export function GeneralSectionContent({
   notificationSoundEnabled,
   closeToTrayOnWindows,
   keepAwakeWhileRunning = false,
+  stealthModeEnabled = false,
   desktopChromiumHardwareAccelerationEnabled = true,
   receivePreviewUpdates,
   autoDownloadAndInstallUpdates,
@@ -95,6 +96,7 @@ export function GeneralSectionContent({
   onTaskAutoArchiveOlderThanDaysChange,
   onCloseToTrayOnWindowsChange,
   onKeepAwakeWhileRunningChange = async () => {},
+  onStealthModeEnabledChange = async () => {},
   onDesktopChromiumHardwareAccelerationChange = async () => {},
   onReceivePreviewUpdatesChange,
   onAutoDownloadAndInstallUpdatesChange,
@@ -115,6 +117,7 @@ export function GeneralSectionContent({
   notificationSoundEnabled: boolean;
   closeToTrayOnWindows: boolean;
   keepAwakeWhileRunning?: boolean;
+  stealthModeEnabled?: boolean;
   desktopChromiumHardwareAccelerationEnabled?: boolean;
   receivePreviewUpdates: boolean;
   autoDownloadAndInstallUpdates: boolean;
@@ -158,6 +161,7 @@ export function GeneralSectionContent({
   onTaskAutoArchiveOlderThanDaysChange: (days: number) => Promise<void>;
   onCloseToTrayOnWindowsChange: (enabled: boolean) => Promise<void>;
   onKeepAwakeWhileRunningChange?: (enabled: boolean) => Promise<void>;
+  onStealthModeEnabledChange?: (enabled: boolean) => Promise<void>;
   onDesktopChromiumHardwareAccelerationChange?: (enabled: boolean) => Promise<void>;
   onReceivePreviewUpdatesChange: (enabled: boolean) => Promise<void>;
   onAutoDownloadAndInstallUpdatesChange: (enabled: boolean) => Promise<void>;
@@ -348,6 +352,21 @@ export function GeneralSectionContent({
           }
         />
         {hasServices ? <ProactiveSuggestionsSetting /> : null}
+        {isDesktop ? (
+          <SettingsRow
+            label={intl.formatMessage({ id: "settings.stealthModeEnabled" })}
+            description={intl.formatMessage({ id: "settings.stealthModeEnabledDescription" })}
+            control={
+              <Switch
+                aria-label={intl.formatMessage({ id: "settings.stealthModeEnabled" })}
+                checked={stealthModeEnabled}
+                onCheckedChange={(checked) => {
+                  void onStealthModeEnabledChange(checked);
+                }}
+              />
+            }
+          />
+        ) : null}
       </SettingsGroupCard>
 
       <SettingsGroupCard>

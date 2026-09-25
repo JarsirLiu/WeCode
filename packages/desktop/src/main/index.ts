@@ -36,6 +36,7 @@ import {
   app,
   BrowserWindow,
   dialog,
+  globalShortcut,
   ipcMain,
   nativeImage,
   net,
@@ -81,6 +82,13 @@ import {
   HostMessageTypes,
 } from "@zcode/shared";
 import { logger } from "./logger.js";
+import {
+  configureWindowCaptureProtection,
+  getWindowCaptureProtectionEnabled,
+  registerWindowForCaptureProtection,
+  setWindowCaptureProtectionEnabled,
+} from "./windowCaptureProtection.js";
+import { registerSummonShortcut, unregisterSummonShortcut } from "./desktopSummonShortcut.js";
 import { markMainLaunchAppReady } from "./desktopLaunchMarks.js";
 import { createCuaPipFocusRouter, resolveCuaPipWindowKey } from "./cuaPipFocusRouter.js";
 import { createDesktopTelemetryFetch } from "./desktopTelemetryFetch.js";
@@ -131,7 +139,11 @@ import { resolveWindowsAppUserModelIdForFlavor } from "../../scripts/desktop-pro
 import type { DesktopWindowSize } from "./desktopWindowSize.js";
 import { maybeWarnArchitectureMismatch } from "./desktopArchitectureGuard.js";
 import { maybeBlockStartupForForceUpdate } from "./forceUpdateGuard.js";
-import { createWindowsDesktopTray, updateWindowsDesktopTrayMenu } from "./desktopTray.js";
+import {
+  createWindowsDesktopTray,
+  setWindowsDesktopTrayVisible,
+  updateWindowsDesktopTrayMenu,
+} from "./desktopTray.js";
 import { createWindowsCuaOperationIndicator } from "./windowsCuaOperationIndicator.js";
 import {
   configureDockMenu,
@@ -940,6 +952,10 @@ function syncCloseToTrayOnWindows(value: unknown) {
 function syncImmediateAppSettings(patch: Partial<AppSettings>) {
   syncCloseToTrayOnWindows(patch.closeToTrayOnWindows);
 
+  if (typeof patch.stealthModeEnabled === "boolean") {
+    setWindowCaptureProtectionEnabled(patch.stealthModeEnabled);
+  }
+
   if (typeof patch.keepAwakeWhileRunning === "boolean") {
     keepAwakeWhileRunning = patch.keepAwakeWhileRunning;
     reconcileKeepAwakeBlocker();
@@ -1583,6 +1599,7 @@ function openUpdateStatusWindow() {
       additionalArguments: [`--device-id=${deviceMid}`],
     },
   });
+  registerWindowForCaptureProtection(win);
   // 更新窗口要保留系统窗口控件，但不能允许缩放或全屏。
   // 构造参数之外再显式锁定一次，避免不同平台对标题栏控件能力的默认处理不一致。
   win.setResizable(false);
@@ -1917,6 +1934,22 @@ app.on("second-instance", (_event, argv, _workingDirectory, additionalData) => {
 });
 
 app.whenReady().then(async () => {
+  // 隐身模式开启时销毁 Windows 托盘：托盘图标属于系统桌面区域，会被截图和屏幕分享捕获。
+  // 关闭隐身模式后重建托盘，恢复正常的右键菜单和唤起入口。
+  configureWindowCaptureProtection({
+    logger,
+    onEnabledChanged: (enabled) => setWindowsDesktopTrayVisible(!enabled),
+  });
+  // 全局召唤快捷键是隐身模式的找回入口：隐身会把任务栏条目和托盘一起隐藏。
+  // 复用 primaryWindowCoordinator，避免新增第二条窗口可见性路径；冲突只告警不重试。
+  registerSummonShortcut({
+    accelerator: "CommandOrControl+Alt+Z",
+    summon: () => {
+      void primaryWindowCoordinator.ensurePrimaryWindow("global-summon-shortcut");
+    },
+    shortcut: globalShortcut,
+    logger,
+  });
   markMainLaunchAppReady();
   installLocalMediaPreviewProtocol(session.defaultSession.protocol, {
     isPathAuthorized: localMediaPreviewPathRegistry.isAuthorized,
@@ -1939,6 +1972,7 @@ app.whenReady().then(async () => {
       currentApplicationLocale = bootstrapSettings.locale;
     }
     closeToTrayOnWindows = bootstrapSettings.closeToTrayOnWindows ?? true;
+    setWindowCaptureProtectionEnabled(bootstrapSettings.stealthModeEnabled ?? false);
     keepAwakeWhileRunning = bootstrapSettings.keepAwakeWhileRunning ?? false;
     currentDesktopZoomLevel = clampDesktopZoomLevel(bootstrapSettings.desktopZoomLevel ?? 0);
     currentDesktopWindowSize = bootstrapSettings.desktopWindowSize;
@@ -2037,17 +2071,21 @@ app.whenReady().then(async () => {
       ),
     () => showCurrentWindowFromDock(primaryWindowCoordinator),
   );
-  createWindowsDesktopTray({
-    getLocale: () => currentApplicationLocale,
-    showCurrentWindow: () =>
-      primaryWindowCoordinator.ensurePrimaryWindow("tray-show-current-window"),
-    executeDesktopCommand: executeDesktopCommandForApp,
-    quitApp: () => {
-      markExplicitQuit("tray-quit");
-      app.quit();
+  // 启动时若隐身模式已开启，不创建托盘，避免托盘图标出现在截图/屏幕分享中。
+  createWindowsDesktopTray(
+    {
+      getLocale: () => currentApplicationLocale,
+      showCurrentWindow: () =>
+        primaryWindowCoordinator.ensurePrimaryWindow("tray-show-current-window"),
+      executeDesktopCommand: executeDesktopCommandForApp,
+      quitApp: () => {
+        markExplicitQuit("tray-quit");
+        app.quit();
+      },
+      logger,
     },
-    logger,
-  });
+    !getWindowCaptureProtectionEnabled(),
+  );
 
   registerPlatformIpcHandlers({
     fetchHelpConfig: readHelpConfig,
@@ -2329,6 +2367,9 @@ app.on("window-all-closed", () => {
   app.quit();
 });
 app.on("before-quit", (event) => {
+  // 退出前注销全局快捷键，避免 WeCode 退出后快捷键仍被占用；
+  // 被确认框取消的退出不影响重新触发（注销是幂等的）。
+  unregisterSummonShortcut();
   // Windows 最后窗口关闭会在 close 阶段提前确认并标记 forceQuit；
   // macOS 的 Cmd+Q / 菜单退出不会走该窗口关闭确认，必须在 before-quit 保留应用级确认兜底。
   if (!forceQuitRef.current && shouldConfirmAppQuit() && !confirmAppQuit()) {

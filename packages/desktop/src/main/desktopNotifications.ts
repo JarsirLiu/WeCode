@@ -2,6 +2,7 @@ import { app, BrowserWindow, Notification } from "electron";
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron";
 import type { TaskNotificationPayload } from "@zcode/shared";
 import { formatZodError, PlatformChannels, taskNotificationPayloadSchema } from "@zcode/shared";
+import { getWindowCaptureProtectionEnabled } from "./windowCaptureProtection.js";
 
 const TASK_NOTIFICATION_DEDUPE_WINDOW_MS = 3000;
 const MAX_ACTIVE_TASK_NOTIFICATIONS = 100;
@@ -88,6 +89,10 @@ export function dispatchTaskNotification(options: {
   const result = taskNotificationPayloadSchema.safeParse(options.payload);
   if (!result.success) {
     options.logger.warn("[show-task-notification] invalid payload:", formatZodError(result.error));
+    return false;
+  }
+
+  if (getWindowCaptureProtectionEnabled()) {
     return false;
   }
 

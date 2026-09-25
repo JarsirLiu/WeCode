@@ -9,8 +9,17 @@ import {
   type Locale,
 } from "@zcode/shared";
 
+type WindowsDesktopTrayOptions = {
+  getLocale: () => Locale;
+  showCurrentWindow: () => Promise<void> | void;
+  executeDesktopCommand: (command: DesktopCommandId) => Promise<unknown>;
+  quitApp: () => void;
+  logger: { warn: (...args: unknown[]) => void };
+};
+
 let desktopTray: Tray | null = null;
 let rebuildDesktopTrayContextMenu: (() => void) | null = null;
+let desktopTrayOptions: WindowsDesktopTrayOptions | null = null;
 
 function resolveDesktopTrayIconPath() {
   return app.isPackaged
@@ -18,14 +27,9 @@ function resolveDesktopTrayIconPath() {
     : join(import.meta.dirname, "../../build/icon.ico");
 }
 
-export function createWindowsDesktopTray(options: {
-  getLocale: () => Locale;
-  showCurrentWindow: () => Promise<void> | void;
-  executeDesktopCommand: (command: DesktopCommandId) => Promise<unknown>;
-  quitApp: () => void;
-  logger: { warn: (...args: unknown[]) => void };
-}) {
-  if (process.platform !== "win32") {
+export function createWindowsDesktopTray(options: WindowsDesktopTrayOptions, visible = true) {
+  desktopTrayOptions = options;
+  if (process.platform !== "win32" || !visible) {
     return null;
   }
 
@@ -108,4 +112,18 @@ export function createWindowsDesktopTray(options: {
 
 export function updateWindowsDesktopTrayMenu() {
   rebuildDesktopTrayContextMenu?.();
+}
+
+export function setWindowsDesktopTrayVisible(visible: boolean): void {
+  if (process.platform !== "win32") return;
+
+  if (!visible) {
+    desktopTray?.destroy();
+    desktopTray = null;
+    return;
+  }
+
+  if (!desktopTray && desktopTrayOptions) {
+    createWindowsDesktopTray(desktopTrayOptions);
+  }
 }

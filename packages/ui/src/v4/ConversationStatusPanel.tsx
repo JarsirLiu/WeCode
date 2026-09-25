@@ -1721,7 +1721,7 @@ function ConversationStatusPanelImpl({
   endedSubagentCount = 0,
   rootSessionId,
   parentSessionId,
-  _isMobileViewport = false,
+  isMobileViewport: _isMobileViewport = false,
   layoutMode = "none",
   summaryPanelVariantOverride,
   onVariantChange,

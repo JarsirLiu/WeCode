@@ -2239,6 +2239,9 @@ const enUS: Record<string, string> = {
   "settings.keepAwakeWhileRunning": "Keep computer running",
   "settings.keepAwakeWhileRunningDescription":
     "Prevent the system from sleeping due to idle. You can still sleep manually or by closing the lid. Desktop only.",
+  "settings.stealthModeEnabled": "Stealth mode",
+  "settings.stealthModeEnabledDescription":
+    "Desktop only. Works with supported capture methods; not all scenarios are fully hidden.",
   "settings.messageStreamShowReasoning": "Show reasoning",
   "settings.messageStreamShowReasoningDescription":
     "Show full reasoning inside the message stream. When off, the first reasoning item in each turn remains visible.",
