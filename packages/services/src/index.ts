@@ -237,6 +237,11 @@ export {
   type OffPeakClientConfig,
 } from "./coding-plan-subscription/codingPlanSubscription.js";
 export {
+  createPlanModuleRegistry,
+  type PlanModuleRegistry,
+  type PlanModuleRegistryOptions,
+} from "./coding-plan-subscription/planModuleRegistry.js";
+export {
   IClientScenesService,
   type ClientSceneConfig,
   type ClientSceneItem,

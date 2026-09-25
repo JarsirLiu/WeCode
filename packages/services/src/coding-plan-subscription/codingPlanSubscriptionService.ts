@@ -1,14 +1,22 @@
-import type { ApiClient } from "@zcode/shared";
+import {
+  PLAN_MODULE_IDS,
+  type ApiClient,
+} from "@zcode/shared";
 import type { ICredentialService } from "../credential/credential.js";
 import type { ICodingPlanSubscriptionService } from "./codingPlanSubscription.js";
 import { BigModelCodingPlanSubscriptionProvider } from "./bigmodelCodingPlanSubscriptionProvider.js";
 import type { ModelSelectionView } from "@zcode/provider";
 import { ZaiCodingPlanSubscriptionProvider } from "./zaiCodingPlanSubscriptionProvider.js";
+import {
+  createPlanModuleRegistry,
+  type PlanModuleRegistry,
+} from "./planModuleRegistry.js";
 
 interface CodingPlanSubscriptionServiceDependencies {
   apiClient: ApiClient;
   credentialService: Pick<ICredentialService, "load">;
   resolveOffPeakModelSelectionView?: () => Promise<ModelSelectionView>;
+  planModuleRegistry?: PlanModuleRegistry;
 }
 
 /**
@@ -30,6 +38,7 @@ export function createCodingPlanSubscriptionService(
 ): ICodingPlanSubscriptionService {
   const bigmodelProvider = new BigModelCodingPlanSubscriptionProvider(dependencies);
   const zaiProvider = new ZaiCodingPlanSubscriptionProvider(dependencies);
+  const planModuleRegistry = dependencies.planModuleRegistry ?? createPlanModuleRegistry();
 
   // 按 family 选择 enterprise 读路径 provider；缺省（含未指定 family 的历史调用）走 bigmodel。
   const resolveEnterprisePricingProvider = (
@@ -40,7 +49,10 @@ export function createCodingPlanSubscriptionService(
     batchPreview: (request) => bigmodelProvider.batchPreview(request),
     getStaticProducts: () => bigmodelProvider.getStaticProducts(),
     getStaticTeamProducts: () => bigmodelProvider.getStaticTeamProducts(),
-    getStartPlanPreview: () => bigmodelProvider.getStartPlanPreview(),
+    getStartPlanPreview: () =>
+      planModuleRegistry.isCatalogEnabled(PLAN_MODULE_IDS.bigmodelStartPlan)
+        ? bigmodelProvider.getStartPlanPreview()
+        : Promise.resolve(null),
     getOffPeakClientConfig: (options) => bigmodelProvider.getOffPeakClientConfig(options),
     // 动态工作流灰度：与 client/configs 同源，
     // 因此和其它平台级配置一样固定走 bigmodel provider，与 family 无关。
