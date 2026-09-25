@@ -1,6 +1,7 @@
 import {
-  PLAN_MODULE_IDS,
+  isStartPlanModelProviderId,
   type ApiClient,
+  type CodingPlanSubscriptionProviderId,
 } from "@zcode/shared";
 import type { ICredentialService } from "../credential/credential.js";
 import type { ICodingPlanSubscriptionService } from "./codingPlanSubscription.js";
@@ -9,6 +10,7 @@ import type { ModelSelectionView } from "@zcode/provider";
 import { ZaiCodingPlanSubscriptionProvider } from "./zaiCodingPlanSubscriptionProvider.js";
 import {
   createPlanModuleRegistry,
+  isPlanModuleCatalogEnabledForProvider,
   type PlanModuleRegistry,
 } from "./planModuleRegistry.js";
 
@@ -44,15 +46,23 @@ export function createCodingPlanSubscriptionService(
   const resolveEnterprisePricingProvider = (
     family?: "bigmodel" | "zai",
   ): BigModelCodingPlanSubscriptionProvider => (family === "zai" ? zaiProvider : bigmodelProvider);
+  const isCatalogEnabledForProvider = (providerId?: CodingPlanSubscriptionProviderId): boolean =>
+    isPlanModuleCatalogEnabledForProvider(planModuleRegistry, providerId);
 
   return {
     batchPreview: (request) => bigmodelProvider.batchPreview(request),
-    getStaticProducts: () => bigmodelProvider.getStaticProducts(),
+    getStaticProducts: (options) =>
+      isCatalogEnabledForProvider(options?.providerId)
+        ? bigmodelProvider.getStaticProducts()
+        : Promise.resolve({}),
     getStaticTeamProducts: () => bigmodelProvider.getStaticTeamProducts(),
-    getStartPlanPreview: () =>
-      planModuleRegistry.isCatalogEnabled(PLAN_MODULE_IDS.bigmodelStartPlan)
+    getStartPlanPreview: (options) =>
+      options &&
+      isStartPlanModelProviderId(options.providerId) &&
+      isCatalogEnabledForProvider(options.providerId)
         ? bigmodelProvider.getStartPlanPreview()
         : Promise.resolve(null),
+    isPlanModuleCatalogEnabled: async (providerId) => isCatalogEnabledForProvider(providerId),
     getOffPeakClientConfig: (options) => bigmodelProvider.getOffPeakClientConfig(options),
     // 动态工作流灰度：与 client/configs 同源，
     // 因此和其它平台级配置一样固定走 bigmodel provider，与 family 无关。

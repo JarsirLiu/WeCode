@@ -1,5 +1,6 @@
 import {
   getBuiltinPlanModuleIds,
+  resolvePlanModuleIdByProviderId,
   type PlanModuleId,
   type PlanModuleLifecycle,
 } from "@zcode/shared";
@@ -44,4 +45,22 @@ export function createPlanModuleRegistry(
     isCatalogEnabled,
     isRuntimeEnabled,
   });
+}
+
+/**
+ * 判断某个模型 provider 当前是否允许加载套餐目录（catalog）。
+ *
+ * 这是 catalog 门禁的唯一判定入口，供 subscription service 与测试共用：
+ * - 未携带 providerId（历史兼容调用）→ 放行，保持既有行为；
+ * - providerId 不属于任何内置套餐模块（如 openai-api）→ 放行，门禁只约束套餐模块；
+ * - 命中已注册模块 → 仅 enabled 生命周期放行，catalog-disabled/runtime-disabled/retired 一律关闭；
+ * - 任何未知模块 ID 在 registry 侧即 fail-closed。
+ */
+export function isPlanModuleCatalogEnabledForProvider(
+  registry: PlanModuleRegistry,
+  providerId?: string,
+): boolean {
+  if (!providerId) return true;
+  const moduleId = resolvePlanModuleIdByProviderId(providerId);
+  return moduleId === null || registry.isCatalogEnabled(moduleId);
 }

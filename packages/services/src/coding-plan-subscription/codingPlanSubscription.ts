@@ -17,6 +17,7 @@ import type {
   CodingPlanProductInfoRequest,
   CodingPlanStaticProductsConfig,
   CodingPlanStaticTeamProductsConfig,
+  CodingPlanSubscriptionProviderId,
   CodingPlanPreviewRequest,
   CodingPlanPreviewResponse,
   CodingPlanStripeBindRequest,
@@ -57,9 +58,14 @@ export interface OffPeakClientConfig {
 
 export interface ICodingPlanSubscriptionService {
   batchPreview(request?: CodingPlanBatchPreviewRequest): Promise<CodingPlanBatchPreviewResponse>;
-  getStaticProducts(): Promise<CodingPlanStaticProductsConfig>;
+  getStaticProducts(options?: {
+    providerId?: CodingPlanSubscriptionProviderId;
+  }): Promise<CodingPlanStaticProductsConfig>;
   getStaticTeamProducts(): Promise<CodingPlanStaticTeamProductsConfig>;
-  getStartPlanPreview(): Promise<StartPlanPreviewConfig | null>;
+  getStartPlanPreview(options: {
+    providerId: CodingPlanSubscriptionProviderId;
+  }): Promise<StartPlanPreviewConfig | null>;
+  isPlanModuleCatalogEnabled(providerId: CodingPlanSubscriptionProviderId): Promise<boolean>;
   /** 闲时任务灰度配置：forceRefresh 供入口打开时补拉（绕过 1h 快照缓存）。 */
   getOffPeakClientConfig(options?: { forceRefresh?: boolean }): Promise<OffPeakClientConfig>;
   /**

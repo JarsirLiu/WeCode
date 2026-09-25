@@ -329,6 +329,7 @@ export function CodingPlanStatusPanel({
   const startPlanCardVisible =
     startPlanPreviewVisible && disconnectedStartPlanPricingVisible && !upgradePlansVisible;
   const startPlanPreview = useStartPlanPreview({
+    providerId,
     enabled: startPlanCardVisible,
   });
   const shouldShowBigModelRegistrationHint =

@@ -238,6 +238,7 @@ export {
 } from "./coding-plan-subscription/codingPlanSubscription.js";
 export {
   createPlanModuleRegistry,
+  isPlanModuleCatalogEnabledForProvider,
   type PlanModuleRegistry,
   type PlanModuleRegistryOptions,
 } from "./coding-plan-subscription/planModuleRegistry.js";

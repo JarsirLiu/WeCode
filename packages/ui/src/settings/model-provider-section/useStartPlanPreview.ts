@@ -1,4 +1,4 @@
-import type { StartPlanPreviewConfig } from "@zcode/shared";
+import type { CodingPlanSubscriptionProviderId, StartPlanPreviewConfig } from "@zcode/shared";
 import { useCallback, useEffect, useState } from "react";
 import { useOptionalServices } from "@/hooks/useServices.js";
 import { logger } from "@/logger.js";
@@ -11,23 +11,33 @@ interface StartPlanPreviewState {
 }
 
 const START_PLAN_PREVIEW_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-let previewCache: { preview: StartPlanPreviewConfig | null; expiresAt: number } | null = null;
-let previewRequest: Promise<StartPlanPreviewConfig | null> | null = null;
+const previewCache = new Map<
+  CodingPlanSubscriptionProviderId,
+  { preview: StartPlanPreviewConfig | null; expiresAt: number }
+>();
+const previewRequest = new Map<
+  CodingPlanSubscriptionProviderId,
+  Promise<StartPlanPreviewConfig | null>
+>();
 
-export function useStartPlanPreview(options?: { enabled?: boolean }) {
+export function useStartPlanPreview(options: {
+  providerId: CodingPlanSubscriptionProviderId;
+  enabled?: boolean;
+}) {
   const services = useOptionalServices();
   const service = services?.codingPlanSubscriptionService;
-  const enabled = options?.enabled !== false;
+  const enabled = options.enabled !== false;
   const [state, setState] = useState<StartPlanPreviewState>({
-    preview: previewCache?.preview ?? null,
-    loading: enabled && Boolean(service) && !previewCache,
+    // cache 只有重新通过 catalog gate 后才能进入 state，避免关闭模块时闪现旧 preview。
+    preview: null,
+    loading: enabled && Boolean(service),
     error: null,
   });
 
   const refresh = useCallback(async () => {
     if (!enabled) {
       setState({
-        preview: previewCache?.preview ?? null,
+        preview: previewCache.get(options.providerId)?.preview ?? null,
         loading: false,
         error: null,
       });
@@ -42,14 +52,15 @@ export function useStartPlanPreview(options?: { enabled?: boolean }) {
       return;
     }
 
-    setState((current) => ({
-      preview: current.preview,
+    setState({
+      // gate 重新确认完成前不显示旧缓存，避免模块关闭后短暂暴露旧 preview。
+      preview: null,
       loading: true,
       error: null,
-    }));
+    });
 
     try {
-      const preview = await loadStartPlanPreview(service);
+      const preview = await loadStartPlanPreview(service, options.providerId);
       setState({
         preview,
         loading: false,
@@ -68,7 +79,7 @@ export function useStartPlanPreview(options?: { enabled?: boolean }) {
         error: message,
       });
     }
-  }, [enabled, service]);
+  }, [enabled, options.providerId, service]);
 
   useEffect(() => {
     void refresh();
@@ -82,25 +93,44 @@ export function useStartPlanPreview(options?: { enabled?: boolean }) {
 
 async function loadStartPlanPreview(
   service: NonNullable<ReturnType<typeof useOptionalServices>>["codingPlanSubscriptionService"],
+  providerId: CodingPlanSubscriptionProviderId,
 ): Promise<StartPlanPreviewConfig | null> {
   const now = Date.now();
-  if (previewCache && previewCache.expiresAt > now) {
-    return previewCache.preview;
+  if (typeof service.isPlanModuleCatalogEnabled === "function") {
+    // 缓存命中前重新检查生命周期，避免模块关闭后继续展示旧 preview。
+    if (!(await service.isPlanModuleCatalogEnabled(providerId))) {
+      previewCache.delete(providerId);
+      return null;
+    }
   }
-  if (previewRequest) {
-    return previewRequest;
+  const cached = previewCache.get(providerId);
+  if (cached && cached.expiresAt > now) {
+    return cached.preview;
+  }
+  const pending = previewRequest.get(providerId);
+  if (pending) {
+    return pending;
   }
 
-  // 远端配置一天内变化频率低，未登录设置页可能反复挂载，合并请求避免重复打 client/configs。
-  previewRequest = service.getStartPlanPreview();
+  // 预览缓存按 provider 隔离，避免一个 Start 模块的结果绕过另一个模块的 catalog 关闭状态。
+  const request = service.getStartPlanPreview({ providerId });
+  previewRequest.set(providerId, request);
   try {
-    const preview = await previewRequest;
-    previewCache = {
-      preview,
-      expiresAt: now + START_PLAN_PREVIEW_CACHE_TTL_MS,
-    };
+    const preview = await request;
+    // 修复：catalog 关闭时 service 返回 null；null 不能写入 24h 缓存，
+    // 否则关闭状态会被固化，模块重新启用后缓存仍宣称"已加载且为空"。
+    if (preview !== null) {
+      previewCache.set(providerId, {
+        preview,
+        expiresAt: now + START_PLAN_PREVIEW_CACHE_TTL_MS,
+      });
+    } else {
+      previewCache.delete(providerId);
+    }
     return preview;
   } finally {
-    previewRequest = null;
+    if (previewRequest.get(providerId) === request) {
+      previewRequest.delete(providerId);
+    }
   }
 }

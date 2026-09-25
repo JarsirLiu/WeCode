@@ -43,11 +43,11 @@ const productSnapshotCache = new Map<
   { snapshot: CodingPlanProductsSnapshot; expiresAt: number }
 >();
 const productCacheGeneration = new Map<string, number>();
-let staticProductsConfigCache: {
-  config: CodingPlanStaticProductsConfig;
-  expiresAt: number;
-} | null = null;
-let staticProductsConfigRequest: Promise<CodingPlanStaticProductsConfig> | null = null;
+const staticProductsConfigCache = new Map<
+  string,
+  { config: CodingPlanStaticProductsConfig; expiresAt: number }
+>();
+const staticProductsConfigRequest = new Map<string, Promise<CodingPlanStaticProductsConfig>>();
 
 export function useCodingPlanProducts(
   providerId: CodingPlanProviderId,
@@ -162,6 +162,13 @@ async function loadCodingPlanProductsForTest(
   const generation = force
     ? invalidateCodingPlanProductsCache(providerId)
     : (productCacheGeneration.get(providerId) ?? 0);
+  if (typeof service.isPlanModuleCatalogEnabled === "function") {
+    // 动态产品快照也必须先过生命周期门禁，不能让短 TTL 缓存绕过模块关闭。
+    if (!(await service.isPlanModuleCatalogEnabled(providerId))) {
+      productSnapshotCache.delete(providerId);
+      return buildStaticProductsSnapshotFromList(providerId, []);
+    }
+  }
   const cachedSnapshot = productSnapshotCache.get(providerId);
   if (!force && cachedSnapshot && cachedSnapshot.expiresAt > now) {
     return cachedSnapshot.snapshot;
@@ -367,7 +374,7 @@ async function loadCodingPlanStaticProductListForTest(
   service: NonNullable<ReturnType<typeof useOptionalServices>>["codingPlanSubscriptionService"],
 ): Promise<CodingPlanStaticProduct[]> {
   try {
-    const config = await loadCodingPlanStaticProductsConfig(service);
+    const config = await loadCodingPlanStaticProductsConfig(providerId, service);
     // 套餐描述由远端 client/configs 统一维护，前端不能再按 Lite/Pro/Max 写死覆盖，
     // 否则远端更新后设置页仍展示旧文案。
     const remoteProducts = config[providerId] ?? [];
@@ -380,7 +387,7 @@ async function loadCodingPlanStaticProductListForTest(
 
     const startPlanPreview =
       typeof service.getStartPlanPreview === "function"
-        ? await service.getStartPlanPreview()
+        ? await service.getStartPlanPreview({ providerId })
         : null;
     if (!startPlanPreview) {
       // 体验套餐是否存在由 client/configs.startPlanPreview 决定。
@@ -419,34 +426,51 @@ function filterCodingPlanPurchaseProducts<
 }
 
 async function loadCodingPlanStaticProductsConfig(
+  providerId: CodingPlanProviderId,
   service: NonNullable<ReturnType<typeof useOptionalServices>>["codingPlanSubscriptionService"],
 ): Promise<CodingPlanStaticProductsConfig> {
   const now = Date.now();
-  if (staticProductsConfigCache && staticProductsConfigCache.expiresAt > now) {
-    return staticProductsConfigCache.config;
+  const cacheKey = providerId;
+  if (typeof service.isPlanModuleCatalogEnabled === "function") {
+    // 缓存命中前重新检查生命周期，避免模块先启用后关闭时继续展示旧目录。
+    if (!(await service.isPlanModuleCatalogEnabled(providerId))) {
+      staticProductsConfigCache.delete(cacheKey);
+      return {};
+    }
   }
-  if (staticProductsConfigRequest) {
-    return staticProductsConfigRequest;
+  const cached = staticProductsConfigCache.get(cacheKey);
+  if (cached && cached.expiresAt > now) {
+    return cached.config;
+  }
+  const pending = staticProductsConfigRequest.get(cacheKey);
+  if (pending) {
+    return pending;
   }
 
   if (typeof service.getStaticProducts !== "function") {
     return {};
   }
 
-  // 静态套餐来自远端 client/configs，但只有用户真正查看套餐列表时才需要请求；
-  // 这里做一天内存缓存和进行中请求合并，避免设置页重渲染或多个 provider 卡片重复拉配置。
-  const request = service.getStaticProducts();
-  staticProductsConfigRequest = request;
+  // 静态套餐缓存按目标 provider 隔离，避免一个 Start 模块的 catalog 结果绕过另一个模块的关闭状态。
+  const request = service.getStaticProducts({ providerId });
+  staticProductsConfigRequest.set(cacheKey, request);
   try {
     const config = await request;
-    staticProductsConfigCache = {
-      config,
-      expiresAt: now + CODING_PLAN_STATIC_PRODUCTS_CACHE_TTL_MS,
-    };
+    // 修复：catalog 关闭时 service 返回 {}；若把空目录写入 24h 缓存，
+    // 关闭状态会被缓存固化为"已加载"，后续再也无法反映模块重新启用的结果。
+    // 也只有真实加载到内容的目录才允许缓存。
+    if (Object.keys(config).length > 0) {
+      staticProductsConfigCache.set(cacheKey, {
+        config,
+        expiresAt: now + CODING_PLAN_STATIC_PRODUCTS_CACHE_TTL_MS,
+      });
+    } else {
+      staticProductsConfigCache.delete(cacheKey);
+    }
     return config;
   } finally {
-    if (staticProductsConfigRequest === request) {
-      staticProductsConfigRequest = null;
+    if (staticProductsConfigRequest.get(cacheKey) === request) {
+      staticProductsConfigRequest.delete(cacheKey);
     }
   }
 }

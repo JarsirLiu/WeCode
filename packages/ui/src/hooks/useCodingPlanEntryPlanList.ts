@@ -34,14 +34,40 @@ export function useCodingPlanEntryPlanList(): CodingPlanEntryInventory {
     user: typeof user;
     view: typeof providerSettingsView;
     sources: { token: string | null; products: EnterpriseCodingPlanPricingProduct[] | null }[];
+    catalogEnabled: Record<string, boolean | null> | null;
+    catalogReady: boolean;
     generation: number;
   } | null>(null);
   useEffect(() => {
     if (!providerSettingsView) return;
     let cancelled = false;
-    // 团队订阅以 authenticated pricing 为准，不用静态商品目录推断已购套餐。
+    const entryProviderIds = [
+      BUILTIN_MODEL_PROVIDER_IDS.bigmodelIndividualCodingPlan,
+      BUILTIN_MODEL_PROVIDER_IDS.zaiIndividualCodingPlan,
+      BUILTIN_MODEL_PROVIDER_IDS.bigmodelStartPlan,
+      BUILTIN_MODEL_PROVIDER_IDS.zaiStartPlan,
+    ] as const;
+    // 团队订阅以 authenticated pricing/customer 项目快照为准，不用静态商品目录推断已购套餐。
     void Promise.all([
       refresh({ force: true, silent: true }),
+      Promise.all(
+        entryProviderIds.map(async (providerId) => {
+          try {
+            return [
+              providerId,
+              await codingPlanSubscriptionService.isPlanModuleCatalogEnabled(providerId),
+            ] as const;
+          } catch (error) {
+            // 修复：catalog 状态查询失败 ≠ 模块已关闭。失败用 null 记录，
+            // 入口过滤对非 true 一律 fail-closed，绝不当作"模块可用"。
+            logger.warn("[purchaseTelemetry] 读取套餐模块 catalog 状态失败", {
+              providerId,
+              error,
+            });
+            return [providerId, null] as const;
+          }
+        }),
+      ),
       Promise.all(
         (["bigmodel", "zai"] as const).map(async (family) => {
           let token: string | null = null;
@@ -59,12 +85,14 @@ export function useCodingPlanEntryPlanList(): CodingPlanEntryInventory {
           }
         }),
       ),
-    ]).then(([, sources]) => {
+    ]).then(([, catalogEntries, sources]) => {
       if (!cancelled)
         setTeams((previous) => ({
           user,
           view: providerSettingsView,
           generation,
+          catalogEnabled: Object.fromEntries(catalogEntries),
+          catalogReady: catalogEntries.every(([, enabled]) => enabled !== null),
           sources: sources.map((source, index) => {
             // 刷新失败不等于未购；仅在账号、family 和凭据一致时复用成功结果。
             const cached = previous?.sources[index];
@@ -91,6 +119,7 @@ export function useCodingPlanEntryPlanList(): CodingPlanEntryInventory {
   ]);
   const sameIdentity = teams?.user === user && teams.view === providerSettingsView;
   const current = sameIdentity && teams.generation === generation;
+  const catalogReady = sameIdentity && teams.catalogReady;
   const usableTeams = sameIdentity && teams.sources.every((source) => source.products !== null);
   const planIds: readonly string[] = [
     BUILTIN_MODEL_PROVIDER_IDS.bigmodelIndividualCodingPlan,
@@ -98,10 +127,14 @@ export function useCodingPlanEntryPlanList(): CodingPlanEntryInventory {
     BUILTIN_MODEL_PROVIDER_IDS.bigmodelStartPlan,
     BUILTIN_MODEL_PROVIDER_IDS.zaiStartPlan,
   ];
-  // 账号模型没有 Personal API Key；沿用权益 hook 的只读 Access 判定，不能过滤未选中/禁用套餐。
+  // 账号模型没有 Personal API Key；只把 catalog 明确启用的模块纳入购买入口库存。
+  // fail-closed：catalog 状态缺失（未加载或查询失败的 null）一律不进入口，
+  // 只有显式 true 才视为可购买，避免查询失败被默认为"模块可用"。
   const required = planIds
-    .filter((providerId) =>
-      resolveAccountProviderInspectionAccess(providerSettingsView, providerId),
+    .filter(
+      (providerId) =>
+        teams?.catalogEnabled?.[providerId] === true &&
+        resolveAccountProviderInspectionAccess(providerSettingsView, providerId),
     )
     .map((providerId) => entitlements[providerId]);
   // 错误描述的是本次刷新，不能否定仍可用的历史快照（含成功确认未开通）。
@@ -114,7 +147,7 @@ export function useCodingPlanEntryPlanList(): CodingPlanEntryInventory {
     );
   });
   const pending = loading || !current || missing.some((item) => item?.loading);
-  const failed = !usableTeams || missing.length > 0;
+  const failed = !usableTeams || !catalogReady || missing.length > 0;
   const status =
     state.status === "error" ? "error" : pending ? "loading" : failed ? "error" : "ready";
   useEffect(() => {

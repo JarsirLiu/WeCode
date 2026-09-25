@@ -6,7 +6,10 @@ import {
   getBuiltinPlanModuleIds,
   resolvePlanModuleIdByProviderId,
 } from "@zcode/shared";
-import { createPlanModuleRegistry } from "../src/coding-plan-subscription/planModuleRegistry.js";
+import {
+  createPlanModuleRegistry,
+  isPlanModuleCatalogEnabledForProvider,
+} from "../src/coding-plan-subscription/planModuleRegistry.js";
 
 test("default registry enables every built-in plan module", () => {
   const registry = createPlanModuleRegistry();
@@ -92,4 +95,78 @@ test("registry does not retain a mutable lifecycle options object", () => {
 
   const { isRuntimeEnabled } = registry;
   assert.equal(isRuntimeEnabled(PLAN_MODULE_IDS.zaiStartPlan), true);
+});
+
+test("catalog gate closes only the targeted module", () => {
+  const registry = createPlanModuleRegistry({
+    lifecycles: {
+      [PLAN_MODULE_IDS.bigmodelStartPlan]: "catalog-disabled",
+    },
+  });
+
+  // 关闭 bigmodel Start：自身被拒；Z.ai Start 与两家个人/团队套餐不受影响。
+  assert.equal(
+    isPlanModuleCatalogEnabledForProvider(registry, BUILTIN_MODEL_PROVIDER_IDS.bigmodelStartPlan),
+    false,
+  );
+  assert.equal(
+    isPlanModuleCatalogEnabledForProvider(registry, BUILTIN_MODEL_PROVIDER_IDS.zaiStartPlan),
+    true,
+  );
+  assert.equal(
+    isPlanModuleCatalogEnabledForProvider(
+      registry,
+      BUILTIN_MODEL_PROVIDER_IDS.bigmodelIndividualCodingPlan,
+    ),
+    true,
+  );
+  assert.equal(
+    isPlanModuleCatalogEnabledForProvider(
+      registry,
+      BUILTIN_MODEL_PROVIDER_IDS.zaiIndividualCodingPlan,
+    ),
+    true,
+  );
+  assert.equal(
+    isPlanModuleCatalogEnabledForProvider(
+      registry,
+      BUILTIN_MODEL_PROVIDER_IDS.bigmodelTeamCodingPlan,
+    ),
+    true,
+  );
+});
+
+test("catalog gate treats catalog-disabled, runtime-disabled and retired as closed", () => {
+  const registry = createPlanModuleRegistry({
+    lifecycles: {
+      [PLAN_MODULE_IDS.zaiStartPlan]: "catalog-disabled",
+    },
+  });
+  assert.equal(
+    isPlanModuleCatalogEnabledForProvider(registry, BUILTIN_MODEL_PROVIDER_IDS.zaiStartPlan),
+    false,
+  );
+
+  const runtimeDisabled = createPlanModuleRegistry({
+    lifecycles: { [PLAN_MODULE_IDS.zaiStartPlan]: "runtime-disabled" },
+  });
+  assert.equal(
+    isPlanModuleCatalogEnabledForProvider(runtimeDisabled, BUILTIN_MODEL_PROVIDER_IDS.zaiStartPlan),
+    false,
+  );
+
+  const retired = createPlanModuleRegistry({
+    lifecycles: { [PLAN_MODULE_IDS.zaiStartPlan]: "retired" },
+  });
+  assert.equal(
+    isPlanModuleCatalogEnabledForProvider(retired, BUILTIN_MODEL_PROVIDER_IDS.zaiStartPlan),
+    false,
+  );
+});
+
+test("catalog gate bypasses non-plan providers and provider-less calls", () => {
+  // 默认注册表全启用；此处同时验证 未知 provider 与 空 providerId 的兼容放行路径。
+  const registry = createPlanModuleRegistry();
+  assert.equal(isPlanModuleCatalogEnabledForProvider(registry, undefined), true);
+  assert.equal(isPlanModuleCatalogEnabledForProvider(registry, "openai-api"), true);
 });
