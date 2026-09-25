@@ -20,6 +20,7 @@
 - 模块关闭默认采用 fail-closed 语义：不请求被关闭模块的远端 catalog、权益或额度接口，不暴露其模型，不解析其运行时凭据，不显示其购买入口。
 - 模块关闭、远端请求失败、未登录、没有权益、权益待生效、权益过期、额度耗尽、模型不在白名单和凭据不可用必须是可区分的规范化状态，不能依赖厂商错误文本或 UI 文案推断。
 - “当前未选中”不等于“没有权益”。选择状态、账号身份、权益状态、额度状态和运行时准入必须独立保存和判断。
+- 当前发布配置中，六个内置 Z.ai/BigModel 模块的默认生命周期均为 `catalog-disabled`，不加载、不展示其静态目录、预览、购买和激活入口。该默认值只关闭 catalog；runtime 生命周期必须继续由明确的后续策略和运行时门禁控制。
 
 ## 所有者与边界
 
@@ -34,14 +35,14 @@
 
 ## 能力门控
 
-| 生命周期 | catalog | identity | entitlement | quota | admission | billing |
-| --- | --- | --- | --- | --- | --- | --- |
-| `enabled` | 可用 | 按 adapter 策略 | 可查询 | 可查询 | 可授权 | 按模块支持情况可用 |
-| `catalog-disabled` | 禁止 | 可按 runtime 策略查询 | 可按 runtime 策略查询 | 可按 runtime 策略查询 | 仅在显式策略允许时可用 | 禁止购买/激活入口 |
-| `runtime-disabled` | 默认禁止 | 不得用于授权 | 禁止用于新请求 | 禁止刷新 | 禁止 | 禁止 |
-| `retired` | 禁止新展示 | 仅允许迁移读取 | 禁止新请求 | 禁止新请求 | 禁止 | 禁止 |
+| 生命周期           | catalog    | identity              | entitlement           | quota                 | admission              | billing            |
+| ------------------ | ---------- | --------------------- | --------------------- | --------------------- | ---------------------- | ------------------ |
+| `enabled`          | 可用       | 按 adapter 策略       | 可查询                | 可查询                | 可授权                 | 按模块支持情况可用 |
+| `catalog-disabled` | 禁止       | 可按 runtime 策略查询 | 可按 runtime 策略查询 | 可按 runtime 策略查询 | 仅在显式策略允许时可用 | 禁止购买/激活入口  |
+| `runtime-disabled` | 默认禁止   | 不得用于授权          | 禁止用于新请求        | 禁止刷新              | 禁止                   | 禁止               |
+| `retired`          | 禁止新展示 | 仅允许迁移读取        | 禁止新请求            | 禁止新请求            | 禁止                   | 禁止               |
 
-`catalog-disabled` 不得被解释成已授权或已撤销授权。若产品需要在隐藏 catalog 后保留已有用户访问，必须在模块策略中显式声明，并仍经过 runtime admission；默认实现采用关闭 catalog 和 runtime 的组合策略。
+`catalog-disabled` 不得被解释成已授权或已撤销授权。若产品需要在隐藏 catalog 后保留已有用户访问，必须在模块策略中显式声明，并仍经过 runtime admission；当前内置模块的默认 `catalog-disabled` 只关闭产品展示与购买入口，runtime 门禁由后续生命周期步骤单独控制。
 
 ## Start Plan 访问契约
 
@@ -88,8 +89,8 @@
 
 ## 验收场景
 
-1. 所有模块默认处于 `enabled` 时，现有个人、团队和 Start Plan catalog、权益、额度、模型投影和 runtime 行为不变。
-2. Start Plan 为 `catalog-disabled` 时，不发起其 preview/catalog 请求，不构造其静态产品，不显示其购买入口；个人和团队 Coding Plan 仍可加载和使用。
+1. 六个内置模块默认处于 `catalog-disabled` 时，不加载、不展示其静态目录、预览、购买和激活入口，且个人、团队和 Start Plan 之间互相隔离；runtime 行为不由该默认 catalog 状态推导。
+2. 任一内置模块为 `catalog-disabled` 时，不发起其 preview/catalog 请求，不构造其静态产品，不显示其购买入口；其他模块仍按自身生命周期独立判断。
 3. Start Plan 为 `runtime-disabled` 时，不发起其 entitlement/quota 刷新，不投影其模型，不解析其 JWT；旧缓存和旧 provider config 不能发起新请求。
 4. 未登录用户在 catalog 启用时可以看到 Start Plan preview，但调用 Start Plan 模型必然因缺少身份或 `zcodejwttoken` 被拒绝。
 5. 已登录但没有 active Start Plan entitlement 的用户不能使用 Start Plan 模型。

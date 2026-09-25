@@ -18,6 +18,7 @@ import type {
   CodingPlanStaticProductsConfig,
   CodingPlanStaticTeamProductsConfig,
   CodingPlanSubscriptionProviderId,
+  ProviderFamilyDomain,
   CodingPlanPreviewRequest,
   CodingPlanPreviewResponse,
   CodingPlanStripeBindRequest,
@@ -61,7 +62,9 @@ export interface ICodingPlanSubscriptionService {
   getStaticProducts(options?: {
     providerId?: CodingPlanSubscriptionProviderId;
   }): Promise<CodingPlanStaticProductsConfig>;
-  getStaticTeamProducts(): Promise<CodingPlanStaticTeamProductsConfig>;
+  getStaticTeamProducts(options?: {
+    family?: ProviderFamilyDomain;
+  }): Promise<CodingPlanStaticTeamProductsConfig>;
   getStartPlanPreview(options: {
     providerId: CodingPlanSubscriptionProviderId;
   }): Promise<StartPlanPreviewConfig | null>;

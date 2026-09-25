@@ -1,7 +1,9 @@
 import {
+  getModelProviderFamilySpec,
   isStartPlanModelProviderId,
   type ApiClient,
   type CodingPlanSubscriptionProviderId,
+  type ProviderFamilyDomain,
 } from "@zcode/shared";
 import type { ICredentialService } from "../credential/credential.js";
 import type { ICodingPlanSubscriptionService } from "./codingPlanSubscription.js";
@@ -48,6 +50,10 @@ export function createCodingPlanSubscriptionService(
   ): BigModelCodingPlanSubscriptionProvider => (family === "zai" ? zaiProvider : bigmodelProvider);
   const isCatalogEnabledForProvider = (providerId?: CodingPlanSubscriptionProviderId): boolean =>
     isPlanModuleCatalogEnabledForProvider(planModuleRegistry, providerId);
+  const isTeamCatalogEnabledForFamily = (family?: ProviderFamilyDomain): boolean =>
+    isCatalogEnabledForProvider(
+      getModelProviderFamilySpec(family ?? "bigmodel").teamCodingPlanProviderId,
+    );
 
   return {
     batchPreview: (request) => bigmodelProvider.batchPreview(request),
@@ -55,7 +61,10 @@ export function createCodingPlanSubscriptionService(
       isCatalogEnabledForProvider(options?.providerId)
         ? bigmodelProvider.getStaticProducts()
         : Promise.resolve({}),
-    getStaticTeamProducts: () => bigmodelProvider.getStaticTeamProducts(),
+    getStaticTeamProducts: (options) =>
+      isTeamCatalogEnabledForFamily(options?.family)
+        ? bigmodelProvider.getStaticTeamProducts()
+        : Promise.resolve({}),
     getStartPlanPreview: (options) =>
       options &&
       isStartPlanModelProviderId(options.providerId) &&

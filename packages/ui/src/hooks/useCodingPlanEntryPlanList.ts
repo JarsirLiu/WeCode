@@ -3,7 +3,11 @@ import { useProviderSettingsView } from "@/hooks/useProviderSettingsView.js";
 import { useServices } from "@/hooks/useServices.js";
 import { useZCodeStore } from "@/store/StoreProvider.js";
 import { useCodingPlanEntitlements } from "@/settings/model-provider-section/useCodingPlanEntitlements.js";
-import { BUILTIN_MODEL_PROVIDER_IDS, type EnterpriseCodingPlanPricingProduct } from "@zcode/shared";
+import {
+  BUILTIN_MODEL_PROVIDER_IDS,
+  getModelProviderFamilySpec,
+  type EnterpriseCodingPlanPricingProduct,
+} from "@zcode/shared";
 import { buildOwnedEntryPlanList } from "@/lib/codingPlanOwnedEntryPlans.js";
 import { resolveAccountProviderInspectionAccess } from "@/lib/accountProviderAccess.js";
 import { logger } from "@/logger.js";
@@ -46,6 +50,8 @@ export function useCodingPlanEntryPlanList(): CodingPlanEntryInventory {
       BUILTIN_MODEL_PROVIDER_IDS.zaiIndividualCodingPlan,
       BUILTIN_MODEL_PROVIDER_IDS.bigmodelStartPlan,
       BUILTIN_MODEL_PROVIDER_IDS.zaiStartPlan,
+      BUILTIN_MODEL_PROVIDER_IDS.bigmodelTeamCodingPlan,
+      BUILTIN_MODEL_PROVIDER_IDS.zaiTeamCodingPlan,
     ] as const;
     // 团队订阅以 authenticated pricing/customer 项目快照为准，不用静态商品目录推断已购套餐。
     void Promise.all([
@@ -72,6 +78,14 @@ export function useCodingPlanEntryPlanList(): CodingPlanEntryInventory {
         (["bigmodel", "zai"] as const).map(async (family) => {
           let token: string | null = null;
           try {
+            // catalog-disabled 是确定的关闭结果；不再查询团队 pricing 构造购买入口。
+            if (
+              !(await codingPlanSubscriptionService.isPlanModuleCatalogEnabled(
+                getModelProviderFamilySpec(family).teamCodingPlanProviderId,
+              ))
+            ) {
+              return { token: null, products: [] };
+            }
             token = (await credentialService.load(`oauth:${family}:access_token`))?.trim() || null;
             if (!token) return { token, products: [] };
             const result = await codingPlanSubscriptionService.getEnterprisePricing({

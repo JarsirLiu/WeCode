@@ -5,20 +5,22 @@ import {
   PLAN_MODULE_IDS,
   getBuiltinPlanModuleIds,
   resolvePlanModuleIdByProviderId,
+  type ApiClient,
 } from "@zcode/shared";
+import { createCodingPlanSubscriptionService } from "../src/coding-plan-subscription/codingPlanSubscriptionService.js";
 import {
   createPlanModuleRegistry,
   isPlanModuleCatalogEnabledForProvider,
 } from "../src/coding-plan-subscription/planModuleRegistry.js";
 
-test("default registry enables every built-in plan module", () => {
+test("default registry closes catalog for every built-in plan module", () => {
   const registry = createPlanModuleRegistry();
 
   for (const moduleId of getBuiltinPlanModuleIds()) {
     assert.equal(registry.isRegistered(moduleId), true);
-    assert.equal(registry.getLifecycle(moduleId), "enabled");
-    assert.equal(registry.isEnabled(moduleId), true);
-    assert.equal(registry.isCatalogEnabled(moduleId), true);
+    assert.equal(registry.getLifecycle(moduleId), "catalog-disabled");
+    assert.equal(registry.isEnabled(moduleId), false);
+    assert.equal(registry.isCatalogEnabled(moduleId), false);
     assert.equal(registry.isRuntimeEnabled(moduleId), true);
   }
 });
@@ -26,15 +28,15 @@ test("default registry enables every built-in plan module", () => {
 test("lifecycle overrides are isolated to the selected module", () => {
   const registry = createPlanModuleRegistry({
     lifecycles: {
-      [PLAN_MODULE_IDS.zaiStartPlan]: "catalog-disabled",
+      [PLAN_MODULE_IDS.zaiStartPlan]: "enabled",
       [PLAN_MODULE_IDS.bigmodelStartPlan]: "runtime-disabled",
       [PLAN_MODULE_IDS.zaiTeamCodingPlan]: "retired",
     },
   });
 
-  assert.equal(registry.getLifecycle(PLAN_MODULE_IDS.zaiStartPlan), "catalog-disabled");
-  assert.equal(registry.isEnabled(PLAN_MODULE_IDS.zaiStartPlan), false);
-  assert.equal(registry.isCatalogEnabled(PLAN_MODULE_IDS.zaiStartPlan), false);
+  assert.equal(registry.getLifecycle(PLAN_MODULE_IDS.zaiStartPlan), "enabled");
+  assert.equal(registry.isEnabled(PLAN_MODULE_IDS.zaiStartPlan), true);
+  assert.equal(registry.isCatalogEnabled(PLAN_MODULE_IDS.zaiStartPlan), true);
   assert.equal(registry.isRuntimeEnabled(PLAN_MODULE_IDS.zaiStartPlan), true);
 
   assert.equal(registry.getLifecycle(PLAN_MODULE_IDS.bigmodelStartPlan), "runtime-disabled");
@@ -45,7 +47,13 @@ test("lifecycle overrides are isolated to the selected module", () => {
   assert.equal(registry.isCatalogEnabled(PLAN_MODULE_IDS.zaiTeamCodingPlan), false);
   assert.equal(registry.isRuntimeEnabled(PLAN_MODULE_IDS.zaiTeamCodingPlan), false);
 
-  assert.equal(registry.getLifecycle(PLAN_MODULE_IDS.bigmodelIndividualCodingPlan), "enabled");
+  assert.equal(
+    registry.getLifecycle(PLAN_MODULE_IDS.bigmodelIndividualCodingPlan),
+    "catalog-disabled",
+  );
+  assert.equal(registry.isEnabled(PLAN_MODULE_IDS.bigmodelIndividualCodingPlan), false);
+  assert.equal(registry.isCatalogEnabled(PLAN_MODULE_IDS.bigmodelIndividualCodingPlan), false);
+  assert.equal(registry.isRuntimeEnabled(PLAN_MODULE_IDS.bigmodelIndividualCodingPlan), true);
 });
 
 test("unknown modules fail closed", () => {
@@ -87,11 +95,11 @@ test("provider IDs resolve through an explicit module mapping", () => {
 });
 
 test("registry does not retain a mutable lifecycle options object", () => {
-  const lifecycles = { [PLAN_MODULE_IDS.zaiStartPlan]: "catalog-disabled" as const };
+  const lifecycles = { [PLAN_MODULE_IDS.zaiStartPlan]: "enabled" as const };
   const registry = createPlanModuleRegistry({ lifecycles });
 
   lifecycles[PLAN_MODULE_IDS.zaiStartPlan] = "retired";
-  assert.equal(registry.getLifecycle(PLAN_MODULE_IDS.zaiStartPlan), "catalog-disabled");
+  assert.equal(registry.getLifecycle(PLAN_MODULE_IDS.zaiStartPlan), "enabled");
 
   const { isRuntimeEnabled } = registry;
   assert.equal(isRuntimeEnabled(PLAN_MODULE_IDS.zaiStartPlan), true);
@@ -100,6 +108,10 @@ test("registry does not retain a mutable lifecycle options object", () => {
 test("catalog gate closes only the targeted module", () => {
   const registry = createPlanModuleRegistry({
     lifecycles: {
+      [PLAN_MODULE_IDS.zaiStartPlan]: "enabled",
+      [PLAN_MODULE_IDS.zaiIndividualCodingPlan]: "enabled",
+      [PLAN_MODULE_IDS.bigmodelIndividualCodingPlan]: "enabled",
+      [PLAN_MODULE_IDS.bigmodelTeamCodingPlan]: "enabled",
       [PLAN_MODULE_IDS.bigmodelStartPlan]: "catalog-disabled",
     },
   });
@@ -165,8 +177,49 @@ test("catalog gate treats catalog-disabled, runtime-disabled and retired as clos
 });
 
 test("catalog gate bypasses non-plan providers and provider-less calls", () => {
-  // 默认注册表全启用；此处同时验证 未知 provider 与 空 providerId 的兼容放行路径。
+  // 默认内置套餐均关闭 catalog；此处同时验证未知 provider 与空 providerId 的兼容放行路径。
   const registry = createPlanModuleRegistry();
   assert.equal(isPlanModuleCatalogEnabledForProvider(registry, undefined), true);
   assert.equal(isPlanModuleCatalogEnabledForProvider(registry, "openai-api"), true);
+});
+
+test("default subscription service exposes no built-in plan catalog", async () => {
+  const apiClient = new Proxy(
+    {},
+    {
+      get(_, property) {
+        throw new Error(`unexpected ApiClient.${String(property)}`);
+      },
+    },
+  ) as unknown as ApiClient;
+  const service = createCodingPlanSubscriptionService({
+    apiClient,
+    credentialService: {
+      load: async () => null,
+    },
+  });
+
+  for (const providerId of Object.values(BUILTIN_MODEL_PROVIDER_IDS)) {
+    if (!resolvePlanModuleIdByProviderId(providerId)) continue;
+    assert.equal(await service.isPlanModuleCatalogEnabled(providerId), false);
+  }
+
+  assert.deepEqual(
+    await service.getStaticProducts({ providerId: BUILTIN_MODEL_PROVIDER_IDS.zaiStartPlan }),
+    {},
+  );
+  assert.deepEqual(
+    await service.getStaticProducts({ providerId: BUILTIN_MODEL_PROVIDER_IDS.bigmodelStartPlan }),
+    {},
+  );
+  assert.deepEqual(await service.getStaticTeamProducts({ family: "zai" }), {});
+  assert.deepEqual(await service.getStaticTeamProducts({ family: "bigmodel" }), {});
+  assert.equal(
+    await service.getStartPlanPreview({ providerId: BUILTIN_MODEL_PROVIDER_IDS.zaiStartPlan }),
+    null,
+  );
+  assert.equal(
+    await service.getStartPlanPreview({ providerId: BUILTIN_MODEL_PROVIDER_IDS.bigmodelStartPlan }),
+    null,
+  );
 });

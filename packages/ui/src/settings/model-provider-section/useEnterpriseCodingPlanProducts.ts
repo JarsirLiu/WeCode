@@ -98,7 +98,9 @@ export function useEnterpriseCodingPlanProducts({
 }) {
   const services = useOptionalServices();
   const service = services?.codingPlanSubscriptionService;
-  const codingPlanProviderId = getModelProviderFamilySpec(family).individualCodingPlanProviderId;
+  const familySpec = getModelProviderFamilySpec(family);
+  const codingPlanProviderId = familySpec.individualCodingPlanProviderId;
+  const teamPlanProviderId = familySpec.teamCodingPlanProviderId;
   const [state, setState] = useState<EnterpriseCodingPlanProductsState>({
     snapshot: null,
     loading: enabled,
@@ -136,11 +138,21 @@ export function useEnterpriseCodingPlanProducts({
         error: null,
       }));
 
+      let catalogGateChecked = false;
       try {
+        if (typeof service.isPlanModuleCatalogEnabled === "function") {
+          // catalog 关闭是明确状态，不能用上一轮团队目录继续展示购买入口。
+          const catalogEnabled = await service.isPlanModuleCatalogEnabled(teamPlanProviderId);
+          catalogGateChecked = true;
+          if (!catalogEnabled) {
+            setState({ snapshot: null, loading: false, error: null });
+            return;
+          }
+        }
         // 静态目录是展示配置，pricing 是订阅身份与实时价格的权威来源。
         // 两者必须独立请求，避免灰度环境缺少新配置字段时阻断已购 Team Plan 的恢复。
         const [staticResult, pricingResult] = await Promise.allSettled([
-          service.getStaticTeamProducts(),
+          service.getStaticTeamProducts({ family }),
           staticOnly
             ? Promise.resolve<EnterpriseCodingPlanPricingResponse>({ productList: [] })
             : service.getEnterprisePricing({ authenticated, family }),
@@ -208,6 +220,11 @@ export function useEnterpriseCodingPlanProducts({
             error: message,
           });
         }
+        if (!catalogGateChecked) {
+          // 无法确认本轮 catalog 状态时不能沿用上一轮购买目录，必须保持不展示。
+          setState({ snapshot: null, loading: false, error: message });
+          return;
+        }
         setState((current) => ({
           // 企业定价接口失败时如果直接清空 snapshot，
           // 切换到团队套餐页会只剩“暂无可购买的编程套餐”，用户无法分辨是接口失败还是确实无商品。
@@ -220,7 +237,7 @@ export function useEnterpriseCodingPlanProducts({
         }));
       }
     },
-    [authenticated, codingPlanProviderId, enabled, family, service, staticOnly],
+    [authenticated, codingPlanProviderId, enabled, family, service, staticOnly, teamPlanProviderId],
   );
 
   useEffect(() => {

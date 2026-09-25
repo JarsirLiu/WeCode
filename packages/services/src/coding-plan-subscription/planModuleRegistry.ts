@@ -17,7 +17,8 @@ export interface PlanModuleRegistry {
   isRuntimeEnabled(moduleId: string): boolean;
 }
 
-const DEFAULT_LIFECYCLE: PlanModuleLifecycle = "enabled";
+// 当前官方 Z.ai/BigModel 套餐仅保留 runtime 兼容能力，默认不开放 catalog。
+const DEFAULT_LIFECYCLE: PlanModuleLifecycle = "catalog-disabled";
 
 export function createPlanModuleRegistry(
   options: PlanModuleRegistryOptions = {},
