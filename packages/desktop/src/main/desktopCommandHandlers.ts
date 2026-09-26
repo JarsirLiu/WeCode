@@ -36,6 +36,7 @@ import {
   resolveDesktopZoomFactorForLevel,
   resolveDesktopZoomLevelFromFactor,
 } from "./desktopZoom.js";
+import { registerWindowForCaptureProtection } from "./windowCaptureProtection.js";
 
 export const HELP_TOGGLE_DEV_TOOLS_MENU_ID = "help.toggle-dev-tools";
 export const HELP_TOGGLE_ZCODE_STDIO_TAP_MENU_ID = "help.toggle-zcode-stdio-tap";
@@ -367,6 +368,7 @@ function showZCodeEndpointPromptWindow(options: {
         sandbox: true,
       },
     });
+    registerWindowForCaptureProtection(promptWindow);
 
     const finish = (value: string | undefined) => {
       if (settled) {

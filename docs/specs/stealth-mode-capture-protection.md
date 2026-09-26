@@ -28,9 +28,16 @@ The desktop main process owns the global shortcut registration. The shortcut is 
 
 ## Window policy
 
-The shared desktop window factory registers the primary application windows. Independently created update-status windows are registered explicitly. CUA operation-indicator windows retain their existing unconditional protection and are not controlled by this product toggle. Windows used only for internal capture or browser recording are not registered by this feature until their source-specific behavior has an explicit product contract.
+Every independently created top-level `BrowserWindow` in the desktop main process that is part of the application surface is registered for capture protection. Beyond the primary application windows built by the shared window factory and the update-status window, this covers every secondary window the desktop package opens for the user: the About dialog, the forced-update prompt, the ZCode endpoint prompt, the resource manager window, and the hidden Chrome local storage import helper.
 
-Registration happens immediately after `BrowserWindow` construction and before any show operation. Setting changes apply to all currently registered windows without restart. Closing a window unregisters it.
+The following windows are exempt and are not registered by this feature:
+
+- The browser-recording window must be able to capture its own target content.
+- CUA operation-indicator windows keep their existing unconditional protection and are not controlled by this product toggle.
+
+Registration happens immediately after `BrowserWindow` construction and before any show operation, so a newly opened secondary window is already protected before it can be shown. Setting changes apply to all currently registered windows without restart. Closing a window unregisters it.
+
+Registration is a per-construction-site convention rather than a structural guarantee. Nothing in this implementation prevents a newly added window from being created without registration, and no CI check enforces this inventory; a source-level inventory check is deferred.
 
 ## Event order
 
@@ -55,6 +62,7 @@ BrowserWindow construction
 - Enabling the setting suppresses main-process task notifications and their sound signal; disabling it restores normal task notification behavior and recreates the tray icon.
 - Enabling and disabling the setting updates capture protection on all registered existing application windows without restarting WeCode.
 - A newly created registered window receives the current value before it can be shown.
+- Every independently created application `BrowserWindow` in the desktop main process, including the About dialog, forced-update prompt, ZCode endpoint prompt, resource manager window, and hidden Chrome local storage import helper, is registered and inherits the current setting before it is shown.
 - Closing a registered window removes it from the controller and later setting changes do not call it.
 - Pressing the summon shortcut restores a minimized WeCode window, shows a hidden one, and focuses it without enabling always-on-top.
 - The summon shortcut is registered at app ready and unregistered at application quit; a registration conflict logs a warning and does not crash or retry.
@@ -67,3 +75,5 @@ BrowserWindow construction
 ## Deferred boundaries
 
 This first implementation does not add a native Node-API, Rust, C++, or Swift module. It does not promise all-platform or all-capture invisibility. Per-source exceptions for WeCode's own screenshot and browser-recording flows remain deferred until those flows have explicit tests and an owner.
+
+Re-application after show, hide, maximize, unmaximize, or display changes is not implemented. `SetWindowDisplayAffinity` is an HWND-level attribute that should survive those state changes without an HWND recreation, but that has not been verified on a platform, and behavior on transparent layered windows is likewise unverified. Both are deferred until platform testing shows a loss. Automated pixel-level capture verification and a CI-enforced window inventory check are also deferred.

@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { type Locale } from "@zcode/shared";
 import type { ForceUpdateDialogText, ForceUpdateGuardLogger } from "./forceUpdateGuard.js";
 import type { ForceAutoUpdateState } from "./autoUpdater.js";
+import { registerWindowForCaptureProtection } from "./windowCaptureProtection.js";
 
 const FORCE_UPDATE_PROMPT_WIDTH = 480;
 const FORCE_UPDATE_PROMPT_HEIGHT = 256;
@@ -528,6 +529,7 @@ export async function showForceUpdatePrompt(
         sandbox: true,
       },
     });
+    registerWindowForCaptureProtection(win);
 
     const updatePromptState = (state: ForceUpdatePromptState) => {
       if (win.isDestroyed()) {

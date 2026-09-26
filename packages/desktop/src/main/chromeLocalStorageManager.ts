@@ -9,6 +9,7 @@ import type { ChromeBrowserDataImportError } from "@zcode/shared";
 import { WebSocket, type RawData } from "ws";
 import { resolveChromeExecutablePath } from "./chromeProfileDiscovery.js";
 import type { LinuxChromePasswordStore } from "./chromeInstallationCandidates.js";
+import { registerWindowForCaptureProtection } from "./windowCaptureProtection.js";
 
 const MAX_LOCAL_STORAGE_ORIGINS = 1_000;
 const MAX_LOCAL_STORAGE_BYTES = 128 * 1024 * 1024;
@@ -593,6 +594,8 @@ async function writeElectronLocalStorage(
       backgroundThrottling: false,
     },
   });
+  registerWindowForCaptureProtection(window);
+
   // 未加载任何文档的 WebContents 尚未创建可用 renderer，直接发送 CDP
   // 导航/存储命令会一直不返回。先初始化 about:blank，再附加 debugger。
   await window.loadURL("about:blank");

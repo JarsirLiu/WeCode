@@ -22,6 +22,7 @@ import {
   forgetHostResourceUsage,
   requestHostResourceUsage,
 } from "./resourceManagerHostSampling.js";
+import { registerWindowForCaptureProtection } from "./windowCaptureProtection.js";
 
 /**
  * 资源管理器。
@@ -258,7 +259,7 @@ export function openResourceManager(): void {
     return;
   }
 
-  instance = new BrowserWindow({
+  const win = new BrowserWindow({
     width: 900,
     height: 600,
     minWidth: 640,
@@ -272,6 +273,8 @@ export function openResourceManager(): void {
       nodeIntegration: false,
     },
   });
+  registerWindowForCaptureProtection(win);
+  instance = win;
 
   // 与主窗口保持一致：生产包始终加载签名包内的渲染资源。
   if (!app.isPackaged && process.env["ELECTRON_RENDERER_URL"]) {

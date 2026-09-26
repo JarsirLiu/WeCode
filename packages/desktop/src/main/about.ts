@@ -11,6 +11,7 @@ import {
   ZCODE_VERSION,
 } from "@zcode/shared";
 import { createCustomAboutDialogHtml } from "./aboutWindow.js";
+import { registerWindowForCaptureProtection } from "./windowCaptureProtection.js";
 
 interface DesktopBuildMetadata {
   appVersion?: string;
@@ -248,6 +249,7 @@ export async function showAboutDialog(
       sandbox: true,
     },
   });
+  registerWindowForCaptureProtection(aboutWindow);
   aboutWindow.setMenuBarVisibility(false);
   aboutWindow.once("ready-to-show", () => {
     aboutWindow.show();
