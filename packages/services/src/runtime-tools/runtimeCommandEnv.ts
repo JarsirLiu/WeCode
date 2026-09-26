@@ -147,9 +147,22 @@ export function normalizeRuntimeProcessEnv(
     }
   }
   if (pathValue !== undefined) {
-    normalized.PATH = pathValue;
+    normalized.PATH = stripPathEntryQuotes(pathValue);
   }
   return normalized;
+}
+
+// 修复依据：Windows 机器级 PATH 的条目首尾可能残留引号（旧版 JDK 安装器会写出
+// "%JAVA_HOME%\bin";"%JAVA_HOME%\jre\bin"）。Git Bash 的 MSYS 层把这类条目转成
+// POSIX 路径时有损，会残留孤立引号；该引号随后被 cmd.exe 在解析裸命令名时当作不
+// 配对引用符，导致整条 PATH 解析失败（'node' 不是内部或外部命令）。
+// '"' 在 Windows 文件名中非法，条目首尾引号只可能是书写残留；Windows 自身解析
+// PATH 时也会剥除引号，因此这里剥除不改变任何解析语义。
+function stripPathEntryQuotes(pathValue: string): string {
+  return pathValue
+    .split(delimiter)
+    .map((entry) => entry.replace(/^"+|"+$/g, ""))
+    .join(delimiter);
 }
 
 export function buildRuntimeProcessEnvPatch(

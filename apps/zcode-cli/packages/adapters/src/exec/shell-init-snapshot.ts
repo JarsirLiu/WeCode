@@ -65,6 +65,17 @@ function shellInitSnapshotsDir(rootDir: string): string {
   return join(rootDir, "shell-snapshots");
 }
 
+// 修复依据：git-bash 采集到的 PATH 已经过 MSYS 的 Windows→POSIX 转换，带引号条目
+// 会被转换残缺（例如残留 "/d/.../jdk1.8.0_291/jre/bin\""）。快照会被写入磁盘并在
+// 每次 Bash 会话开头重新 source，残缺引号因此被持久化并反复注入。这里在落盘前剥除
+// 条目首尾引号。分隔符是 ':'（POSIX 形式），与 runtimeCommandEnv 的 Windows 形式不同。
+function normalizeCapturedPosixPath(pathValue: string): string {
+  return pathValue
+    .split(":")
+    .map((entry) => entry.replace(/^"+|"+$/g, ""))
+    .join(":");
+}
+
 class ShellInitSnapshotCleanupRegistry {
   private readonly paths = new Set<string>();
 
@@ -182,7 +193,7 @@ export class ShellInitSnapshotManager {
         timeout: SNAPSHOT_TIMEOUT_MS,
         windowsHide: true,
       });
-      return result.stdout.trim() || request.env.PATH || "";
+      return normalizeCapturedPosixPath(result.stdout.trim()) || request.env.PATH || "";
     } catch {
       return request.env.PATH ?? "";
     }
