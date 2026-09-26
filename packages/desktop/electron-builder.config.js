@@ -460,7 +460,7 @@ export default {
     zcodeProductFlavor: desktopProductIdentity.flavor,
     homepage: "https://zcode.z.ai",
     author: {
-      name: "ZCode",
+      name: "WeCode",
       email: "dev@zcode.z.ai",
     },
   },
