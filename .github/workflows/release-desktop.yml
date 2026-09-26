@@ -41,7 +41,7 @@ concurrency:
 
 env:
   # 发布安装包必须显式使用生产后端和正式应用身份；否则默认 test 会生成 Preview/_TEST 文件名，
-  # 与 publish 阶段要求的 ZCode-${version}-... 文件名不一致。
+  # 与 publish 阶段要求的 WeCode-${version}-... 文件名不一致。
   ZCODE_ENV: production
   ZCODE_PREVIEW_IDENTITY: "0"
   # 桌面安装包不依赖 mock-cdn remote 资产（远端资源生产态运行时从 CDN 下载）。
@@ -104,7 +104,7 @@ jobs:
           VERSION="${VERSION#v}"
           find packages/desktop/dist -maxdepth 1 -type f -printf '%f\n' | sort
           for ext in AppImage deb rpm pkg.tar.zst; do
-            asset="packages/desktop/dist/ZCode-${VERSION}-linux-${ARCH}.${ext}"
+            asset="packages/desktop/dist/WeCode-${VERSION}-linux-${ARCH}.${ext}"
             test -s "$asset" || { echo "Missing Linux installer: $asset" >&2; exit 1; }
           done
 
@@ -222,13 +222,13 @@ jobs:
           # 下载产物可能包含 linux-*-unpacked 等辅助目录；逐个收集正式安装包，避免 gh 将目录当作上传文件。
           for arch in x64 arm64; do
             for ext in AppImage deb rpm pkg.tar.zst; do
-              assets+=("release-assets/ZCode-${VERSION}-linux-${arch}.${ext}")
+              assets+=("release-assets/WeCode-${VERSION}-linux-${arch}.${ext}")
             done
             for ext in dmg zip; do
-              assets+=("release-assets/ZCode-${VERSION}-mac-${arch}.${ext}")
+              assets+=("release-assets/WeCode-${VERSION}-mac-${arch}.${ext}")
             done
           done
-          assets+=("release-assets/ZCode-${VERSION}-win-x64.exe")
+          assets+=("release-assets/WeCode-${VERSION}-win-x64.exe")
 
           for asset in "${assets[@]}"; do
             test -s "$asset" || { echo "Missing release installer: $asset" >&2; exit 1; }
