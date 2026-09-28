@@ -86,7 +86,9 @@ export { createCredentialService } from "./credential/credentialService.js";
 export { createBroadcastService } from "./broadcast/broadcastService.js";
 export { createZCodeAgentService } from "./zcode-agent/zcodeAgentService.js";
 export { createZCodeTaskServiceAdapter } from "./zcode-agent/zcodeTaskServiceAdapter.js";
+export { createZCodeTaskPortAdapter } from "./zcode-agent/zcodeTaskPortAdapter.js";
 export { createZCodeSessionService } from "./zcode-session/zcodeSessionService.js";
+export { createZCodeSessionPortAdapter } from "./zcode-session/zcodeSessionPortAdapter.js";
 export {
   resolveDefaultZCodeAgentCommand,
   ZCodeAgentProcessManager,

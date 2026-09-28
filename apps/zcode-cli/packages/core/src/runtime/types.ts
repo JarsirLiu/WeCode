@@ -19,6 +19,8 @@ import type {
   StableForkTargetMetadata,
   WorkspaceHookBundleSnapshot,
   WorkspaceId,
+  ZCodeTaskPort,
+  ZCodeSessionPort,
 } from "@zcode/contracts";
 import type { ZCodeProviderAccountAccess } from "@zcode/shared";
 import type { EffectiveModelSelectionResult } from "@zcode/shared/model-selection";
@@ -336,6 +338,17 @@ export interface AgentRuntimeDeps {
    * 缺席（纯 CLI）则不注册。spec: docs/specs/bot-weixin-ai-commands.md。
    */
   botsServicePort?: BotsServicePort;
+  /**
+   * ZCode Task 端口；在场时注册 AI Session Orchestration 工具集
+   * (create_session, send_session_message, read_session, stop_session_generation, set_session_model, compact_session)。
+   * 缺席则不注册。spec: docs/specs/ai-session-orchestration.md。
+   */
+  zcodeTaskPort?: ZCodeTaskPort;
+  /**
+   * ZCode Session 端口；配合 zcodeTaskPort 提供会话级读取能力（readSession 全量历史等）。
+   * 缺席则 read_session 仅能用 snapshot 模式。
+   */
+  zcodeSessionPort?: ZCodeSessionPort;
   fileSystemPort?: FileSystemPort;
   httpClientPort?: HttpClientPort;
   imageProcessorPort?: ImageProcessorPort;

@@ -37,6 +37,8 @@ import type {
   WorkflowPort,
   WorkflowEscalatePort,
   WorkflowSubmitPort,
+  ZCodeTaskPort,
+  ZCodeSessionPort,
 } from "@zcode/contracts";
 import type {
   JsonSchema,
@@ -151,6 +153,10 @@ export interface ToolExecutionContext {
   browserControlPort?: BrowserControlPort;
   /** Bot 命令端口；BotCommand 工具经此调用 Host 的 IBotsService。缺省则工具不注册。 */
   botsServicePort?: BotsServicePort;
+  /** ZCode Task 端口；AI Session Orchestration 工具集经此调用。缺省则工具不注册。 */
+  zcodeTaskPort?: ZCodeTaskPort;
+  /** ZCode Session 端口；read_session 全量历史模式经此调用。缺省则仅支持 snapshot 模式。 */
+  zcodeSessionPort?: ZCodeSessionPort;
   /** 官方 browser-use plugin docs 资产目录；只在 browser-use 启用时用于 agent.browsers.documentation()。 */
   browserDocumentationRoot?: string;
   fileSystemPort?: FileSystemPort;

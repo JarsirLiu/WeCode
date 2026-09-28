@@ -23,6 +23,8 @@ export * from "./automation.port.js";
 export * from "./mcp.port.js";
 export * from "./browser-control.port.js";
 export * from "./bots-service.port.js";
+export * from "./zcode-task.port.js";
+export * from "./zcode-session.port.js";
 export * from "./shared.js";
 
 export * from "./permission-full-access.js";
