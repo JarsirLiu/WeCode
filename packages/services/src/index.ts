@@ -205,6 +205,22 @@ export type {
   BotSaveBotParams,
   BotTestResult,
 } from "./bots/bots.js";
+export type {
+  BotAiCommandAction,
+  BotAiCommandExecutionInput,
+  BotAiCommandName,
+  BotAiCommandOption,
+  BotAiCommandParams,
+  BotAiCommandResult,
+  BotAiCommandStep,
+  BotChannelCapabilities,
+} from "./bots/botAiCommandPolicy.js";
+export {
+  buildTextGuidance,
+  getBotChannelCapabilities,
+  getBotAiCommandUnsupportedReason,
+  isBotAiCommandSupported,
+} from "./bots/botAiCommandPolicy.js";
 
 // Hooks service — IHooksService is both a type (interface) and value (descriptor).
 export { IHooksService } from "./hooks/hooks.js";

@@ -59,6 +59,15 @@
 
 如果用户在 AI 多轮选择期间发送 `/model`、`/workspace` 等手动命令，`parseBotCommand` 优先处理该消息；已有手动 pending selection 规则保持不变。微信轮询的 ACK、cursor、delivery dedupe 和 actor 串行队列不改变。
 
+## 模块落位
+
+- AI 命令策略（渠道能力表 `getBotChannelCapabilities`、命令支持矩阵 `isBotAiCommandSupported`、`buildTextGuidance`、结构化结果映射）位于 `packages/services/src/bots/botAiCommandPolicy.ts`，命令路由与编排位于 `botAiCommands.ts`，不再向 `botsService.ts` 增加命令编排逻辑。
+- `createBotAiCommandExecutor(deps)` 只做路由与编排，不持有任何可变状态；AI 多步选择的中间态由模型上下文承接，不新增第二份 pending selection map。
+- 命令流程实现在 `botAiCommandBridge.ts`（授权、workspace/task/stop/status/reconnect/thoughtLevel/reply）、`botAiModelFlow.ts`（model 列举与切换）和 `botAiCommandBridgePrimitives.ts`（原语契约与重连幂等常量）；三者均为无可变状态的纯函数模块。
+- `botsService.ts` 的 `IBotsService` 仍是命令事实、授权和 Bot context 的唯一所有者：只向 bridge 注入闭包原语（context 读写、任务服务解析、广播与 typing 副作用、重连幂等表），不保留第二份 AI 命令流程实现。
+- 与手动命令共用的纯展示 helper（模型选择格式化、reply granularity 选项、config select 读取）位于 `botConfigSelectHelpers.ts`；手动命令流程与 AI 流程引用同一份实现。
+- `IBotsService.executeBotCommand(params)` 是 AI Runtime（BotsServicePort）唯一的命令入口；`botId`、`channel` 与 workspace 上下文必须来自受信 session 元数据，`payload` 只允许携带选项 id。
+
 ## Port 与协议边界
 
 `bot_command` 通过 Core Runtime 的 `BotsServicePort` 调用当前 Host 的 `IBotsService`，不得让 Core 深入导入 services 实现。协议桥必须从受信 session 注入 `botId`、`channel: "weixin"`、`workspaceIdentity`、`remoteSessionId` 和 `clientMode`，忽略模型输入中的替代值。

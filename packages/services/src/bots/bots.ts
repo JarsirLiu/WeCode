@@ -1,6 +1,10 @@
 import { ServiceChannels } from "@zcode/shared";
 import { createServiceDescriptor } from "../descriptors.js";
 import type {
+  BotAiCommandExecutionInput,
+  BotAiCommandResult,
+} from "./botAiCommandPolicy.js";
+import type {
   ZCodeConfigOption,
   ZCodeProvider,
   BotConfig,
@@ -154,6 +158,11 @@ export interface IBotsService {
   resetBotState(contextKey: string): Promise<void>;
   /** 在 automation prompt 派发前订阅终态，并把结果回推到创建它的 Bot 会话。 */
   watchAutomationRun(params: BotAutomationRunWatchParams): Promise<void>;
+  /**
+   * AI Runtime（BotsServicePort）唯一的 Bot 命令入口。botId 与 channel 必须来自受信
+   * session 元数据；payload 只允许携带选项 id，不接受 workspaceIdentity/渠道覆盖值。
+   */
+  executeBotCommand(params: BotAiCommandExecutionInput): Promise<BotAiCommandResult>;
   handleInboundMessage(message: BotInboundMessage): Promise<BotOutboundMessage[]>;
   handleProviderCallback(provider: BotProvider, payload: unknown): Promise<BotOutboundMessage[]>;
   handleProviderCallbackResponse(
