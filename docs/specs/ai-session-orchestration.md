@@ -19,8 +19,8 @@
 | **服务端** | `IZCodeSessionService` (packages/services/src/zcode-session/zcodeSession.ts) | ✅ 完整实现：`createSession`、`readSession`、`listSessions`、`setModel`、`setThoughtLevel`、`setMode` 等 |
 | **RPC 暴露** | `ServiceChannels.ZCodeTask` / `ZCodeSession` / `ZCodeAgent` | ✅ Host 已注册并通过 ChannelServer 暴露 |
 | **Renderer 访问** | `RemoteServiceAccess.zcodeTaskService` / `zcodeSessionService` | ✅ `packages/client/src/remoteServiceAccess.ts` |
-| **Core Runtime** | 端口注入到 `ToolExecutionContext` | ⚠️ **部分**：`ZCodeTaskPort`/`ZCodeSessionPort` 字段已声明（`tool/types.ts`、`runtime/types.ts`），但 `call-runner.ts` 未传播——需补 |
-| **AI 工具** | 6 个会话编排工具 | ⚠️ **部分**：contracts schema + handler 已写，但未注册进 `builtInTools`、无 `includeZCodeTask` gate、contracts dist 未构建——需补 |
+| **Core Runtime** | 端口注入到 `ToolExecutionContext` | ✅ 完整：`ZCodeTaskPort`/`ZCodeSessionPort` 已声明并传播到 `call-runner.ts` |
+| **AI 工具** | 6 个会话编排工具 | ✅ 完整：contracts schema + handler + `includeZCodeTask` gate 已实现，contracts dist 已构建 |
 
 ---
 
@@ -596,15 +596,15 @@ const ZCODE_TASK_TOOL_NAMES = new Set([
 
 ## 实现顺序
 
-| 步骤 | 交付 | 验收 |
+| 步骤 | 交付 | 状态 |
 |------|------|------|
-| 1 | `zcode-task.port.ts` + `zcode-session.port.ts` (contracts) | `pnpm --filter @zcode/contracts run typecheck` 通过 |
-| 2 | shared 侧 wire schema `ai-session-orchestration.ts` + broker（bootstrap） | bootstrap typecheck 通过 |
-| 3 | Host executor 接口 + `zcodeAgentService` dispatch 10 分支 + `createLocalServices` 装配 | 反向请求能到 `IZCodeTaskService` 并返回 |
-| 4 | `ToolExecutionContext` 端口字段 + `call-runner.ts` 传播 + `server-operations.ts` broker 注入 | 端口在场时 handler 不再 bail |
-| 5 | 6 个工具 handler + contracts schema + `registerBuiltInTools` 注册开关 | 工具出现在模型工具列表 |
-| 6 | contracts dist 构建（`pnpm --filter @zcode/contracts run build`） | 消费方能解析到导出 |
-| 7 | E2E：AI 并行创建 3 个会话、分发任务、聚合结果 | 手动验证 |
+| 1 | `zcode-task.port.ts` + `zcode-session.port.ts` (contracts) | ✅ |
+| 2 | shared 侧 wire schema `ai-session-orchestration.ts` + broker（bootstrap） | ✅ |
+| 3 | Host executor 接口 + `zcodeAgentService` dispatch 10 分支 + `createLocalServices` 装配 | ✅ |
+| 4 | `ToolExecutionContext` 端口字段 + `call-runner.ts` 传播 + `server-operations.ts` broker 注入 | ✅ |
+| 5 | 6 个工具 handler + contracts schema + `registerBuiltInTools` 注册开关 | ✅ |
+| 6 | contracts dist 构建（`pnpm --filter @zcode/contracts run build`） | ✅ |
+| 7 | E2E：AI 并行创建 3 个会话、分发任务、聚合结果 | ⏳ 待手动验证 |
 
 ---
 
