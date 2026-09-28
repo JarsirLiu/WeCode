@@ -6,6 +6,8 @@
 export * from "./interfaces/shared.js";
 export * from "./interfaces/execution.port.js";
 export * from "./interfaces/browser-control.port.js";
+export * from "./interfaces/zcode-task.port.js";
+export * from "./interfaces/zcode-session.port.js";
 export * from "./interfaces/bots-service.port.js";
 export * from "./interfaces/file-system.port.js";
 export * from "./interfaces/context-source.port.js";
@@ -92,6 +94,7 @@ export * from "./network/public-egress-ip.js";
 // Tools
 export * from "./tools/index.js";
 export * from "./tools/websearch.js";
+export * from "./tools/ai-session-orchestration.js";
 
 // 媒体预算上限由 App/Agent 共用策略定义；Contracts 统一转出，避免 Core 各处跨层取值。
 export {

@@ -86,9 +86,9 @@ export { createCredentialService } from "./credential/credentialService.js";
 export { createBroadcastService } from "./broadcast/broadcastService.js";
 export { createZCodeAgentService } from "./zcode-agent/zcodeAgentService.js";
 export { createZCodeTaskServiceAdapter } from "./zcode-agent/zcodeTaskServiceAdapter.js";
-export { createZCodeTaskPortAdapter } from "./zcode-agent/zcodeTaskPortAdapter.js";
+export type { ZCodeTaskServiceExecutor } from "./zcode-agent/zcodeTaskCommandExecutor.js";
+export { createZCodeTaskServiceExecutor } from "./zcode-agent/zcodeTaskServiceExecutorFactory.js";
 export { createZCodeSessionService } from "./zcode-session/zcodeSessionService.js";
-export { createZCodeSessionPortAdapter } from "./zcode-session/zcodeSessionPortAdapter.js";
 export {
   resolveDefaultZCodeAgentCommand,
   ZCodeAgentProcessManager,
@@ -350,6 +350,7 @@ import type { ZCodeAgentCommandResolver } from "./zcode-agent/zcodeAgentProcessM
 import { buildAgentTelemetrySpawnEnv } from "./zcode-agent/agentTelemetryEnv.js";
 import { resolveZCodeAgentPresentationSurface } from "./zcode-agent/zcodeAgentPresentationSurface.js";
 import { createZCodeTaskServiceAdapter } from "./zcode-agent/zcodeTaskServiceAdapter.js";
+import { createZCodeTaskServiceExecutor } from "./zcode-agent/zcodeTaskServiceExecutorFactory.js";
 import { createZCodeSessionService } from "./zcode-session/zcodeSessionService.js";
 import { createZCodeTaskIndexSyncer } from "./zcode-agent/zcodeTaskIndexSyncer.js";
 import { TaskIndexRepo } from "./session/taskIndexRepo.js";
@@ -2115,6 +2116,13 @@ export function createLocalServices(options: {
     // 反向请求到达时已完成装配），本地与链路 A 远程 Host 共用同一装配点。
     botsCommandExecutor: createBotsCommandServiceExecutor({
       readBotsService: () => services.getOptional(IBotsService),
+    }),
+    // AI Session Orchestration：task/* / session/* 反向请求的执行桥。lazy 闭包延迟
+    // 解析 IZCodeTaskService / IZCodeSessionService（在本函数后段注册），与
+    // botsCommandExecutor 同模式。缺省（纯 CLI）由 zcodeAgentService 返回结构化失败。
+    zcodeTaskExecutor: createZCodeTaskServiceExecutor({
+      readZCodeTaskService: () => services.getOptional(IZCodeTaskService),
+      readZCodeSessionService: () => services.getOptional(IZCodeSessionService),
     }),
     // 官方 Server MCP 身份头：host 是唯一身份权威，Agent 经反向请求索取。
     // Provider 存在性读取正式 Model Selection View；不恢复旧 Provider Snapshot。
