@@ -454,13 +454,21 @@ export type CompactSessionOutput = z.infer<typeof CompactSessionOutputSchema>;
 
 **状态来源（关键）**：AI 紧凑快照的 `status` 必须来自 **session projection**（`zcodeSessionProjectionSchema.status`，6 值），**不能**来自 task persist 层的 `zcodeTaskPersistStatusSchema`（只有 `running|completed|error` 3 值）。原因：persist 层用 `deriveZCodeTaskStatusFromSessionSnapshot`（`packages/shared/src/zcode-session-task-status.ts:57-78`）把 `waiting`/`paused` 塌缩成 `running`、`idle` 映射成 `undefined`。如果 AI 快照读 persist 的 3 值，会丢掉 `waiting`/`paused`/`idle`——而 `waiting` 正是"停止自动编排"的触发条件。
 
-> **实现现状（Phase 1）**：
-> - `zcodeAiTaskStatusSchema`（`shared/src/zcode-protocol/ai-session-orchestration.ts`）已改为 6 值（删 `stopped`），与 `zcodeSessionStatusSchema` 对齐。✅
-> - executor 的 `getTaskSnapshot` 直接调用 `IZodeTaskService.getTaskSnapshot`，返回的 `ZCodeTaskSnapshot.meta.status` 是 task persist 层的 3 值状态（`running|completed|error`）。**当前 AI 紧凑快照的 `status` 读的是这 3 值，不是 session projection 的 6 值。** 这是已知的信息损失：`waiting`/`paused`/`idle` 会映射到 `running`/`undefined`/`undefined`。
-> - 要拿到 6 值 status，executor 需要额外调用 `IZodeSessionService.readSession` 获取 session projection 并合并——这改变了 executor 的 contract（从单一服务调用变成双服务合并），增加延迟和复杂度。**Phase 2 待决**：是否在 broker 层做 3→6 值映射（broker 可访问 session service），还是改 executor 做双服务合并。
-> - AI 编排的 `waiting` 检测（§3.2.3 的关键用例）在当前实现中**不生效**：persist 的 `running` 状态会把 `waiting` 塌缩掉。如果需要 `waiting` 检测，模型必须通过 `read_session`（走 `IZodeSessionService.readSession`，返回完整 session snapshot 含 6 值 status）而非 `get_task_snapshot`。
+> **实现方案（已实施）**：executor 的 `getTaskSnapshot` 调用 `IZodeSessionService.readSession`（`messageLimit` 控制消息截断），从 `ZCodeSessionStateSnapshot.projection` 投影出 `ZCodeAiTaskSnapshot`。不使用 `IZodeTaskService.getTaskSnapshot`（3 值 status）。投影映射：
+> - `status` ← `projection.status`（6 值）
+> - `turnCount` ← `projection.turnCount`
+> - `totalTokenCount` ← `projection.totalTokenCount`
+> - `contextUsed` ← `projection.contextUsed`
+> - `contextWindow` ← `projection.contextWindow`
+> - `pendingPermissions` ← `projection.pendingPermissions`
+> - `lastError` ← `projection.lastError?.message`
+> - `recentMessages` ← `messages`（经 `messageLimit` 截断）
+> - `taskId` ← `projection.sessionId`
+> - `title` ← `session.title`
+>
+> 选择 `readSession` 而非 `getTaskSnapshot` + `readSession` 双服务合并：session projection 已包含 AI 紧凑快照所需的全部字段，无需额外调 task service。开销等价于一次 session 读取。
 
-**检测建议**：AI 每次 `read_session` 后检查 `status`。`waiting`/`paused` 时在回复中明确告知用户"会话正等待您的输入/已暂停，请在侧边栏查看并决定如何继续"。
+**检测建议**：AI 每次 `get_task_snapshot` 或 `read_session` 后检查 `status`。`waiting`/`paused` 时在回复中明确告知用户"会话正等待您的输入/已暂停，请在侧边栏查看并决定如何继续"。
 
 **用户发消息接管的具体机制**：
 - 用户在侧边栏点进会话 → 发消息

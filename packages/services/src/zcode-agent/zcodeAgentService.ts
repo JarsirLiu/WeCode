@@ -2833,11 +2833,6 @@ export function createZCodeAgentService(
               clientMode: parsed.data.clientMode,
               taskId: parsed.data.taskId,
               messageLimit: parsed.data.messageLimit,
-              byteBudget: parsed.data.byteBudget,
-              toolLimit: parsed.data.toolLimit,
-              resumeModelPolicy: parsed.data.resumeModelPolicy,
-              model: parsed.data.model,
-              thoughtLevel: parsed.data.thoughtLevel,
             })
             .then((result) => client.respond(request.id, result))
             .catch((error: unknown) => {

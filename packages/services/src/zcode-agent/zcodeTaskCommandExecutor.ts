@@ -6,9 +6,9 @@ import type {
   ZCodeSessionInfo,
   ZCodeTaskCreateResult,
   ZCodeTaskMeta,
-  ZCodeTaskSnapshot,
   ZCodeConfigOption,
   ZCodeSessionCompactResult,
+  ZCodeAiTaskSnapshot,
 } from "@zcode/shared";
 
 /**
@@ -114,12 +114,7 @@ export interface ZCodeTaskServiceExecutor {
     clientMode?: string;
     taskId: string;
     messageLimit?: number;
-    byteBudget?: number;
-    toolLimit?: number;
-    resumeModelPolicy?: "task-index" | "ui-resolved-only";
-    model?: string;
-    thoughtLevel?: string;
-  }): Promise<ZCodeTaskSnapshot | null>;
+  }): Promise<ZCodeAiTaskSnapshot | null>;
 
   setModel(input: {
     workspaceKey: string;

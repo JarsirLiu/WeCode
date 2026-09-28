@@ -11,6 +11,7 @@
 // 跨 JSON→typed 边界，不是 as any 掩盖不匹配。
 
 import type {
+  ZCodeAiTaskSnapshot,
   ZCodePromptAttachment,
   ZCodeTaskClientMode,
 } from "@zcode/shared";
@@ -108,19 +109,46 @@ export function createZCodeTaskServiceExecutor(options: {
         ...(input.workspaceIdentity ? { workspaceIdentity: input.workspaceIdentity } : {}),
       }),
 
-    getTaskSnapshot: (input) =>
-      task().getTaskSnapshot({
-        taskId: input.taskId,
+    getTaskSnapshot: async (input) => {
+      // AI 紧凑快照从 session projection 读 6 值 status（spec §3.2.3），
+      // 不从 task persist 的 3 值读（waiting/paused/idle 会被塌缩）。
+      // session projection 已包含 turnCount/tokenCount/contextUsed/pendingPermissions，
+      // 无需额外调 task service。
+      const snapshot = await session().readSession({
         workspacePath: input.workspacePath,
         ...(input.workspaceIdentity ? { workspaceIdentity: input.workspaceIdentity } : {}),
-        ...(input.messageLimit ? { messageLimit: input.messageLimit } : {}),
-        ...(input.byteBudget ? { byteBudget: input.byteBudget } : {}),
-        ...(input.toolLimit ? { toolLimit: input.toolLimit } : {}),
-        ...(input.clientMode ? { clientMode: input.clientMode as ZCodeTaskClientMode } : {}),
-        ...(input.resumeModelPolicy ? { resumeModelPolicy: input.resumeModelPolicy } : {}),
-        ...(input.model ? { model: input.model } : {}),
-        ...(input.thoughtLevel ? { thoughtLevel: input.thoughtLevel } : {}),
-      }),
+        ...(input.remoteSessionId ? { remoteSessionId: input.remoteSessionId } : {}),
+        sessionId: input.taskId,
+        messageLimit: input.messageLimit ?? 0,
+      });
+      if (!snapshot) return null;
+      const { projection, session: info, messages } = snapshot;
+      return {
+        taskId: projection.sessionId,
+        title: info.title,
+        status: projection.status,
+        turnCount: projection.turnCount,
+        totalTokenCount: projection.totalTokenCount,
+        contextUsed: projection.contextUsed,
+        contextWindow: projection.contextWindow,
+        ...(messages.length > 0
+          ? {
+              recentMessages: messages.slice(-Math.max(input.messageLimit ?? 5, 1)).map((m) => {
+                const textParts = m.parts.filter((p) => p.type === "text");
+                return {
+                  role: m.info.role,
+                  content: textParts.map((p) => p.text).join("\n"),
+                  timestamp: m.info.time.created,
+                };
+              }),
+            }
+          : {}),
+        ...(projection.pendingPermissions.length > 0
+          ? { pendingPermissions: projection.pendingPermissions as Record<string, unknown>[] }
+          : {}),
+        ...(projection.lastError ? { lastError: projection.lastError.message } : {}),
+      };
+    },
 
     setModel: (input) =>
       task().setModel({
