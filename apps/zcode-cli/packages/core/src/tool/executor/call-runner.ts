@@ -385,6 +385,7 @@ async function executeToolCallImpl(
       emitEvent,
       executionPort: deps.executionPort,
       browserControlPort: deps.browserControlPort,
+      botsServicePort: deps.botsServicePort,
       browserDocumentationRoot: deps.browserDocumentationRoot,
       fileSystemPort: deps.fileSystemPort,
       httpClientPort: deps.httpClientPort,

@@ -9,6 +9,7 @@ import type {
   EmbeddedSearchBackend,
   ExecutionPort,
   BrowserControlPort,
+  BotsServicePort,
   FileSystemPort,
   HttpClientPort,
   ImageProcessorPort,
@@ -148,6 +149,8 @@ export interface ToolExecutionContext {
   executionPort?: ExecutionPort;
   /** browser-use 控制端口；node_repl 的 agent.browsers.* 经此执行。缺省则 browser 不可用。 */
   browserControlPort?: BrowserControlPort;
+  /** Bot 命令端口；BotCommand 工具经此调用 Host 的 IBotsService。缺省则工具不注册。 */
+  botsServicePort?: BotsServicePort;
   /** 官方 browser-use plugin docs 资产目录；只在 browser-use 启用时用于 agent.browsers.documentation()。 */
   browserDocumentationRoot?: string;
   fileSystemPort?: FileSystemPort;

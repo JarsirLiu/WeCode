@@ -37,6 +37,10 @@ export function refreshBranchAwareBuiltInTools(runtime: AgentRuntimeInternal): v
     // silentDuplicateWarnings 还把告警吞掉，所以全程无声）。推导因此必须与 runtime-tools.ts
     // 共用同一个 helper，不能在这里重写一遍判断。
     includeDynamicWorkflow: resolveRuntimeDynamicWorkflowToolsIncluded(runtime.config),
+    // BotCommand 的门是「端口在场即注册」：二次注册省略它会在 shell 快照刷新时把
+    // 首次装配注册的 BotCommand 原样覆盖掉（registry.register 同名覆盖），因此必须
+    // 从 internal 重新读取端口，与 runtime-tools.ts 的首次装配同一判据。
+    includeBotCommand: Boolean(runtime.botsServicePort),
     agentProfiles: runtime.config.subagents?.profiles,
     allowedTools: resolveBuiltInToolAllowlist(runtime.config),
     disallowedTools: runtime.config.toolDisallowlist,

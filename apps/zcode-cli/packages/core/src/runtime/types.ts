@@ -69,6 +69,7 @@ import type {
   ModelCatalogPort,
   ExecutionPort,
   BrowserControlPort,
+  BotsServicePort,
   ExecutionShellSelection,
   AutomationPort,
   OffPeakPort,
@@ -330,6 +331,11 @@ export interface AgentRuntimeDeps {
   executionPort?: ExecutionPort;
   /** browser-use 控制端口；透传到 ToolExecutionContext.browserControlPort 供 node_repl 使用。 */
   browserControlPort?: BrowserControlPort;
+  /**
+   * Bot 命令端口；在场时注册 BotCommand 工具（微信等渠道 Bot 的 AI 命令入口），
+   * 缺席（纯 CLI）则不注册。spec: docs/specs/bot-weixin-ai-commands.md。
+   */
+  botsServicePort?: BotsServicePort;
   fileSystemPort?: FileSystemPort;
   httpClientPort?: HttpClientPort;
   imageProcessorPort?: ImageProcessorPort;

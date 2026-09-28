@@ -2335,6 +2335,92 @@ export type ZCodeBrowserExecuteParams = z.infer<typeof zcodeBrowserExecuteParams
 export const zcodeBrowserExecuteResultSchema = browserCommandResultSchema;
 export type ZCodeBrowserExecuteResult = z.infer<typeof zcodeBrowserExecuteResultSchema>;
 
+// Bot 命令统一入口（spec: docs/specs/bot-weixin-ai-commands.md）：agent 的 BotCommand 工具经
+// bots/commandExecute 反向请求调用 Host 的 IBotsService。botId/channel 由 Host 从受信 session
+// 解析，params 只携带命令事实，不含任何模型可控的身份字段。
+export const zcodeBotsCommandNameSchema = z.enum([
+  "model",
+  "workspace",
+  "task",
+  "status",
+  "reconnect",
+  "new",
+  "stop",
+  "thoughtLevel",
+  "reply",
+]);
+export type ZCodeBotsCommandName = z.infer<typeof zcodeBotsCommandNameSchema>;
+
+export const zcodeBotsCommandActionSchema = z.enum(["list", "set", "execute"]);
+export type ZCodeBotsCommandAction = z.infer<typeof zcodeBotsCommandActionSchema>;
+
+export const zcodeBotsCommandPayloadSchema = z
+  .object({
+    providerId: nonEmptyString.optional(),
+    modelId: nonEmptyString.optional(),
+    workspaceId: nonEmptyString.optional(),
+    taskId: nonEmptyString.optional(),
+    thoughtLevel: nonEmptyString.optional(),
+    replyMode: nonEmptyString.optional(),
+  })
+  .strict();
+export type ZCodeBotsCommandPayload = z.infer<typeof zcodeBotsCommandPayloadSchema>;
+
+export const zcodeBotsCommandExecuteParamsSchema = z
+  .object({
+    requestId: nonEmptyString,
+    sessionId: nonEmptyString,
+    turnId: nonEmptyString.optional(),
+    workspaceKey: nonEmptyString,
+    workspacePath: nonEmptyString,
+    workspaceIdentity: nonEmptyString.optional(),
+    remoteSessionId: nonEmptyString.optional(),
+    clientMode: browserClientModeSchema,
+    sessionContext: browserSessionContextKindSchema,
+    command: z
+      .object({
+        command: zcodeBotsCommandNameSchema,
+        action: zcodeBotsCommandActionSchema,
+        payload: zcodeBotsCommandPayloadSchema.optional(),
+      })
+      .strict(),
+  })
+  .strict();
+export type ZCodeBotsCommandExecuteParams = z.infer<typeof zcodeBotsCommandExecuteParamsSchema>;
+
+export const zcodeBotsCommandOptionSchema = z
+  .object({
+    id: z.string(),
+    label: z.string(),
+    description: z.string().optional(),
+    isCurrent: z.boolean().optional(),
+  })
+  .strict();
+export type ZCodeBotsCommandOption = z.infer<typeof zcodeBotsCommandOptionSchema>;
+
+export const zcodeBotsCommandExecuteResultSchema = z
+  .object({
+    success: z.boolean(),
+    step: z
+      .enum([
+        "select_provider",
+        "select_model",
+        "select_workspace",
+        "select_task",
+        "select_thought_level",
+        "select_reply",
+        "done",
+      ])
+      .optional(),
+    options: z.array(zcodeBotsCommandOptionSchema).optional(),
+    textGuidance: z.string().optional(),
+    currentValue: z.string().optional(),
+    message: z.string().optional(),
+    error: z.string().optional(),
+  })
+  .strict();
+export type ZCodeBotsCommandExecuteResult = z.infer<typeof zcodeBotsCommandExecuteResultSchema>;
+
 export const zcodeUserInputOptionSchema = z
   .object({
     value: nonEmptyString,
@@ -3664,6 +3750,8 @@ export const zcodeProtocolMethods = {
   // browser-use 反向请求由 agent 发起，host 转给 main 中的 CDP executor。
   interactionBrowserList: "interaction/browserList",
   interactionBrowserExecute: "interaction/browserExecute",
+  // Bot 命令反向请求由 agent 的 BotCommand 工具发起，host 转给 IBotsService 执行。
+  botsCommandExecute: "bots/commandExecute",
 } as const;
 
 export type ZCodeProtocolMethod = (typeof zcodeProtocolMethods)[keyof typeof zcodeProtocolMethods];
@@ -3688,6 +3776,10 @@ export const zcodeProtocolSessionMethodContracts = {
   [zcodeProtocolMethods.interactionBrowserExecute]: {
     params: zcodeBrowserExecuteParamsSchema,
     result: zcodeBrowserExecuteResultSchema,
+  },
+  [zcodeProtocolMethods.botsCommandExecute]: {
+    params: zcodeBotsCommandExecuteParamsSchema,
+    result: zcodeBotsCommandExecuteResultSchema,
   },
 } as const satisfies Partial<
   Record<ZCodeProtocolMethod, { params: z.ZodTypeAny; result: z.ZodTypeAny }>

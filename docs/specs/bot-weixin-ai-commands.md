@@ -2,7 +2,7 @@
 
 ## 范围
 
-本规格只覆盖已绑定的微信 Bot 在现有 Agent task 中通过自然语言调用 Bot 命令。微信扫码登录、注册轮询和 `/bind` 仍由桌面配置页或用户手动发送命令完成，不由模型或 `bot_command` 工具代办。
+本规格只覆盖已绑定的微信 Bot 在现有 Agent task 中通过自然语言调用 Bot 命令。微信扫码登录、注册轮询和 `/bind` 仍由桌面配置页或用户手动发送命令完成，不由模型或 `BotCommand` 工具代办。
 
 本规格不实现飞书、Telegram 的结构化卡片，不开启链路 B Web/LAN 的 Agent 会话，也不实现链路 C 手机远控、公网 relay 或 attachment。
 
@@ -11,14 +11,14 @@
 ```text
 微信入站消息
   ├─ 以 / 开头或命中既有选择上下文 -> parseBotCommand -> 现有手动命令处理
-  └─ 普通文本 -> 现有 Bot Agent task -> bot_command -> IBotsService
+  └─ 普通文本 -> 现有 Bot Agent task -> BotCommand -> IBotsService
 ```
 
 手动命令和 AI 工具共用 `IBotsService` 的命令执行事实与授权边界。AI 不可用时，手动命令仍必须可用；不得用 AI 超时替代或阻塞现有手动命令。
 
 ## 支持范围
 
-微信 `bot_command` 支持：
+微信 `BotCommand` 支持：
 
 - `model`: 列出供应商、列出模型、设置模型。
 - `workspace`: 列出允许工作区、切换工作区。
@@ -47,12 +47,12 @@
 ```text
 用户: 换模型
   -> 普通文本进入已有 Bot Agent task
-  -> 模型调用 bot_command(model, list)
+  -> 模型调用 BotCommand(model, list)
   -> IBotsService 返回微信 textGuidance
   -> 模型回复供应商文本选项
   -> 用户回复选择
   -> 普通文本进入同一 task
-  -> 模型调用 bot_command(model, set, providerId/modelId)
+  -> 模型调用 BotCommand(model, set, providerId/modelId)
   -> IBotsService 校验当前上下文并提交变更
   -> 模型回复成功文本
 ```
@@ -66,13 +66,28 @@
 - 命令流程实现在 `botAiCommandBridge.ts`（授权、workspace/task/stop/status/reconnect/thoughtLevel/reply）、`botAiModelFlow.ts`（model 列举与切换）和 `botAiCommandBridgePrimitives.ts`（原语契约与重连幂等常量）；三者均为无可变状态的纯函数模块。
 - `botsService.ts` 的 `IBotsService` 仍是命令事实、授权和 Bot context 的唯一所有者：只向 bridge 注入闭包原语（context 读写、任务服务解析、广播与 typing 副作用、重连幂等表），不保留第二份 AI 命令流程实现。
 - 与手动命令共用的纯展示 helper（模型选择格式化、reply granularity 选项、config select 读取）位于 `botConfigSelectHelpers.ts`；手动命令流程与 AI 流程引用同一份实现。
-- `IBotsService.executeBotCommand(params)` 是 AI Runtime（BotsServicePort）唯一的命令入口；`botId`、`channel` 与 workspace 上下文必须来自受信 session 元数据，`payload` 只允许携带选项 id。
+- `IBotsService.executeBotCommand(params)` 是 AI Runtime 唯一的 Bot 命令入口；`botId`、`channel` 与 workspace 上下文必须来自受信 session 元数据，`payload` 只允许携带选项 id。
 
 ## Port 与协议边界
 
-`bot_command` 通过 Core Runtime 的 `BotsServicePort` 调用当前 Host 的 `IBotsService`，不得让 Core 深入导入 services 实现。协议桥必须从受信 session 注入 `botId`、`channel: "weixin"`、`workspaceIdentity`、`remoteSessionId` 和 `clientMode`，忽略模型输入中的替代值。
+AI 侧唯一工具是 `BotCommand`（contracts `src/tools/bot-command.ts`）：单一入口，输入只含 `command`/`action`/`payload`，多步选择由模型上下文承接（`list` 返回选项 → 用户回复数字 → 模型映射回选项 id → `set` 提交）。`botId`、`channel`、`workspaceIdentity`、`remoteSessionId` 和 `clientMode` 全部由受信链路注入，忽略模型输入中的替代值。
 
-Port 缺失、服务未绑定、workspace 不允许、远端断开或请求超时都返回结构化失败结果；不得伪装成成功，也不得由 relay/Main 保存任务队列或快照。
+依赖方向（Core 不接触 services 实现）：
+
+```text
+BotCommand handler (core)
+  -> BotsServicePort (contracts/interfaces/bots-service.port.ts，只含 executeBotCommand)
+  -> createProtocolBotsCommandBroker (bootstrap/zcode-protocol)
+  -> ZCode Protocol 反向请求 bots/commandExecute (shared zcode-protocol 注册 schema)
+  -> zcodeAgentService (services) 应答 -> createBotsCommandServiceExecutor (services/bots)
+  -> 按 workspace 身份 key 解析 botId/channel -> IBotsService.executeBotCommand
+```
+
+- contracts 只做结构镜像，不 import services 与 shared 的 zod schema。
+- broker 的 workspace 上下文与 browser 反向请求共用同一份 session record 构造；`clientMode` 取 `deliveryKind ?? "desktop-continuous"`。
+- Host 应答与 workspace→Bot 解析在 services 侧：以 `workspaceIdentity?.trim() || workspacePath` 在 `getBotStates()` 中定位 Bot context，从 bot 配置读取 `provider` 作为 channel。
+- 装配点唯一：`createLocalServices`（`packages/services/src/node.ts`）同时服务 `desktop_local_host` 与 `remote_workspace_host`，链路 A 远程 Host 无需第二份注入。
+- 纯 CLI（无协议宿主）没有 `botsServicePort`，`BotCommand` 不注册（端口在场即注册）。端口在场但服务未绑定、workspace 无 Bot、远端断开或请求超时都返回 `success: false` 的结构化失败结果，不得伪装成功；relay/Main 不保存任务队列或快照。
 
 链路 A 远程工作区的命令在持有任务和模型事实的远端 Host 执行。本规格不把链路 B 当前的文件访问能力扩展为 Agent 会话，也不把链路 C 的类型占位视为已实现手机远控。
 

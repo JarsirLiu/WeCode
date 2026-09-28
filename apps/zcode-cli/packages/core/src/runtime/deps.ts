@@ -201,6 +201,7 @@ export type {
   EmbeddedSearchBackend,
   ExecutionPort,
   BrowserControlPort,
+  BotsServicePort,
   ExecutionShellSelection,
   FileSystemPort,
   HttpClientPort,

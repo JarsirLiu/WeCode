@@ -35,6 +35,7 @@ export class ToolExecutorImpl implements ToolExecutor {
       backgroundTaskControlPort: options.backgroundTaskControlPort,
       executionPort: options.executionPort,
       browserControlPort: options.browserControlPort,
+      botsServicePort: options.botsServicePort,
       browserDocumentationRoot: options.browserDocumentationRoot,
       fileSystemPort: options.fileSystemPort,
       httpClientPort: options.httpClientPort,

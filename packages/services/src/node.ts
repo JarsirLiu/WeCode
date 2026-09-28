@@ -310,6 +310,7 @@ import {
 import { createLocalConversationShareArtifactSource } from "./conversation-share/conversationShareArtifactSource.js";
 import { ConversationShareHttpClient } from "./conversation-share/conversationShareHttpClient.js";
 import { IBotsService } from "./bots/bots.js";
+import { createBotsCommandServiceExecutor } from "./bots/botAiCommandServiceExecutor.js";
 import { IFileWatcherService } from "./fileWatcher/fileWatcher.js";
 import { IOAuthService } from "./oauth/oauth.js";
 import { IUsageStatsService } from "./usage-stats/usageStats.js";
@@ -2108,6 +2109,11 @@ export function createLocalServices(options: {
     spawnFallbackCwd: options?.zcodeAgentSpawnFallbackCwd,
     // browser-use：host→main 执行桥透传给 agent service 的 onRequest browserExecute 路由。
     browserControlExecutor: options?.browserControlExecutor,
+    // Bot 命令：闭包延迟解析 services 里的 IBotsService（botsService 在本函数后段注册，
+    // 反向请求到达时已完成装配），本地与链路 A 远程 Host 共用同一装配点。
+    botsCommandExecutor: createBotsCommandServiceExecutor({
+      readBotsService: () => services.getOptional(IBotsService),
+    }),
     // 官方 Server MCP 身份头：host 是唯一身份权威，Agent 经反向请求索取。
     // Provider 存在性读取正式 Model Selection View；不恢复旧 Provider Snapshot。
     officialMcpAuthHeadersResolver: createOfficialMcpAuthHeadersResolver({

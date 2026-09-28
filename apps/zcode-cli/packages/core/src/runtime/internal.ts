@@ -81,6 +81,7 @@ export interface AgentRuntimeInternal
   modelIoDir?: string;
   providerRuntimeHeadersPort?: ProviderRuntimeHeadersPort;
   browserControlPort?: AgentRuntimeDeps["browserControlPort"];
+  botsServicePort?: AgentRuntimeDeps["botsServicePort"];
   modelRequestAdmission?: AgentRuntimeDeps["modelRequestAdmission"];
   sessionModelSelection: ModelSelection | undefined;
   messageHistory: MessageHistory;

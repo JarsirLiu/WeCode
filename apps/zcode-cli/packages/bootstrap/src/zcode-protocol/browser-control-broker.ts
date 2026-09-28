@@ -44,7 +44,7 @@ export function createProtocolBrowserControlBroker(
         context.requestClient(
           zcodeProtocolMethods.interactionBrowserExecute,
           {
-            ...buildBrowserRequestContext(context, { sessionId, turnId }),
+            ...buildWorkspaceRequestContext(context, { sessionId, turnId }),
             browserId,
             browserGeneration,
             command,
@@ -59,7 +59,7 @@ export function createProtocolBrowserControlBroker(
     async list({ sessionId, turnId, traceContext, signal }) {
       const result = await context.requestClient(
         zcodeProtocolMethods.interactionBrowserList,
-        buildBrowserRequestContext(context, { sessionId, turnId, traceContext }),
+        buildWorkspaceRequestContext(context, { sessionId, turnId, traceContext }),
         zcodeBrowserListResultSchema,
         buildRequestOptions(traceContext, signal),
       );
@@ -76,7 +76,7 @@ export function createProtocolBrowserControlBroker(
       signal,
     }) {
       rememberConnection(sessionId, browserId, browserGeneration);
-      const requestContext = buildBrowserRequestContext(context, {
+      const requestContext = buildWorkspaceRequestContext(context, {
         sessionId,
         turnId,
         traceContext,
@@ -89,7 +89,7 @@ export function createProtocolBrowserControlBroker(
           .requestClient(
             zcodeProtocolMethods.interactionBrowserExecute,
             {
-              ...buildBrowserRequestContext(context, { sessionId, turnId, traceContext }),
+              ...buildWorkspaceRequestContext(context, { sessionId, turnId, traceContext }),
               browserId,
               browserGeneration,
               command: { method: "cancelRequest", requestId: requestContext.requestId },
@@ -129,7 +129,7 @@ export function createProtocolBrowserControlBroker(
   };
 }
 
-function buildBrowserRequestContext(
+export function buildWorkspaceRequestContext(
   context: ZCodeProtocolAgentServerContext,
   input: {
     sessionId: string;

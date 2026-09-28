@@ -260,6 +260,7 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
         workspaceIdentity: options.runtimeConfig?.memory?.workspaceIdentity,
       });
     const browserControlPort = options.browserControlPort;
+    const botsServicePort = options.botsServicePort;
     if (
       browserControlPort &&
       pluginRuntimeFeatures.browserUse === true &&
@@ -735,6 +736,7 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
       workspaceHookAdmission: workspaceHookRuntimeSecurity?.admission,
       workspaceHookSnapshot: workspaceHookRuntimeSecurity?.snapshot,
       browserControlPort,
+      botsServicePort,
       fileSystemPort,
       httpClientPort,
       imageProcessorPort,

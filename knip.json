@@ -23,7 +23,7 @@
       "entry": ["src/index.ts", "src/entry-stdio.ts", "build-remote.ts"]
     },
     "packages/services": {
-      "entry": ["src/index.ts", "src/storage/module.ts"]
+      "entry": ["src/index.ts", "src/storage/module.ts", "test/*.test.ts"]
     },
     "apps/zcode-cli/packages/browser-use-plugin": {
       "entry": ["src/browser-client.ts"]

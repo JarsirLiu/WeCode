@@ -34,6 +34,7 @@ import {
   zcodePermissionRequestParamsSchema,
   zcodeBrowserListParamsSchema,
   zcodeBrowserExecuteParamsSchema,
+  zcodeBotsCommandExecuteParamsSchema,
   zcodePluginsConfigureResultSchema,
   zcodePluginsInstallResultSchema,
   zcodePluginsListResultSchema,
@@ -308,6 +309,7 @@ import {
   collectBrowserAmbientContext,
   type BrowserAmbientContextExecutor,
 } from "./zcodeAgentBrowserAmbientContext.js";
+import type { BotsCommandServiceExecutor } from "./zcodeAgentBotsCommand.js";
 import {
   createCuaOperationTurnTracker,
   type CuaOperationWorkspaceTarget,
@@ -900,6 +902,12 @@ interface CreateZCodeAgentServiceOptions extends Omit<
    * browser 命令返回 backend_unavailable，不影响其它功能。
    */
   browserControlExecutor?: BrowserAmbientContextExecutor;
+  /**
+   * Bot 命令执行桥：agent 的 bots/commandExecute 反向请求转发给 IBotsService。
+   * desktop host（本地与链路 A 远程）装配时注入；缺省返回结构化失败，
+   * BotCommand 工具在纯 CLI 不注册，注入缺失也不能伪装成功。
+   */
+  botsCommandExecutor?: BotsCommandServiceExecutor;
   /**
    * 官方 Server MCP 身份头解析器。Agent 进程不持有用户身份权威，
    * 经 interaction/requestOfficialMcpAuthHeaders 向 host 索取本次请求的身份头。
@@ -2483,6 +2491,50 @@ export function createZCodeAgentService(
                   message: error instanceof Error ? error.message : String(error),
                 },
                 elapsedMs: 0,
+              });
+            });
+          return;
+        }
+
+        // Bot 命令：agent 的 BotCommand 工具经 bots/commandExecute 到达这里。
+        // 纯 RPC 中继——转发给 BotsCommandServiceExecutor 执行桥后 respond，不 emitSessionEvent。
+        // executor 缺省返回结构化失败（spec: bot-weixin-ai-commands「不得伪装成功」）。
+        if (request.method === zcodeProtocolMethods.botsCommandExecute) {
+          const parsed = zcodeBotsCommandExecuteParamsSchema.safeParse(request.params);
+          if (!parsed.success) {
+            void client.respondError(request.id, {
+              code: -32602,
+              message: "Invalid bots/commandExecute params",
+              data: parsed.error.flatten(),
+            });
+            return;
+          }
+          const executor = options?.botsCommandExecutor;
+          if (!executor) {
+            void client.respond(request.id, {
+              success: false,
+              error: "bot command service not available",
+            });
+            return;
+          }
+          void executor
+            .execute({
+              workspaceKey: parsed.data.workspaceKey,
+              workspacePath: parsed.data.workspacePath,
+              workspaceIdentity: parsed.data.workspaceIdentity,
+              remoteSessionId: parsed.data.remoteSessionId,
+              clientMode: parsed.data.clientMode,
+              command: {
+                command: parsed.data.command.command,
+                action: parsed.data.command.action,
+                ...(parsed.data.command.payload ? { payload: parsed.data.command.payload } : {}),
+              },
+            })
+            .then((result) => client.respond(request.id, result))
+            .catch((error: unknown) => {
+              void client.respond(request.id, {
+                success: false,
+                error: error instanceof Error ? error.message : String(error),
               });
             });
           return;

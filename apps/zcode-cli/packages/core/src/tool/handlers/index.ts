@@ -50,6 +50,7 @@ import {
   exitPlanModeToolEntry,
 } from "./plan-mode.js";
 import { askUserQuestionToolEntry } from "./ask-user-question.js";
+import { botCommandToolEntry } from "./bot-command.js";
 import { sendMessageToolEntry } from "./send-message.js";
 import { respondToCoordinatorToolEntry } from "./respond-to-coordinator.js";
 import { createSubmitResultToolEntry, submitResultToolEntry } from "./submit-result.js";
@@ -94,6 +95,8 @@ export const builtInTools: ToolEntry[] = [
   enterPlanModeToolEntry,
   exitPlanModeToolEntry,
   askUserQuestionToolEntry,
+  // Bot 命令入口：端口在场即注册（includeBotCommand），纯 CLI 无 BotsServicePort 时不存在。
+  botCommandToolEntry,
   sendMessageToolEntry,
   respondToCoordinatorToolEntry,
   submitResultToolEntry,
@@ -174,6 +177,8 @@ interface RegisterBuiltInToolsOptions {
   includeAutomation?: boolean;
   /** Off-Peak 会话内创建工具面；由 host 的 offPeakToolEnabled flag（灰度/远程门）驱动。 */
   includeOffPeak?: boolean;
+  /** BotCommand 工具面；由 BotsServicePort 注入门驱动（spec: bot-weixin-ai-commands）。 */
+  includeBotCommand?: boolean;
   /**
    * 动态工作流灰度门。**只有显式 false
    * 才下架** DYNAMIC_WORKFLOW_TOOL_NAMES：缺席代表调用方不参与灰度（TUI、headless、
@@ -260,6 +265,9 @@ export function registerBuiltInTools(
       continue;
     }
     if (entry.metadata.name === "js" && options.includeNodeRepl !== true) {
+      continue;
+    }
+    if (entry.metadata.name === "BotCommand" && options.includeBotCommand !== true) {
       continue;
     }
     registry.register(resolveBuiltInToolEntryForBranch(entry, options), {

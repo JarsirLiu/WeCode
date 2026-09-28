@@ -47,6 +47,7 @@ import type {
   DynamicWorkflowRunSessionSummary,
   ExecutionPort,
   BrowserControlPort,
+  BotsServicePort,
   FileSystemPort,
   GoalStatus,
   HttpClientPort,
@@ -157,6 +158,8 @@ export interface ZCodeAppOptions {
   onToolExecResource?: (sample: ZCodeToolExecResource) => void;
   /** browser-use 控制端口；注入后 node_repl 的 agent.browsers.* 可用。缺省则不可用。 */
   browserControlPort?: BrowserControlPort;
+  /** Bot 命令端口；注入后 BotCommand 工具注册（微信等渠道 Bot 的 AI 命令入口）。缺省则不注册。 */
+  botsServicePort?: BotsServicePort;
   /** 可由协议宿主注入的进程级 node_repl Browser broker；缺省时 app 自建并拥有。 */
   nodeReplBrowserBroker?: NodeReplBrowserBroker;
   fileSystemPort?: FileSystemPort;

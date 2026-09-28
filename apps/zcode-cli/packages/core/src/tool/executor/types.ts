@@ -10,6 +10,7 @@ import type {
   EmbeddedSearchBackend,
   ExecutionPort,
   BrowserControlPort,
+  BotsServicePort,
   ExecutionShellSelection,
   AutomationPort,
   OffPeakPort,
@@ -89,6 +90,8 @@ export interface ToolExecutorOptions {
   backgroundTaskControlPort?: BackgroundTaskControlPort;
   executionPort?: ExecutionPort;
   browserControlPort?: BrowserControlPort;
+  /** Bot 命令端口；BotCommand 工具经此调用 Host 的 IBotsService。 */
+  botsServicePort?: BotsServicePort;
   browserDocumentationRoot?: string;
   fileSystemPort?: FileSystemPort;
   httpClientPort?: HttpClientPort;
@@ -195,6 +198,8 @@ export interface ToolExecutorDeps {
   backgroundTaskControlPort?: BackgroundTaskControlPort;
   executionPort?: ExecutionPort;
   browserControlPort?: BrowserControlPort;
+  /** Bot 命令端口；BotCommand 工具经此调用 Host 的 IBotsService。 */
+  botsServicePort?: BotsServicePort;
   browserDocumentationRoot?: string;
   fileSystemPort?: FileSystemPort;
   httpClientPort?: HttpClientPort;
