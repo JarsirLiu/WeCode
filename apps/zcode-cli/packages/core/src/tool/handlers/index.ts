@@ -4,15 +4,21 @@
 
 import {
   AMEND_WORKFLOW_TOOL_NAME,
+  COMPACT_SESSION_TOOL_NAME,
+  CREATE_SESSION_TOOL_NAME,
   CREATE_WORKFLOW_TOOL_NAME,
   EVAL_WORKFLOW_SNIPPET_TOOL_NAME,
   GET_WORKFLOW_RUN_TOOL_NAME,
   LIST_MODELS_TOOL_NAME,
   LIST_SAVED_WORKFLOWS_TOOL_NAME,
   LIST_WORKFLOW_RUNS_TOOL_NAME,
+  READ_SESSION_TOOL_NAME,
   RESOLVE_WORKFLOW_QUESTION_TOOL_NAME,
   RESUME_WORKFLOW_RUN_TOOL_NAME,
   SAVE_WORKFLOW_TOOL_NAME,
+  SEND_SESSION_MESSAGE_TOOL_NAME,
+  SET_SESSION_MODEL_TOOL_NAME,
+  STOP_SESSION_GENERATION_TOOL_NAME,
   SUBMIT_RESULT_TOOL_NAME,
   type JsonSchema,
 } from "@zcode/contracts";
@@ -51,7 +57,13 @@ import {
 } from "./plan-mode.js";
 import { askUserQuestionToolEntry } from "./ask-user-question.js";
 import { botCommandToolEntry } from "./bot-command.js";
+import { compactSessionToolEntry } from "./compact-session.js";
+import { createSessionToolEntry } from "./create-session.js";
+import { readSessionToolEntry } from "./read-session.js";
 import { sendMessageToolEntry } from "./send-message.js";
+import { sendSessionMessageToolEntry } from "./send-session-message.js";
+import { setSessionModelToolEntry } from "./set-session-model.js";
+import { stopSessionGenerationToolEntry } from "./stop-session-generation.js";
 import { respondToCoordinatorToolEntry } from "./respond-to-coordinator.js";
 import { createSubmitResultToolEntry, submitResultToolEntry } from "./submit-result.js";
 import { escalateToolEntry } from "./escalate.js";
@@ -97,6 +109,13 @@ export const builtInTools: ToolEntry[] = [
   askUserQuestionToolEntry,
   // Bot 命令入口：端口在场即注册（includeBotCommand），纯 CLI 无 BotsServicePort 时不存在。
   botCommandToolEntry,
+  // AI Session Orchestration：6 个会话编排工具，受 includeZCodeTask 开关控制。
+  createSessionToolEntry,
+  sendSessionMessageToolEntry,
+  readSessionToolEntry,
+  stopSessionGenerationToolEntry,
+  setSessionModelToolEntry,
+  compactSessionToolEntry,
   sendMessageToolEntry,
   respondToCoordinatorToolEntry,
   submitResultToolEntry,
@@ -159,6 +178,19 @@ const DYNAMIC_WORKFLOW_TOOL_NAMES: ReadonlySet<string> = new Set([
   RESOLVE_WORKFLOW_QUESTION_TOOL_NAME,
 ]);
 
+/**
+ * AI Session Orchestration 工具集（spec: docs/specs/ai-session-orchestration.md）。
+ * includeZCodeTask 开关控制注册；纯 CLI 无 zcodeTaskPort 时不注册。
+ */
+const ZCODE_TASK_TOOL_NAMES: ReadonlySet<string> = new Set([
+  CREATE_SESSION_TOOL_NAME,
+  SEND_SESSION_MESSAGE_TOOL_NAME,
+  READ_SESSION_TOOL_NAME,
+  STOP_SESSION_GENERATION_TOOL_NAME,
+  SET_SESSION_MODEL_TOOL_NAME,
+  COMPACT_SESSION_TOOL_NAME,
+]);
+
 interface RegisterBuiltInToolsOptions {
   bashTimeoutPolicy?: BashTimeoutPolicy;
   includeSkill?: boolean;
@@ -179,6 +211,8 @@ interface RegisterBuiltInToolsOptions {
   includeOffPeak?: boolean;
   /** BotCommand 工具面；由 BotsServicePort 注入门驱动（spec: bot-weixin-ai-commands）。 */
   includeBotCommand?: boolean;
+  /** AI Session Orchestration 工具面；由 zcodeTaskPort/zcodeSessionPort 注入门驱动（spec: ai-session-orchestration）。 */
+  includeZCodeTask?: boolean;
   /**
    * 动态工作流灰度门。**只有显式 false
    * 才下架** DYNAMIC_WORKFLOW_TOOL_NAMES：缺席代表调用方不参与灰度（TUI、headless、
@@ -268,6 +302,10 @@ export function registerBuiltInTools(
       continue;
     }
     if (entry.metadata.name === "BotCommand" && options.includeBotCommand !== true) {
+      continue;
+    }
+    // AI Session Orchestration 工具集：zcodeTaskPort 注入且非 subagent_child 时注册。
+    if (options.includeZCodeTask !== true && ZCODE_TASK_TOOL_NAMES.has(entry.metadata.name)) {
       continue;
     }
     registry.register(resolveBuiltInToolEntryForBranch(entry, options), {

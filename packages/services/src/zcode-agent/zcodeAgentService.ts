@@ -113,9 +113,21 @@ import {
   type ZCodeToolExecResource,
   type ZCodePluginOperationProgressNotification,
   type ZCodeTaskMode,
+  // AI Session Orchestration schemas (spec: docs/specs/ai-session-orchestration.md)
+  zcodeTaskCreateTaskParamsSchema,
+  zcodeTaskSendPromptParamsSchema,
+  zcodeTaskStopGenerationParamsSchema,
+  zcodeTaskCompactSessionParamsSchema,
+  zcodeTaskResumeTaskParamsSchema,
+  zcodeTaskListTasksParamsSchema,
+  zcodeTaskGetTaskSnapshotParamsSchema,
+  zcodeTaskSetModelParamsSchema,
+  zcodeSessionReadSessionParamsSchema,
+  zcodeSessionListSessionsParamsSchema,
 } from "@zcode/shared";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 import { createOfficialMcpIssuanceAudit } from "#src/official-mcp/officialMcpIssuanceAudit.js";
+import type { ZCodeTaskServiceExecutor } from "./zcodeTaskCommandExecutor.js";
 import type {
   AccountRequestAuthMaterial,
   IAccountRequestAuthService,
@@ -908,6 +920,12 @@ interface CreateZCodeAgentServiceOptions extends Omit<
    * BotCommand 工具在纯 CLI 不注册，注入缺失也不能伪装成功。
    */
   botsCommandExecutor?: BotsCommandServiceExecutor;
+  /**
+   * ZCode Task/Session 编排执行桥：agent 的 task/*, session/* 反向请求转发给
+   * IZCodeTaskService / IZCodeSessionService。desktop host 装配时注入；
+   * 缺省返回结构化失败，AI 编排工具在纯 CLI 不注册，注入缺失也不能伪装成功。
+   */
+  zcodeTaskExecutor?: ZCodeTaskServiceExecutor;
   /**
    * 官方 Server MCP 身份头解析器。Agent 进程不持有用户身份权威，
    * 经 interaction/requestOfficialMcpAuthHeaders 向 host 索取本次请求的身份头。
@@ -2529,6 +2547,405 @@ export function createZCodeAgentService(
                 action: parsed.data.command.action,
                 ...(parsed.data.command.payload ? { payload: parsed.data.command.payload } : {}),
               },
+            })
+            .then((result) => client.respond(request.id, result))
+            .catch((error: unknown) => {
+              void client.respond(request.id, {
+                success: false,
+                error: error instanceof Error ? error.message : String(error),
+              });
+            });
+          return;
+        }
+
+        // ============================================================
+        // AI Session Orchestration: task/* / session/* 反向请求
+        // 实现参考：docs/specs/ai-session-orchestration.md
+        // executor 注入方式同 botsCommandExecutor；缺省返回结构化失败，不伪造成功。
+        // ============================================================
+        const taskExecutor = options?.zcodeTaskExecutor;
+
+        if (request.method === zcodeProtocolMethods.taskCreateTask) {
+          const parsed = zcodeTaskCreateTaskParamsSchema.safeParse(request.params);
+          if (!parsed.success) {
+            void client.respondError(request.id, {
+              code: -32602,
+              message: "Invalid task/createTask params",
+              data: parsed.error.flatten(),
+            });
+            return;
+          }
+          if (!taskExecutor) {
+            void client.respond(request.id, {
+              success: false,
+              error: "zcode task service not available",
+            });
+            return;
+          }
+          void taskExecutor
+            .createTask({
+              workspaceKey: parsed.data.workspaceKey,
+              workspacePath: parsed.data.workspacePath,
+              workspaceIdentity: parsed.data.workspaceIdentity,
+              remoteSessionId: parsed.data.remoteSessionId,
+              clientMode: parsed.data.clientMode,
+              mode: parsed.data.mode,
+              modelSelection: parsed.data.modelSelection,
+              model: parsed.data.model,
+              thoughtLevel: parsed.data.thoughtLevel,
+              draftSessionId: parsed.data.draftSessionId,
+              forkedFromTaskId: parsed.data.forkedFromTaskId,
+              automationId: parsed.data.automationId,
+              offPeakTaskId: parsed.data.offPeakTaskId,
+              deferPersistenceUntilFirstPrompt: parsed.data.deferPersistenceUntilFirstPrompt,
+              v4Create: parsed.data.v4Create,
+            })
+            .then((result) => client.respond(request.id, result))
+            .catch((error: unknown) => {
+              void client.respond(request.id, {
+                success: false,
+                error: error instanceof Error ? error.message : String(error),
+              });
+            });
+          return;
+        }
+
+        if (request.method === zcodeProtocolMethods.taskSendPrompt) {
+          const parsed = zcodeTaskSendPromptParamsSchema.safeParse(request.params);
+          if (!parsed.success) {
+            void client.respondError(request.id, {
+              code: -32602,
+              message: "Invalid task/sendPrompt params",
+              data: parsed.error.flatten(),
+            });
+            return;
+          }
+          if (!taskExecutor) {
+            void client.respond(request.id, {
+              success: false,
+              error: "zcode task service not available",
+            });
+            return;
+          }
+          void taskExecutor
+            .sendPrompt({
+              workspaceKey: parsed.data.workspaceKey,
+              workspacePath: parsed.data.workspacePath,
+              workspaceIdentity: parsed.data.workspaceIdentity,
+              remoteSessionId: parsed.data.remoteSessionId,
+              clientMode: parsed.data.clientMode,
+              taskId: parsed.data.taskId,
+              traceId: parsed.data.traceId,
+              queryId: parsed.data.queryId,
+              messageId: parsed.data.messageId,
+              content: parsed.data.content,
+              attachments: parsed.data.attachments,
+              clientId: parsed.data.clientId,
+              clientLabel: parsed.data.clientLabel,
+              toolDenylist: parsed.data.toolDenylist,
+              modelSelection: parsed.data.modelSelection,
+            })
+            .then(() => client.respond(request.id, zcodeProtocolEmptyResultSchema.parse({})))
+            .catch((error: unknown) => {
+              void client.respond(request.id, {
+                success: false,
+                error: error instanceof Error ? error.message : String(error),
+              });
+            });
+          return;
+        }
+
+        if (request.method === zcodeProtocolMethods.taskStopGeneration) {
+          const parsed = zcodeTaskStopGenerationParamsSchema.safeParse(request.params);
+          if (!parsed.success) {
+            void client.respondError(request.id, {
+              code: -32602,
+              message: "Invalid task/stopGeneration params",
+              data: parsed.error.flatten(),
+            });
+            return;
+          }
+          if (!taskExecutor) {
+            void client.respond(request.id, {
+              success: false,
+              error: "zcode task service not available",
+            });
+            return;
+          }
+          void taskExecutor
+            .stopGeneration({
+              workspaceKey: parsed.data.workspaceKey,
+              workspacePath: parsed.data.workspacePath,
+              workspaceIdentity: parsed.data.workspaceIdentity,
+              remoteSessionId: parsed.data.remoteSessionId,
+              clientMode: parsed.data.clientMode,
+              taskId: parsed.data.taskId,
+              runId: parsed.data.runId,
+            })
+            .then(() => client.respond(request.id, zcodeProtocolEmptyResultSchema.parse({})))
+            .catch((error: unknown) => {
+              void client.respond(request.id, {
+                success: false,
+                error: error instanceof Error ? error.message : String(error),
+              });
+            });
+          return;
+        }
+
+        if (request.method === zcodeProtocolMethods.taskCompactSession) {
+          const parsed = zcodeTaskCompactSessionParamsSchema.safeParse(request.params);
+          if (!parsed.success) {
+            void client.respondError(request.id, {
+              code: -32602,
+              message: "Invalid task/compactSession params",
+              data: parsed.error.flatten(),
+            });
+            return;
+          }
+          if (!taskExecutor) {
+            void client.respond(request.id, {
+              success: false,
+              error: "zcode task service not available",
+            });
+            return;
+          }
+          void taskExecutor
+            .compactSession({
+              workspaceKey: parsed.data.workspaceKey,
+              workspacePath: parsed.data.workspacePath,
+              workspaceIdentity: parsed.data.workspaceIdentity,
+              remoteSessionId: parsed.data.remoteSessionId,
+              clientMode: parsed.data.clientMode,
+              taskId: parsed.data.taskId,
+              inputId: parsed.data.inputId,
+              instructions: parsed.data.instructions,
+              expectedRevision: parsed.data.expectedRevision,
+            })
+            .then((result) => client.respond(request.id, result))
+            .catch((error: unknown) => {
+              void client.respond(request.id, {
+                success: false,
+                error: error instanceof Error ? error.message : String(error),
+              });
+            });
+          return;
+        }
+
+        if (request.method === zcodeProtocolMethods.taskResumeTask) {
+          const parsed = zcodeTaskResumeTaskParamsSchema.safeParse(request.params);
+          if (!parsed.success) {
+            void client.respondError(request.id, {
+              code: -32602,
+              message: "Invalid task/resumeTask params",
+              data: parsed.error.flatten(),
+            });
+            return;
+          }
+          if (!taskExecutor) {
+            void client.respond(request.id, {
+              success: false,
+              error: "zcode task service not available",
+            });
+            return;
+          }
+          void taskExecutor
+            .resumeTask({
+              workspaceKey: parsed.data.workspaceKey,
+              workspacePath: parsed.data.workspacePath,
+              workspaceIdentity: parsed.data.workspaceIdentity,
+              remoteSessionId: parsed.data.remoteSessionId,
+              clientMode: parsed.data.clientMode,
+              taskId: parsed.data.taskId,
+              mode: parsed.data.mode,
+              model: parsed.data.model,
+              thoughtLevel: parsed.data.thoughtLevel,
+              automationId: parsed.data.automationId,
+              offPeakTaskId: parsed.data.offPeakTaskId,
+            })
+            .then((result) => client.respond(request.id, result))
+            .catch((error: unknown) => {
+              void client.respond(request.id, {
+                success: false,
+                error: error instanceof Error ? error.message : String(error),
+              });
+            });
+          return;
+        }
+
+        if (request.method === zcodeProtocolMethods.taskListTasks) {
+          const parsed = zcodeTaskListTasksParamsSchema.safeParse(request.params);
+          if (!parsed.success) {
+            void client.respondError(request.id, {
+              code: -32602,
+              message: "Invalid task/listTasks params",
+              data: parsed.error.flatten(),
+            });
+            return;
+          }
+          if (!taskExecutor) {
+            void client.respond(request.id, {
+              success: false,
+              error: "zcode task service not available",
+            });
+            return;
+          }
+          void taskExecutor
+            .listTasks({
+              workspaceKey: parsed.data.workspaceKey,
+              workspacePath: parsed.data.workspacePath,
+              workspaceIdentity: parsed.data.workspaceIdentity,
+              remoteSessionId: parsed.data.remoteSessionId,
+              clientMode: parsed.data.clientMode,
+            })
+            .then((result) => client.respond(request.id, result))
+            .catch((error: unknown) => {
+              void client.respond(request.id, {
+                success: false,
+                error: error instanceof Error ? error.message : String(error),
+              });
+            });
+          return;
+        }
+
+        if (request.method === zcodeProtocolMethods.taskGetTaskSnapshot) {
+          const parsed = zcodeTaskGetTaskSnapshotParamsSchema.safeParse(request.params);
+          if (!parsed.success) {
+            void client.respondError(request.id, {
+              code: -32602,
+              message: "Invalid task/getTaskSnapshot params",
+              data: parsed.error.flatten(),
+            });
+            return;
+          }
+          if (!taskExecutor) {
+            void client.respond(request.id, {
+              success: false,
+              error: "zcode task service not available",
+            });
+            return;
+          }
+          void taskExecutor
+            .getTaskSnapshot({
+              workspaceKey: parsed.data.workspaceKey,
+              workspacePath: parsed.data.workspacePath,
+              workspaceIdentity: parsed.data.workspaceIdentity,
+              remoteSessionId: parsed.data.remoteSessionId,
+              clientMode: parsed.data.clientMode,
+              taskId: parsed.data.taskId,
+              messageLimit: parsed.data.messageLimit,
+            })
+            .then((result) => client.respond(request.id, result))
+            .catch((error: unknown) => {
+              void client.respond(request.id, {
+                success: false,
+                error: error instanceof Error ? error.message : String(error),
+              });
+            });
+          return;
+        }
+
+        if (request.method === zcodeProtocolMethods.taskSetModel) {
+          const parsed = zcodeTaskSetModelParamsSchema.safeParse(request.params);
+          if (!parsed.success) {
+            void client.respondError(request.id, {
+              code: -32602,
+              message: "Invalid task/setModel params",
+              data: parsed.error.flatten(),
+            });
+            return;
+          }
+          if (!taskExecutor) {
+            void client.respond(request.id, {
+              success: false,
+              error: "zcode task service not available",
+            });
+            return;
+          }
+          void taskExecutor
+            .setModel({
+              workspaceKey: parsed.data.workspaceKey,
+              workspacePath: parsed.data.workspacePath,
+              workspaceIdentity: parsed.data.workspaceIdentity,
+              remoteSessionId: parsed.data.remoteSessionId,
+              clientMode: parsed.data.clientMode,
+              taskId: parsed.data.taskId,
+              traceId: parsed.data.traceId,
+              modelSelection: parsed.data.modelSelection,
+            })
+            .then((result) => client.respond(request.id, result))
+            .catch((error: unknown) => {
+              void client.respond(request.id, {
+                success: false,
+                error: error instanceof Error ? error.message : String(error),
+              });
+            });
+          return;
+        }
+
+        if (request.method === zcodeProtocolMethods.sessionReadSession) {
+          const parsed = zcodeSessionReadSessionParamsSchema.safeParse(request.params);
+          if (!parsed.success) {
+            void client.respondError(request.id, {
+              code: -32602,
+              message: "Invalid session/readSession params",
+              data: parsed.error.flatten(),
+            });
+            return;
+          }
+          if (!taskExecutor) {
+            void client.respond(request.id, {
+              success: false,
+              error: "zcode task service not available",
+            });
+            return;
+          }
+          void taskExecutor
+            .readSession({
+              workspaceKey: parsed.data.workspaceKey,
+              workspacePath: parsed.data.workspacePath,
+              workspaceIdentity: parsed.data.workspaceIdentity,
+              remoteSessionId: parsed.data.remoteSessionId,
+              clientMode: parsed.data.clientMode,
+              targetSessionId: parsed.data.targetSessionId,
+              messageLimit: parsed.data.messageLimit,
+              afterSeq: parsed.data.afterSeq,
+            })
+            .then((result) => client.respond(request.id, result))
+            .catch((error: unknown) => {
+              void client.respond(request.id, {
+                success: false,
+                error: error instanceof Error ? error.message : String(error),
+              });
+            });
+          return;
+        }
+
+        if (request.method === zcodeProtocolMethods.sessionListSessions) {
+          const parsed = zcodeSessionListSessionsParamsSchema.safeParse(request.params);
+          if (!parsed.success) {
+            void client.respondError(request.id, {
+              code: -32602,
+              message: "Invalid session/listSessions params",
+              data: parsed.error.flatten(),
+            });
+            return;
+          }
+          if (!taskExecutor) {
+            void client.respond(request.id, {
+              success: false,
+              error: "zcode task service not available",
+            });
+            return;
+          }
+          void taskExecutor
+            .listSessions({
+              workspaceKey: parsed.data.workspaceKey,
+              workspacePath: parsed.data.workspacePath,
+              workspaceIdentity: parsed.data.workspaceIdentity,
+              remoteSessionId: parsed.data.remoteSessionId,
+              clientMode: parsed.data.clientMode,
+              includeArchived: parsed.data.includeArchived,
+              limit: parsed.data.limit,
             })
             .then((result) => client.respond(request.id, result))
             .catch((error: unknown) => {

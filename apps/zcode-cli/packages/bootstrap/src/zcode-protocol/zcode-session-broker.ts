@@ -1,31 +1,37 @@
 import type { ZCodeSessionPort, TraceContext } from "@zcode/contracts";
-import { zcodeSessionTypes } from "@zcode/shared";
 import {
-  buildWorkspaceRequestContext,
+  zcodeProtocolMethods,
+  type ZCodeProtocolMethod,
+  zcodeSessionReadSessionResultSchema,
+  zcodeSessionListSessionsResultSchema,
+} from "@zcode/shared";
+import { buildWorkspaceRequestContext } from "./browser-control-broker.js";
+import {
+  protocolTraceFromTraceContext,
+  type ParamsSchema,
   type ZCodeProtocolAgentServerContext,
   type ZCodeProtocolClientRequestOptions,
 } from "./server-types.js";
-import { zcodeProtocolMethods } from "@zcode/shared";
 
 /**
  * ProtocolZCodeSessionBroker —— agent 侧 ZCodeSessionPort 实现。
  *
- * ZCode Session 工具的每次调用经此把命令事实变成 ZCode Protocol 的 session/* 反向请求，
- * 由 host 的 IZCodeSessionService 执行并返回结构化结果。
- * workspace 元数据只从受信 session record 读取，模型输入中的替代值没有入口。
+ * AI 编排工具的只读调用经此变成 ZCode Protocol 的 session/* 反向请求，由 host 的
+ * IZCodeSessionService 执行。写操作（创建、换模型、换模式）走 ZCodeTaskPort，
+ * 因为含 task 索引管理（spec: docs/specs/ai-session-orchestration.md）。
  */
 export function createProtocolZCodeSessionBroker(
   context: ZCodeProtocolAgentServerContext,
 ): ZCodeSessionPort {
-  const request = async <T>(
-    method: string,
+  const request = <T>(
+    method: ZCodeProtocolMethod,
     params: unknown,
-    resultSchema: any,
+    resultSchema: ParamsSchema<T>,
     traceContext?: TraceContext,
     signal?: AbortSignal,
-  ): Promise<T> => {
-    return context.requestClient(
-      method as any,
+  ): Promise<T> =>
+    context.requestClient(
+      method,
       params,
       resultSchema,
       {
@@ -33,97 +39,60 @@ export function createProtocolZCodeSessionBroker(
         ...(traceContext ? { trace: protocolTraceFromTraceContext(traceContext) } : {}),
       } as ZCodeProtocolClientRequestOptions,
     );
+
+  /** agent 操作字段 + 受信 workspace 上下文；后者覆盖前者中的同名路由字段。 */
+  const withTrustedContext = <
+    T extends {
+      sessionId: string;
+      traceContext?: TraceContext;
+      signal?: AbortSignal;
+    },
+  >(params: T) => {
+    const { traceContext, signal: _signal, ...operation } = params;
+    return {
+      ...operation,
+      // sessionId 直接来自工具参数：readSession 读的是目标会话，必须用目标会话的
+      // workspace 解析路由，用调用方会话会把请求投到自己的工作区。
+      // requireSession 只查 context.sessions（本 runtime 内活跃会话），因此跨工作区
+      // 会话天然不可达，不构成越权读。
+      ...buildWorkspaceRequestContext(context, {
+        sessionId: params.sessionId,
+        traceContext,
+      }),
+    };
   };
 
   return {
-    // ---- Workspace ----
-    initializeWorkspace: (params) => request(
-      "session/initializeWorkspace",
-      buildWorkspaceRequestContext(context, { sessionId: context.sessionId, traceContext: params as any }),
-      zcodeSessionTypes.initializeWorkspaceResultSchema,
-    ),
-    getWorkspaceRuntimeIdentity: (params) => request(
-      "session/getWorkspaceRuntimeIdentity",
-      buildWorkspaceRequestContext(context, { sessionId: context.sessionId, traceContext: params as any }),
-      zcodeSessionTypes.getWorkspaceRuntimeIdentityResultSchema,
-    ),
-    readWorkspacePresentation: (params) => request(
-      "session/readWorkspacePresentation",
-      buildWorkspaceRequestContext(context, { sessionId: context.sessionId, traceContext: params as any }),
-      zcodeSessionTypes.readWorkspacePresentationResultSchema,
-    ),
+    // readSession 用 targetSessionId 解析目标会话的 workspace 路由（不是调用方）。
+    // requireSession 只查 context.sessions（本 runtime 内活跃会话），跨工作区
+    // 会话天然不可达，不构成越权读。不用 withTrustedContext——后者取 params.sessionId
+    // （调用方），会把请求投到调用方自己的工作区。
+    readSession: (params) => {
+      const { traceContext, signal, targetSessionId, messageLimit, afterSeq } = params;
+      return request(
+        zcodeProtocolMethods.sessionReadSession,
+        {
+          ...buildWorkspaceRequestContext(context, {
+            sessionId: targetSessionId,
+            traceContext,
+          }),
+          targetSessionId,
+          ...(messageLimit !== undefined ? { messageLimit } : {}),
+          ...(afterSeq !== undefined ? { afterSeq } : {}),
+        },
+        zcodeSessionReadSessionResultSchema,
+        traceContext,
+        signal,
+      );
+    },
 
-    // ---- Session 生命周期 ----
-    createSession: (params) => request(
-      "session/createSession",
-      buildWorkspaceRequestContext(context, { sessionId: context.sessionId, traceContext: params as any }),
-      zcodeSessionTypes.createSessionResultSchema,
-    ),
-    resumeSession: (params) => request(
-      "session/resumeSession",
-      buildWorkspaceRequestContext(context, { sessionId: context.sessionId, traceContext: params as any }),
-      zcodeSessionTypes.resumeSessionResultSchema,
-    ),
-    listSessions: (params) => request(
-      "session/listSessions",
-      buildWorkspaceRequestContext(context, { sessionId: context.sessionId, traceContext: params as any }),
-      zcodeSessionTypes.listSessionsResultSchema,
-    ),
-    readSession: (params) => request(
-      "session/readSession",
-      buildWorkspaceRequestContext(context, { sessionId: context.sessionId, traceContext: params as any }),
-      zcodeSessionTypes.readSessionResultSchema,
-    ),
-    readSessionMessages: (params) => request(
-      "session/readSessionMessages",
-      buildWorkspaceRequestContext(context, { sessionId: context.sessionId, traceContext: params as any }),
-      zcodeSessionTypes.readSessionMessagesResultSchema,
-    ),
-    readSessionEvents: (params) => request(
-      "session/readSessionEvents",
-      buildWorkspaceRequestContext(context, { sessionId: context.sessionId, traceContext: params as any }),
-      zcodeSessionTypes.readSessionEventsResultSchema,
-    ),
-    promoteDeferredDraftSession: (params) => request(
-      "session/promoteDeferredDraftSession",
-      buildWorkspaceRequestContext(context, { sessionId: context.sessionId, traceContext: params as any }),
-      zcodeSessionTypes.promoteDeferredDraftSessionResultSchema,
-    ),
-    closeSession: (params) => request(
-      "session/closeSession",
-      buildWorkspaceRequestContext(context, { sessionId: context.sessionId, traceContext: params as any }),
-      zcodeSessionTypes.closeSessionResultSchema,
-    ),
-    closeDeferredDraftSession: (params) => request(
-      "session/closeDeferredDraftSession",
-      buildWorkspaceRequestContext(context, { sessionId: context.sessionId, traceContext: params as any }),
-      zcodeSessionTypes.closeDeferredDraftSessionResultSchema,
-    ),
-
-    // ---- 配置 ----
-    setModel: (params) => request(
-      "session/setModel",
-      buildWorkspaceRequestContext(context, { sessionId: context.sessionId, traceContext: params as any }),
-      zcodeSessionTypes.setModelResultSchema,
-    ),
-    setThoughtLevel: (params) => request(
-      "session/setThoughtLevel",
-      buildWorkspaceRequestContext(context, { sessionId: context.sessionId, traceContext: params as any }),
-      zcodeSessionTypes.setThoughtLevelResultSchema,
-    ),
-    setMode: (params) => request(
-      "session/setMode",
-      buildWorkspaceRequestContext(context, { sessionId: context.sessionId, traceContext: params as any }),
-      zcodeSessionTypes.setModeResultSchema,
-    ),
-  };
-}
-
-function protocolTraceFromTraceContext(traceContext: TraceContext): any {
-  return {
-    traceId: traceContext.traceId,
-    spanId: traceContext.spanId,
-    parentSpanId: traceContext.parentSpanId,
-    ...(traceContext.attributes ? { attributes: traceContext.attributes } : {}),
+    listSessions: (params) =>
+      request(
+        zcodeProtocolMethods.sessionListSessions,
+        withTrustedContext(params),
+        zcodeSessionListSessionsResultSchema,
+        params.traceContext,
+        params.signal,
+      ),
   };
 }

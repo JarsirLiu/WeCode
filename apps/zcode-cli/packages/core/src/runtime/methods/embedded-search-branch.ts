@@ -41,6 +41,8 @@ export function refreshBranchAwareBuiltInTools(runtime: AgentRuntimeInternal): v
     // 首次装配注册的 BotCommand 原样覆盖掉（registry.register 同名覆盖），因此必须
     // 从 internal 重新读取端口，与 runtime-tools.ts 的首次装配同一判据。
     includeBotCommand: Boolean(runtime.botsServicePort),
+    // 与 BotCommand 同理：分支刷新时必须与首次装配同一判据，否则同名覆盖会丢工具。
+    includeZCodeTask: Boolean(runtime.zcodeTaskPort),
     agentProfiles: runtime.config.subagents?.profiles,
     allowedTools: resolveBuiltInToolAllowlist(runtime.config),
     disallowedTools: runtime.config.toolDisallowlist,
