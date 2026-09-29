@@ -715,6 +715,24 @@ send -> accepted(turnId) -> AI 自主 read_session(afterSeq/turnId)
 
 后续 Phase 2 可增加通知流：目标会话状态或消息发生变化时发送轻量 notification；编排 AI 收到通知后再调用 `ReadSession` 获取权威快照。通知只负责唤醒，不负责承载完整状态，也不应自动启动一个空闲目标会话。
 
+#### 用户可见语义
+
+AI 对正常会话的操作必须复用用户操作的同一条业务路径：消息进入同一个 `CommandInbox`，模型/压缩调用同一组 session command，审批回执复用现有 `respondPermission → resolveInteraction`。因此目标会话的历史、状态和 UI 不增加“AI 消息”“AI 审批”或第二套会话类型标记；用户可以像处理自己发起的会话一样继续介入。
+
+Host 仍可在关系账本和审批审计中记录 `createdBy: ai`、`resolverKind: ai`，但这些字段只用于授权、并发 claim、审计和故障诊断，不得投影到普通会话消息或用户可见的审批文案中。
+
+主动通知的事件顺序固定为：
+
+```text
+目标 runtime 状态变化
+  → Host 依据 peer relation 找 creator session
+  → 向 creator Agent 发送 session/changed
+  → Agent 调用 ReadSession(afterSeq) 获取权威事实
+  → 如有 pendingPermissions，再调用 ResolveSessionPermission
+```
+
+通知最小载荷为 `{ targetSessionId, change, sequence }`，不携带完整消息、审批内容或决议结果。Host 必须允许通知重复、丢失和乱序；`sequence` 只用于唤醒后的增量读取，不能替代 `ReadSession`。通知失败不得改变目标会话的运行结果，也不得在 Host 维护第二份事件队列。
+
 ### 5. 与 Codex 的准确对照
 
 Codex 的 app-server 同样支持双向 JSON-RPC，因此某些“Agent 向宿主请求能力”的路径可以称为反向请求；但本地多 Agent 控制通常在同一进程内通过 `ThreadManager/AgentControl` 直接操作，并不是每次 `send_input` 都跨 stdio。

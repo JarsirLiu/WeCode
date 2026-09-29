@@ -58,6 +58,17 @@ export const zcodeAiOrchestrationRequestContextSchema = z
     sessionContext: z.literal("live").optional(),
   })
   .strict();
+
+/** Host→creator Agent wake-up hint; ReadSession remains the source of truth. */
+export const zcodeSessionChangedNotificationSchema = z
+  .object({
+    targetSessionId: nonEmptyStringSchema,
+    change: z.enum(["message", "permission_requested", "status"]),
+    sequence: z.number().int().nonnegative(),
+  })
+  .strict();
+export type ZCodeSessionChangedNotification = z.infer<typeof zcodeSessionChangedNotificationSchema>;
+export const ZCODE_SESSION_CHANGED_NOTIFICATION = "session/changed" as const;
 export type ZCodeAiOrchestrationRequestContext = z.infer<
   typeof zcodeAiOrchestrationRequestContextSchema
 >;
