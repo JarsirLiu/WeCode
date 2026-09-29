@@ -231,14 +231,12 @@ interface RegisterBuiltInToolsOptions {
   silentDuplicateWarnings?: boolean;
 }
 
-export function registerBuiltInTools(
-  registry: {
-    register(entry: ToolEntry, options?: { silentDuplicateWarning?: boolean }): void;
-  },
+export function buildBuiltInToolRegistrationPlan(
   options: RegisterBuiltInToolsOptions = {},
-): void {
+): ToolEntry[] {
   const allowedTools = options.allowedTools ? new Set(options.allowedTools) : undefined;
   const disallowedTools = createToolRuleNameSet(options.disallowedTools);
+  const plan: ToolEntry[] = [];
 
   for (const entry of builtInTools) {
     if (
@@ -308,9 +306,18 @@ export function registerBuiltInTools(
     if (options.includeZCodeTask !== true && ZCODE_TASK_TOOL_NAMES.has(entry.metadata.name)) {
       continue;
     }
-    registry.register(resolveBuiltInToolEntryForBranch(entry, options), {
-      silentDuplicateWarning: options.silentDuplicateWarnings,
-    });
+    plan.push(resolveBuiltInToolEntryForBranch(entry, options));
+  }
+  return plan;
+}
+
+/** 初次装配与 runtime 刷新都经同一 registration plan，避免能力门控漂移。 */
+export function registerBuiltInTools(
+  registry: { register(entry: ToolEntry, options?: { silentDuplicateWarning?: boolean }): void },
+  options: RegisterBuiltInToolsOptions = {},
+): void {
+  for (const entry of buildBuiltInToolRegistrationPlan(options)) {
+    registry.register(entry, { silentDuplicateWarning: options.silentDuplicateWarnings });
   }
 }
 

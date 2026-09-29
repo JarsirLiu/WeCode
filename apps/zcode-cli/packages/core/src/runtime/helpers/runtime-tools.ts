@@ -178,6 +178,10 @@ function createRuntimeToolExecutor(
     executionPort: deps.executionPort,
     browserControlPort: browserUseEnabled ? deps.browserControlPort : undefined,
     botsServicePort: deps.botsServicePort,
+    // AI 会话编排端口必须进 executor deps，否则即使工具注册成功，handler 的
+    // execution context 拿不到 zcodeTaskPort，调用时仍会报 service not available。
+    zcodeTaskPort: deps.zcodeTaskPort,
+    zcodeSessionPort: deps.zcodeSessionPort,
     browserDocumentationRoot: browserUseEnabled
       ? runtime.config.runtimeFeatures?.browserDocumentationRoot
       : undefined,

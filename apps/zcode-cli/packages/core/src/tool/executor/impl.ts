@@ -36,6 +36,11 @@ export class ToolExecutorImpl implements ToolExecutor {
       executionPort: options.executionPort,
       browserControlPort: options.browserControlPort,
       botsServicePort: options.botsServicePort,
+      // 会话编排端口必须显式抄入 deps：本构造器逐字段重建而非透传 options，
+      // 漏字段不会有编译错误，只在调用时报 service not available（曾导致
+      // CreateSession 注册可见但永远执行失败）。
+      zcodeTaskPort: options.zcodeTaskPort,
+      zcodeSessionPort: options.zcodeSessionPort,
       browserDocumentationRoot: options.browserDocumentationRoot,
       fileSystemPort: options.fileSystemPort,
       httpClientPort: options.httpClientPort,

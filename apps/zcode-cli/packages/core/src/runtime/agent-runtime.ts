@@ -153,7 +153,7 @@ export class AgentRuntime {
   private providerRuntimeHeadersPort?: AgentRuntimeDeps["providerRuntimeHeadersPort"];
   private browserControlPort?: AgentRuntimeDeps["browserControlPort"];
   /** Bot 命令端口；refreshBranchAwareBuiltInTools 的二次注册门需要从 internal 读取。 */
-  private botsServicePort?: AgentRuntimeDeps["botsServicePort"];
+  private botsServicePort?: AgentRuntimeDeps["botsServicePort"]; private zcodeTaskPort?: AgentRuntimeDeps["zcodeTaskPort"]; private zcodeSessionPort?: AgentRuntimeDeps["zcodeSessionPort"];
   /** 模型请求准入端口；随每次模型请求进调用上下文。 */
   private modelRequestAdmission?: AgentRuntimeDeps["modelRequestAdmission"];
   private sessionModelSelection: ModelSelection | undefined;
@@ -272,7 +272,7 @@ export class AgentRuntime {
     this.modelIoDir = deps.modelIoDir;
     this.providerRuntimeHeadersPort = deps.providerRuntimeHeadersPort;
     this.browserControlPort = deps.browserControlPort;
-    this.botsServicePort = deps.botsServicePort;
+    this.botsServicePort = deps.botsServicePort; this.zcodeTaskPort = deps.zcodeTaskPort; this.zcodeSessionPort = deps.zcodeSessionPort;
     this.modelRequestAdmission = deps.modelRequestAdmission;
     // 旧会话的选择缺失不能阻断历史恢复；不在这里制造默认模型。
     this.sessionModelSelection =

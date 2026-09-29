@@ -8,10 +8,10 @@ Navigation map from capability to code. For a deep dive into one module, run `pn
 | Module | Owner | Files | Root | Public entry | Card |
 | --- | --- | --- | --- | --- | --- |
 | rpc | — | 16 | packages/rpc/src | ./dist/index.d.ts (+1) | — |
-| shared | — | 227 | packages/shared/src | ./src/index.ts (+18) | [card](../packages/shared/README.md) |
+| shared | — | 228 | packages/shared/src | ./src/index.ts (+18) | [card](../packages/shared/README.md) |
 | provider | — | 23 | packages/provider/src | ./src/index.ts | — |
 | provider-node | — | 17 | packages/provider-node/src | ./src/index.ts | — |
-| services | — | 284 | packages/services/src | ./src/storage-startup.ts (+4) | [card](../packages/services/README.md) |
+| services | — | 289 | packages/services/src | ./src/storage-startup.ts (+4) | [card](../packages/services/README.md) |
 | session | conversation | 38 | packages/services/src/session | ./src/storage-startup.ts (+4) | — |
 | storage | desktop-settings | 13 | packages/services/src/storage | packages/services/src/storage/contract.ts | — |
 | client | — | 6 | packages/client/src | ./src/index.ts (+1) | — |
@@ -21,7 +21,7 @@ Navigation map from capability to code. For a deep dive into one module, run `pn
 | web | — | 16 | packages/web/src | — | — |
 | desktop | — | 267 | packages/desktop/src | out/main/index.js | [card](../packages/desktop/README.md) |
 | formal-proof | — | 2 | packages/formal-proof/src | ./src/model.ts | [card](../packages/formal-proof/README.md) |
-| zcode-cli | — | 1411 | apps/zcode-cli | — | [card](../apps/zcode-cli/README.md) |
+| zcode-cli | — | 1425 | apps/zcode-cli | — | [card](../apps/zcode-cli/README.md) |
 
 ## Coverage
 

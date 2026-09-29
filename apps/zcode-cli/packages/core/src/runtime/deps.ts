@@ -267,7 +267,12 @@ export type { ToolDependency, ToolSchedule } from "../tool/scheduler.js";
 export { defaultToolScheduler as defaultScheduler, ToolScheduler } from "../tool/scheduler.js";
 export { PermissionService, defaultPermissionConfig } from "../permission/service.js";
 export { createDenyPermissionBroker } from "../permission/broker.js";
-export { createToolExecutor, createToolRegistry, registerBuiltInTools } from "../tool/index.js";
+export {
+  buildBuiltInToolRegistrationPlan,
+  createToolExecutor,
+  createToolRegistry,
+  registerBuiltInTools,
+} from "../tool/index.js";
 export type {
   ExecutableToolCall,
   ReadFileStateEntry,

@@ -736,7 +736,7 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
       workspaceHookAdmission: workspaceHookRuntimeSecurity?.admission,
       workspaceHookSnapshot: workspaceHookRuntimeSecurity?.snapshot,
       browserControlPort,
-      botsServicePort,
+      botsServicePort, zcodeTaskPort: options.zcodeTaskPort, zcodeSessionPort: options.zcodeSessionPort,
       fileSystemPort,
       httpClientPort,
       imageProcessorPort,
