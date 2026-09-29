@@ -3773,36 +3773,6 @@ export type ZCodeProtocolMethod = (typeof zcodeProtocolMethods)[keyof typeof zco
 
 export const zcodeProtocolEmptyResultSchema = z.object({}).strict();
 
-// 最新 V4 主链已不再依赖旧版全量方法表；这里仅保留仍被兼容测试和 browser broker
-// 消费的最小契约集合，避免重新引入已移除的 legacy 方法。
-export const zcodeProtocolSessionMethodContracts = {
-  [zcodeProtocolMethods.workspaceHookTrustGrant]: {
-    params: zcodeWorkspaceHookTrustGrantParamsSchema,
-    result: zcodeWorkspaceHookTrustGrantResultSchema,
-  },
-  [zcodeProtocolMethods.mcpList]: {
-    params: zcodeMcpListParamsSchema,
-    result: zcodeMcpListResultSchema,
-  },
-  [zcodeProtocolMethods.interactionBrowserList]: {
-    params: zcodeBrowserListParamsSchema,
-    result: zcodeBrowserListResultSchema,
-  },
-  [zcodeProtocolMethods.interactionBrowserExecute]: {
-    params: zcodeBrowserExecuteParamsSchema,
-    result: zcodeBrowserExecuteResultSchema,
-  },
-  [zcodeProtocolMethods.botsCommandExecute]: {
-    params: zcodeBotsCommandExecuteParamsSchema,
-    result: zcodeBotsCommandExecuteResultSchema,
-  },
-} as const satisfies Partial<
-  Record<ZCodeProtocolMethod, { params: z.ZodTypeAny; result: z.ZodTypeAny }>
->;
-
-export type ZCodeProtocolSessionMethodContract =
-  (typeof zcodeProtocolSessionMethodContracts)[keyof typeof zcodeProtocolSessionMethodContracts];
-
 /** 仅存储准备子进程的私有控制帧，原始路径不进入业务事件或遥测。 */
 export const zcodeStoragePreparationFrameSchema = z.discriminatedUnion("method", [
   z
