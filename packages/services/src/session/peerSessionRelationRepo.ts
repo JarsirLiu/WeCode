@@ -88,6 +88,86 @@ export class PeerSessionRelationRepo {
     };
   }
 
+  /**
+   * requestId 决议的唯一 first-writer-wins 入口。调用者必须在 runtime 回执成功后
+   * complete；失败时 release，避免短暂 Host 故障永久吞掉用户的审批机会。
+   */
+  async claimPermissionResolution(input: {
+    workspacePath: string;
+    workspaceIdentity?: string;
+    targetSessionId: string;
+    requestId: string;
+    resolverKind: "user" | "ai";
+    resolverSessionId?: string;
+    decision: string;
+  }): Promise<boolean> {
+    await this.ensureReady();
+    const result = this.getDatabase()
+      .prepare(
+        `INSERT INTO permission_resolution_claims (
+          workspace_key, target_session_id, request_id, resolver_kind, resolver_session_id,
+          decision, claimed_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(workspace_key, target_session_id, request_id) DO NOTHING`,
+      )
+      .run(
+        resolveWorkspaceKey(input),
+        input.targetSessionId,
+        input.requestId,
+        input.resolverKind,
+        input.resolverSessionId ?? null,
+        input.decision,
+        Date.now(),
+      );
+    return result.changes === 1;
+  }
+
+  async completePermissionResolution(input: {
+    workspacePath: string;
+    workspaceIdentity?: string;
+    targetSessionId: string;
+    requestId: string;
+    resolverKind: "user" | "ai";
+    resolverSessionId?: string;
+    decision: string;
+    reason?: string;
+    outcome: "resolved" | "runtime_failed" | "already_resolved";
+    releaseClaim?: boolean;
+  }): Promise<void> {
+    await this.ensureReady();
+    const db = this.getDatabase();
+    const workspaceKey = resolveWorkspaceKey(input);
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      db.prepare(
+        `INSERT INTO permission_resolution_audit (
+          workspace_key, target_session_id, request_id, resolver_kind, resolver_session_id,
+          decision, reason, outcome, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).run(
+        workspaceKey,
+        input.targetSessionId,
+        input.requestId,
+        input.resolverKind,
+        input.resolverSessionId ?? null,
+        input.decision,
+        input.reason ?? null,
+        input.outcome,
+        Date.now(),
+      );
+      if (input.releaseClaim) {
+        db.prepare(
+          `DELETE FROM permission_resolution_claims
+           WHERE workspace_key = ? AND target_session_id = ? AND request_id = ?`,
+        ).run(workspaceKey, input.targetSessionId, input.requestId);
+      }
+      db.exec("COMMIT");
+    } catch (error) {
+      if (db.isTransaction) db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
   close(): void {
     this.db?.close();
     this.db = null;

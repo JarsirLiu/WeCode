@@ -25,3 +25,12 @@ export type PeerSessionCreation = Pick<
   PeerSessionRelation,
   "creatorSessionId" | "approvalPolicy" | "remoteSessionId"
 >;
+
+export const delegatedPermissionDecisionSchema = z.enum(["allow_once", "allow_always", "deny"]);
+export type DelegatedPermissionDecision = z.infer<typeof delegatedPermissionDecisionSchema>;
+
+export interface DelegatedPermissionResolution {
+  requestId: string;
+  status: "resolved" | "already_resolved";
+  decision: DelegatedPermissionDecision;
+}

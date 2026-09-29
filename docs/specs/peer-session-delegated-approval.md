@@ -199,6 +199,17 @@ apps/zcode-cli/packages/core/src/permission/delegated-approval-policy.ts
 - 实现用户与 AI 的 `requestId` 幂等竞争。
 - 增加审批审计事件和权限测试。
 
+#### Phase 2 决议所有权与顺序
+
+`permission_resolution_claims` 是本地 Host 对一个 `(workspaceKey, targetSessionId, requestId)` 的唯一 first-writer-wins 事实。无论决议来自用户 UI 还是创建者 AI，均须先 claim；失败者返回 `already_resolved`，且绝不可再次向 runtime 发送 `resolveInteraction`。runtime 回执失败会释放未完成 claim 并写失败审计，因而可安全重试。
+
+```text
+AI tool / UI → Host claim(requestId) → resolveInteraction → complete audit
+                    └─ 已 claim → already_resolved
+```
+
+`permission_resolution_audit` 仅记录审计，不参与授权。AI 调用先读取关系账本并核验 creator、workspace、target、`delegated` 策略和 pending request；`allow_always` 在本阶段明确拒绝，只有 `allow_once` 与 `deny` 可被委托。
+
 ### Phase 3：远程审批与通知
 
 - 远程 Host 转发审批请求和决议。

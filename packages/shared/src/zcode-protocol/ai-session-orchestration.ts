@@ -29,6 +29,7 @@ import { nonEmptyStringSchema, zcodeTaskMetaSchema } from "../validation.js";
 import { modelSelectionSchema } from "../model-selection.js";
 import { zcodeTaskModeSchema } from "../zcode-task-mode-schema.js";
 import { peerSessionApprovalPolicySchema } from "../peer-session-relation.js";
+import { delegatedPermissionDecisionSchema } from "../peer-session-relation.js";
 import { zcodeSessionInfoSchema } from "../zcode-protocol-legacy-types.js";
 import {
   zcodeProtocolEmptyResultSchema,
@@ -296,6 +297,23 @@ export const zcodeSessionListSessionsParamsSchema = zcodeAiOrchestrationRequestC
   .strict();
 export type ZCodeSessionListSessionsParams = z.infer<typeof zcodeSessionListSessionsParamsSchema>;
 export const zcodeSessionListSessionsResultSchema = z.array(zcodeSessionInfoSchema);
+
+export const zcodePermissionResolveSessionPermissionParamsSchema =
+  zcodeAiOrchestrationRequestContextSchema
+    .extend({
+      targetSessionId: nonEmptyStringSchema,
+      permissionRequestId: nonEmptyStringSchema,
+      decision: delegatedPermissionDecisionSchema,
+      reason: z.string().max(4096).optional(),
+    })
+    .strict();
+export const zcodePermissionResolveSessionPermissionResultSchema = z
+  .object({
+    requestId: nonEmptyStringSchema,
+    status: z.enum(["resolved", "already_resolved"]),
+    decision: delegatedPermissionDecisionSchema,
+  })
+  .strict();
 
 // ============================================================
 // stopGeneration 无返回体；sendPrompt 返回 admission 回执

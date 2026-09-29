@@ -17,6 +17,22 @@ export const READ_SESSION_TOOL_NAME = "ReadSession";
 export const STOP_SESSION_GENERATION_TOOL_NAME = "StopSessionGeneration";
 export const SET_SESSION_MODEL_TOOL_NAME = "SetSessionModel";
 export const COMPACT_SESSION_TOOL_NAME = "CompactSession";
+export const RESOLVE_SESSION_PERMISSION_TOOL_NAME = "ResolveSessionPermission";
+
+export const ResolveSessionPermissionInputSchema = z.object({
+  sessionId: z.string().min(1),
+  requestId: z.string().min(1),
+  decision: z.enum(["allow_once", "allow_always", "deny"]),
+  reason: z.string().max(4096).optional(),
+}).strict();
+export const ResolveSessionPermissionOutputSchema = z.object({
+  requestId: z.string().min(1),
+  status: z.enum(["resolved", "already_resolved"]),
+  decision: z.enum(["allow_once", "allow_always", "deny"]),
+}).strict();
+export const ResolveSessionPermissionInputJsonSchema = toToolJsonSchema(ResolveSessionPermissionInputSchema);
+export const ResolveSessionPermissionOutputJsonSchema = toToolJsonSchema(ResolveSessionPermissionOutputSchema);
+export const RESOLVE_SESSION_PERMISSION_DESCRIPTION = "Resolve one exact pending permission for a session you created with delegated approval. Only allow_once and deny are supported; use ReadSession to obtain the requestId.";
 
 // ============================================================
 // CreateSession

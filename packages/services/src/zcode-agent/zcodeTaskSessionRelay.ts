@@ -11,6 +11,7 @@ import {
   zcodeTaskSendPromptParamsSchema,
   zcodeTaskSetModelParamsSchema,
   zcodeTaskStopGenerationParamsSchema,
+  zcodePermissionResolveSessionPermissionParamsSchema,
   type ZCodeProtocolRequest,
 } from "@zcode/shared";
 import type { ZCodeProtocolClient } from "./zcodeProtocolClient.js";
@@ -69,6 +70,37 @@ export function handleTaskSessionReverseRequest(args: {
         v4Create: parsed.data.v4Create,
         creatorSessionId: parsed.data.sessionId,
         approvalPolicy: parsed.data.approvalPolicy,
+      })
+      .then((result) => client.respond(request.id, result))
+      .catch(respondFailure);
+    return true;
+  }
+
+  if (request.method === zcodeProtocolMethods.permissionResolveSessionPermission) {
+    const parsed = zcodePermissionResolveSessionPermissionParamsSchema.safeParse(request.params);
+    if (!parsed.success) {
+      void client.respondError(request.id, {
+        code: -32602,
+        message: "Invalid permission/resolveSessionPermission params",
+        data: parsed.error.flatten(),
+      });
+      return true;
+    }
+    if (!taskExecutor) {
+      respondFailure("zcode task service not available");
+      return true;
+    }
+    void taskExecutor
+      .resolveSessionPermission({
+        workspaceKey: parsed.data.workspaceKey,
+        workspacePath: parsed.data.workspacePath,
+        workspaceIdentity: parsed.data.workspaceIdentity,
+        remoteSessionId: parsed.data.remoteSessionId,
+        creatorSessionId: parsed.data.sessionId,
+        targetSessionId: parsed.data.targetSessionId,
+        requestId: parsed.data.permissionRequestId,
+        decision: parsed.data.decision,
+        reason: parsed.data.reason,
       })
       .then((result) => client.respond(request.id, result))
       .catch(respondFailure);

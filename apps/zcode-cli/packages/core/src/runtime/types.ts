@@ -19,8 +19,7 @@ import type {
   StableForkTargetMetadata,
   WorkspaceHookBundleSnapshot,
   WorkspaceId,
-  ZCodeTaskPort,
-  ZCodeSessionPort,
+  ZCodeTaskPort, ZCodeSessionPort, ZCodePermissionPort,
 } from "@zcode/contracts";
 import type { ZCodeProviderAccountAccess } from "@zcode/shared";
 import type { EffectiveModelSelectionResult } from "@zcode/shared/model-selection";
@@ -339,7 +338,7 @@ export interface AgentRuntimeDeps {
    * ZCode Session 端口；配合 zcodeTaskPort 提供会话级读取能力（readSession 全量历史等）。
    * 缺席则 read_session 仅能用 snapshot 模式。
    */
-  zcodeSessionPort?: ZCodeSessionPort;
+  zcodePermissionPort?: ZCodePermissionPort; zcodeSessionPort?: ZCodeSessionPort;
   fileSystemPort?: FileSystemPort;
   httpClientPort?: HttpClientPort;
   imageProcessorPort?: ImageProcessorPort;

@@ -317,6 +317,8 @@ export interface IZCodeTaskService {
     requestId: string;
     optionId: string;
     response: ZCodePermissionResponse;
+    /** 所有入口共用 Host claim；AI 传入受信 creator identity，UI 保持 user。 */
+    resolution?: { resolverKind: "user" | "ai"; resolverSessionId?: string; reason?: string };
   }): Promise<boolean>;
 
   /** 响应用户问答请求（Elicitation） */

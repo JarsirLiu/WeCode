@@ -386,7 +386,7 @@ async function executeToolCallImpl(
       browserControlPort: deps.browserControlPort,
       botsServicePort: deps.botsServicePort,
       zcodeTaskPort: deps.zcodeTaskPort,
-      zcodeSessionPort: deps.zcodeSessionPort,
+      zcodeSessionPort: deps.zcodeSessionPort, zcodePermissionPort: deps.zcodePermissionPort,
       browserDocumentationRoot: deps.browserDocumentationRoot,
       fileSystemPort: deps.fileSystemPort,
       httpClientPort: deps.httpClientPort,

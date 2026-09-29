@@ -3752,11 +3752,8 @@ export const zcodeProtocolMethods = {
   interactionBrowserExecute: "interaction/browserExecute",
   // Bot 命令反向请求由 agent 的 BotCommand 工具发起，host 转给 IBotsService 执行。
   botsCommandExecute: "bots/commandExecute",
-  // AI Session Orchestration：agent 的 create_session / send_session_message / read_session 等
-  // 工具经此发起 Task/Session 反向请求。
-  // 范围约束（spec: docs/specs/ai-session-orchestration.md）——只暴露 AI 编排需要的操作：
+  // AI Session Orchestration
   // 任务分组、归档、置顶、Claude 导入、快照分片等 UI 管理操作不进协议链路，UI 直接走
-  // IZCodeTaskService RPC。要扩时按 spec 追加，不要整面镜像服务接口。
   taskCreateTask: "task/createTask",
   taskSendPrompt: "task/sendPrompt",
   taskGetTaskSnapshot: "task/getTaskSnapshot",
@@ -3766,12 +3763,10 @@ export const zcodeProtocolMethods = {
   taskResumeTask: "task/resumeTask",
   taskListTasks: "task/listTasks",
   sessionReadSession: "session/readSession",
-  sessionListSessions: "session/listSessions",
+  sessionListSessions: "session/listSessions", permissionResolveSessionPermission: "permission/resolveSessionPermission",
 } as const;
 
-export type ZCodeProtocolMethod = (typeof zcodeProtocolMethods)[keyof typeof zcodeProtocolMethods];
-
-export const zcodeProtocolEmptyResultSchema = z.object({}).strict();
+export type ZCodeProtocolMethod = (typeof zcodeProtocolMethods)[keyof typeof zcodeProtocolMethods]; export const zcodeProtocolEmptyResultSchema = z.object({}).strict();
 
 /** 仅存储准备子进程的私有控制帧，原始路径不进入业务事件或遥测。 */
 export const zcodeStoragePreparationFrameSchema = z.discriminatedUnion("method", [

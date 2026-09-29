@@ -5,6 +5,7 @@ import {
   AUTOMATION_SCHEMA,
   OFF_PEAK_SCHEMA,
   PEER_SESSION_RELATION_SCHEMA,
+  PEER_SESSION_PERMISSION_SCHEMA,
   TASK_INDEX_SCHEMA,
 } from "#src/session/tasksDatabase/schema-v1.js";
 import { importLegacyAutomationSelections } from "#src/session/tasksDatabase/provider-selection-v2.js";
@@ -69,6 +70,10 @@ const definitions = [
     id: "0004_peer_session_relations",
     checksumInput: [PEER_SESSION_RELATION_SCHEMA],
   },
+  {
+    id: "0005_peer_session_permission_resolution",
+    checksumInput: [PEER_SESSION_PERMISSION_SCHEMA],
+  },
 ] as const;
 
 export function runTasksDatabaseMigrations(
@@ -120,7 +125,9 @@ export function runTasksDatabaseMigrations(
       else if (migration.id === "0002_provider_selection") importLegacyAutomationSelections(db);
       else if (migration.id === "0003_official_glm_selection")
         db.exec(OFFICIAL_GLM_SELECTION_MIGRATION_SQL);
-      else db.exec(PEER_SESSION_RELATION_SCHEMA);
+      else if (migration.id === "0004_peer_session_relations")
+        db.exec(PEER_SESSION_RELATION_SCHEMA);
+      else db.exec(PEER_SESSION_PERMISSION_SCHEMA);
       migrationFacts.executedCount++;
       db.prepare("INSERT INTO tasks_schema_migration VALUES(?,?,?)").run(
         migration.id,

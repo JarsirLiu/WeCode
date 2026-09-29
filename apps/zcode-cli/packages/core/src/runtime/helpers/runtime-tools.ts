@@ -182,6 +182,7 @@ function createRuntimeToolExecutor(
     // execution context 拿不到 zcodeTaskPort，调用时仍会报 service not available。
     zcodeTaskPort: deps.zcodeTaskPort,
     zcodeSessionPort: deps.zcodeSessionPort,
+    zcodePermissionPort: deps.zcodePermissionPort,
     browserDocumentationRoot: browserUseEnabled
       ? runtime.config.runtimeFeatures?.browserDocumentationRoot
       : undefined,

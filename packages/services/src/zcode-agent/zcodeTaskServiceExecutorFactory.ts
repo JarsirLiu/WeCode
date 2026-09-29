@@ -10,14 +10,11 @@
 // service 期望 ZCodePromptAttachment[]。safeParse 已做 .strict() 校验，这里用类型断言
 // 跨 JSON→typed 边界，不是 as any 掩盖不匹配。
 
-import type {
-  ZCodeAiTaskSnapshot,
-  ZCodePromptAttachment,
-  ZCodeTaskClientMode,
-} from "@zcode/shared";
+import type { ZCodePromptAttachment, ZCodeTaskClientMode } from "@zcode/shared";
 import type { IZCodeTaskService } from "../session/zcodeTaskService.js";
 import type { IZCodeSessionService } from "../zcode-session/zcodeSession.js";
 import type { ZCodeTaskServiceExecutor } from "./zcodeTaskCommandExecutor.js";
+import { PeerSessionRelationRepo } from "../session/peerSessionRelationRepo.js";
 
 export function createZCodeTaskServiceExecutor(options: {
   readZCodeTaskService: () => IZCodeTaskService | undefined;
@@ -180,5 +177,65 @@ export function createZCodeTaskServiceExecutor(options: {
         ...(input.includeArchived ? { includeArchived: input.includeArchived } : {}),
         ...(input.limit ? { limit: input.limit } : {}),
       }),
+
+    async resolveSessionPermission(input) {
+      if (input.decision === "allow_always")
+        throw new Error("allow_always is not delegated in this phase");
+      const repo = new PeerSessionRelationRepo();
+      try {
+        const relation = await repo.findCreatedSession({
+          workspacePath: input.workspacePath,
+          ...(input.workspaceIdentity ? { workspaceIdentity: input.workspaceIdentity } : {}),
+          targetSessionId: input.targetSessionId,
+        });
+        if (
+          !relation ||
+          relation.creatorSessionId !== input.creatorSessionId ||
+          relation.approvalPolicy !== "delegated" ||
+          relation.workspaceKey !== input.workspaceKey ||
+          relation.remoteSessionId ||
+          input.remoteSessionId
+        ) {
+          throw new Error("delegated permission is not authorized for this session");
+        }
+      } finally {
+        repo.close();
+      }
+      const snapshot = await session().readSession({
+        workspacePath: input.workspacePath,
+        ...(input.workspaceIdentity ? { workspaceIdentity: input.workspaceIdentity } : {}),
+        sessionId: input.targetSessionId,
+        messageLimit: 0,
+      });
+      const pending = snapshot.projection.pendingPermissions.find(
+        (item) => item.requestId === input.requestId,
+      );
+      if (!pending)
+        return { requestId: input.requestId, status: "already_resolved", decision: input.decision };
+      const kind = input.decision === "allow_once" ? "allowOnce" : "deny";
+      const option = pending.options.find((item) => item.kind === kind);
+      if (!option) throw new Error(`permission request does not offer ${input.decision}`);
+      const accepted = await task().respondPermission({
+        taskId: input.targetSessionId,
+        workspacePath: input.workspacePath,
+        ...(input.workspaceIdentity ? { workspaceIdentity: input.workspaceIdentity } : {}),
+        requestId: input.requestId,
+        optionId: option.optionId,
+        response: {
+          decision: input.decision === "deny" ? "deny" : "allow",
+          ...(input.reason ? { reason: input.reason } : {}),
+        },
+        resolution: {
+          resolverKind: "ai",
+          resolverSessionId: input.creatorSessionId,
+          ...(input.reason ? { reason: input.reason } : {}),
+        },
+      });
+      return {
+        requestId: input.requestId,
+        status: accepted ? "resolved" : "already_resolved",
+        decision: input.decision,
+      };
+    },
   };
 }

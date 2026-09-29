@@ -57,6 +57,7 @@ export * from "./performance.js";
 // Bot 命令统一入口：BotCommand 工具与 BotsServicePort 的输入/输出镜像，
 // 名字常量被 core 的注册门读走。
 export * from "./bot-command.js";
+export * from "./ai-session-orchestration.js";
 
 // Shared types (only once to avoid duplicates)
 export type { DiffHunk, GitDiff } from "./write.js";

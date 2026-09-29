@@ -71,3 +71,35 @@ test("peer session relations stay isolated by workspace identity", async () => {
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test("permission resolution claim is first-writer-wins and releases failed runtime claims", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "zcode-permission-claim-"));
+  const repo = new PeerSessionRelationRepo(join(directory, "tasks.sqlite"));
+  const input = {
+    workspacePath: "/workspace/a",
+    targetSessionId: "target",
+    requestId: "request",
+    decision: "allow",
+  };
+  try {
+    const claims = await Promise.all([
+      repo.claimPermissionResolution({ ...input, resolverKind: "user" }),
+      repo.claimPermissionResolution({
+        ...input,
+        resolverKind: "ai",
+        resolverSessionId: "creator",
+      }),
+    ]);
+    assert.deepEqual(claims.sort(), [false, true]);
+    await repo.completePermissionResolution({
+      ...input,
+      resolverKind: "user",
+      outcome: "runtime_failed",
+      releaseClaim: true,
+    });
+    assert.equal(await repo.claimPermissionResolution({ ...input, resolverKind: "ai" }), true);
+  } finally {
+    repo.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});

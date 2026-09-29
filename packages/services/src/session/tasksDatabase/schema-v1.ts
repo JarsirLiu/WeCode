@@ -204,3 +204,33 @@ export const PEER_SESSION_RELATION_SCHEMA = `
       CREATE INDEX IF NOT EXISTS idx_peer_session_relations_creator
       ON peer_session_relations (workspace_key, creator_session_id, created_at DESC);
     `;
+
+/** 审批决议的唯一竞争账本与 append-only 审计；不依赖 UI 或 Agent 内存。 */
+export const PEER_SESSION_PERMISSION_SCHEMA = `
+      CREATE TABLE IF NOT EXISTS permission_resolution_claims (
+        workspace_key TEXT NOT NULL,
+        target_session_id TEXT NOT NULL,
+        request_id TEXT NOT NULL,
+        resolver_kind TEXT NOT NULL CHECK(resolver_kind IN ('user', 'ai')),
+        resolver_session_id TEXT,
+        decision TEXT NOT NULL,
+        claimed_at INTEGER NOT NULL,
+        PRIMARY KEY (workspace_key, target_session_id, request_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS permission_resolution_audit (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        workspace_key TEXT NOT NULL,
+        target_session_id TEXT NOT NULL,
+        request_id TEXT NOT NULL,
+        resolver_kind TEXT NOT NULL CHECK(resolver_kind IN ('user', 'ai')),
+        resolver_session_id TEXT,
+        decision TEXT NOT NULL,
+        reason TEXT,
+        outcome TEXT NOT NULL CHECK(outcome IN ('resolved', 'runtime_failed', 'already_resolved')),
+        created_at INTEGER NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_permission_resolution_audit_request
+      ON permission_resolution_audit (workspace_key, target_session_id, request_id, created_at DESC);
+    `;

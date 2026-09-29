@@ -39,6 +39,7 @@ import type {
   WorkflowSubmitPort,
   ZCodeTaskPort,
   ZCodeSessionPort,
+  ZCodePermissionPort,
 } from "@zcode/contracts";
 import type {
   JsonSchema,
@@ -157,6 +158,7 @@ export interface ToolExecutionContext {
   zcodeTaskPort?: ZCodeTaskPort;
   /** ZCode Session 端口；read_session 全量历史模式经此调用。缺省则仅支持 snapshot 模式。 */
   zcodeSessionPort?: ZCodeSessionPort;
+  zcodePermissionPort?: ZCodePermissionPort;
   /** 官方 browser-use plugin docs 资产目录；只在 browser-use 启用时用于 agent.browsers.documentation()。 */
   browserDocumentationRoot?: string;
   fileSystemPort?: FileSystemPort;

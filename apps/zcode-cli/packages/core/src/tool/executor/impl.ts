@@ -41,6 +41,7 @@ export class ToolExecutorImpl implements ToolExecutor {
       // CreateSession 注册可见但永远执行失败）。
       zcodeTaskPort: options.zcodeTaskPort,
       zcodeSessionPort: options.zcodeSessionPort,
+      zcodePermissionPort: options.zcodePermissionPort,
       browserDocumentationRoot: options.browserDocumentationRoot,
       fileSystemPort: options.fileSystemPort,
       httpClientPort: options.httpClientPort,

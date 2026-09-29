@@ -14,6 +14,7 @@ import {
   LIST_WORKFLOW_RUNS_TOOL_NAME,
   READ_SESSION_TOOL_NAME,
   RESOLVE_WORKFLOW_QUESTION_TOOL_NAME,
+  RESOLVE_SESSION_PERMISSION_TOOL_NAME,
   RESUME_WORKFLOW_RUN_TOOL_NAME,
   SAVE_WORKFLOW_TOOL_NAME,
   SEND_SESSION_MESSAGE_TOOL_NAME,
@@ -60,6 +61,7 @@ import { botCommandToolEntry } from "./bot-command.js";
 import { compactSessionToolEntry } from "./compact-session.js";
 import { createSessionToolEntry } from "./create-session.js";
 import { readSessionToolEntry } from "./read-session.js";
+import { resolveSessionPermissionToolEntry } from "./resolve-session-permission.js";
 import { sendMessageToolEntry } from "./send-message.js";
 import { sendSessionMessageToolEntry } from "./send-session-message.js";
 import { setSessionModelToolEntry } from "./set-session-model.js";
@@ -116,6 +118,7 @@ export const builtInTools: ToolEntry[] = [
   stopSessionGenerationToolEntry,
   setSessionModelToolEntry,
   compactSessionToolEntry,
+  resolveSessionPermissionToolEntry,
   sendMessageToolEntry,
   respondToCoordinatorToolEntry,
   submitResultToolEntry,
@@ -189,6 +192,7 @@ const ZCODE_TASK_TOOL_NAMES: ReadonlySet<string> = new Set([
   STOP_SESSION_GENERATION_TOOL_NAME,
   SET_SESSION_MODEL_TOOL_NAME,
   COMPACT_SESSION_TOOL_NAME,
+  RESOLVE_SESSION_PERMISSION_TOOL_NAME,
 ]);
 
 interface RegisterBuiltInToolsOptions {

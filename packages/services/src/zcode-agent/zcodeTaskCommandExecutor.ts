@@ -155,4 +155,20 @@ export interface ZCodeTaskServiceExecutor {
     includeArchived?: boolean;
     limit?: number;
   }): Promise<ZCodeSessionInfo[]>;
+
+  resolveSessionPermission(input: {
+    workspaceKey: string;
+    workspacePath: string;
+    workspaceIdentity?: string;
+    remoteSessionId?: string;
+    creatorSessionId: string;
+    targetSessionId: string;
+    requestId: string;
+    decision: "allow_once" | "allow_always" | "deny";
+    reason?: string;
+  }): Promise<{
+    requestId: string;
+    status: "resolved" | "already_resolved";
+    decision: "allow_once" | "allow_always" | "deny";
+  }>;
 }

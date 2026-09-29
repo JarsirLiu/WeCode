@@ -168,6 +168,7 @@ import {
   settingsToConfigOptions,
 } from "./zcodeConfigOptions.js";
 import type { CuaProductMcpServerResolver } from "#src/cua-permission-broker/index.js";
+import { runPermissionResolutionWithClaim } from "./permissionResolutionClaim.js";
 import { registerMemoryDiagnosticsProvider } from "#src/memoryDiagnostics.js";
 
 interface TaskOverlay {
@@ -2041,13 +2042,7 @@ export function createZCodeTaskServiceAdapter(
 
     async stopGeneration(params): Promise<void> {
       const startedAt = Date.now();
-      const target = params.workspacePath
-        ? {
-            taskId: params.taskId,
-            workspacePath: params.workspacePath,
-            workspaceIdentity: params.workspaceIdentity,
-          }
-        : getTaskTarget(params.taskId);
+      const target = params.workspacePath ? { taskId: params.taskId, workspacePath: params.workspacePath, workspaceIdentity: params.workspaceIdentity } : getTaskTarget(params.taskId);
       logger.info(params.runId, "ZCode task facade stopGeneration 开始", {
         hasRunId: Boolean(params.runId),
         taskId: params.taskId,
@@ -2193,24 +2188,24 @@ export function createZCodeTaskServiceAdapter(
             workspaceIdentity: params.workspaceIdentity,
           }
         : getTaskTarget(params.taskId);
-      // permission 回执收敛 v4 resolveInteraction。
-      // interactionId ≡ 业务 requestId（CLI interaction-broker 同源注册）；optionId 由
-      // CLI 侧 buildProtocolPermissionOptions 精确回映 response（allow_project 的
-      // permissionUpdates 持久化规则不丢，见 interaction-broker v4AnswerToPermissionResponse）。
-      const ack = await options.zcodeAgentService.sendConversationCommandV4({
-        workspacePath: target.workspacePath,
-        workspaceIdentity: target.workspaceIdentity,
-        envelope: createHostCommandEnvelope({
-          type: "resolveInteraction",
-          payload: {
-            interactionId: params.requestId,
-            answer: { optionId: params.optionId },
-          },
-          sessionId: params.taskId,
-        }),
+      const resolution = params.resolution ?? { resolverKind: "user" as const };
+      return runPermissionResolutionWithClaim({
+        workspacePath: target.workspacePath, ...(target.workspaceIdentity ? { workspaceIdentity: target.workspaceIdentity } : {}), targetSessionId: params.taskId, requestId: params.requestId, resolverKind: resolution.resolverKind,
+        ...(resolution.resolverSessionId ? { resolverSessionId: resolution.resolverSessionId } : {}), decision: params.response.decision, ...(resolution.reason ? { reason: resolution.reason } : {}),
+        resolve: async () => {
+          const ack = await options.zcodeAgentService.sendConversationCommandV4({ workspacePath: target.workspacePath, workspaceIdentity: target.workspaceIdentity,
+            envelope: createHostCommandEnvelope({
+              type: "resolveInteraction",
+              payload: {
+                interactionId: params.requestId,
+                answer: { optionId: params.optionId },
+              },
+              sessionId: params.taskId,
+            }),
+          });
+          assertV4CommandAckOk("resolveInteraction", ack, `permission ${params.requestId}`);
+        },
       });
-      assertV4CommandAckOk("resolveInteraction", ack, `permission ${params.requestId}`);
-      return true;
     },
 
     async respondElicitation(params): Promise<boolean> {
@@ -2221,9 +2216,7 @@ export function createZCodeTaskServiceAdapter(
             workspaceIdentity: params.workspaceIdentity,
           }
         : getTaskTarget(params.taskId);
-      // AskUserQuestion/plan-approval 回执收敛 v4 resolveInteraction。
-      // answer.action/content 是 additive 扩展（多题答案/注解无损承载，CLI 侧
-      // interaction-broker 优先按 action 精确映射，缺省回落 optionId/freeText 兼容路径）。
+      // AskUserQuestion/plan-approval also uses v4 resolveInteraction.
       const ack = await options.zcodeAgentService.sendConversationCommandV4({
         workspacePath: target.workspacePath,
         workspaceIdentity: target.workspaceIdentity,

@@ -13,6 +13,7 @@ import type {
   BotsServicePort,
   ZCodeTaskPort,
   ZCodeSessionPort,
+  ZCodePermissionPort,
   ExecutionShellSelection,
   AutomationPort,
   OffPeakPort,
@@ -98,6 +99,7 @@ export interface ToolExecutorOptions {
   zcodeTaskPort?: ZCodeTaskPort;
   /** 会话读取端口；ReadSession 全量历史经此调用 Host 的 IZodeSessionService。 */
   zcodeSessionPort?: ZCodeSessionPort;
+  zcodePermissionPort?: ZCodePermissionPort;
   browserDocumentationRoot?: string;
   fileSystemPort?: FileSystemPort;
   httpClientPort?: HttpClientPort;
@@ -210,6 +212,7 @@ export interface ToolExecutorDeps {
   zcodeTaskPort?: ZCodeTaskPort;
   /** 会话读取端口；ReadSession 全量历史经此调用 Host 的 IZodeSessionService。 */
   zcodeSessionPort?: ZCodeSessionPort;
+  zcodePermissionPort?: ZCodePermissionPort;
   browserDocumentationRoot?: string;
   fileSystemPort?: FileSystemPort;
   httpClientPort?: HttpClientPort;
