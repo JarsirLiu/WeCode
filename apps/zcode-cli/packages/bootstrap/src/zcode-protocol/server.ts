@@ -392,7 +392,6 @@ export class ZCodeProtocolAgentServer {
     return [...(batch?.messages ?? [])];
   }
 
-  /** production NDJSON 取完整 batch；只有全部 write 成功后才调 commit。 */
   takePostResponseBatch(requestId: ZCodeProtocolRequestId): ZCodeProtocolPostResponseBatch | null {
     const batch = this.postResponseOutbox.get(requestId) ?? null;
     this.postResponseOutbox.delete(requestId);
