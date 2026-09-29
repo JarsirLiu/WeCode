@@ -9,6 +9,7 @@ import {
   zcodeTaskResumeTaskResultSchema,
   zcodeTaskListTasksResultSchema,
   zcodeTaskSendPromptResultSchema,
+  zcodeAiTaskVoidResultSchema,
 } from "@zcode/shared";
 import { buildWorkspaceRequestContext } from "./browser-control-broker.js";
 import {
