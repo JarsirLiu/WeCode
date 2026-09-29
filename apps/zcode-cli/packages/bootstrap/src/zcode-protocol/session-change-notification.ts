@@ -20,7 +20,9 @@ export function handleSessionChangedNotification(
   if (!parsed.success) return false;
   const creator = context.sessions.get(parsed.data.creatorSessionId);
   if (!creator || creator.app.sessionId !== parsed.data.creatorSessionId) return false;
-  (creator.app.runtime as unknown as ResidentRuntime).enqueueBackgroundTaskNotification({
+  const runtime = creator.app.runtime as unknown as Partial<ResidentRuntime> | undefined;
+  if (typeof runtime?.enqueueBackgroundTaskNotification !== "function") return false;
+  runtime.enqueueBackgroundTaskNotification({
     text: JSON.stringify({ method: ZCODE_SESSION_CHANGED_NOTIFICATION, params: parsed.data }),
     traceContext: creator.traceContext,
   });

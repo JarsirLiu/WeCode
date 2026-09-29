@@ -407,14 +407,12 @@ export class ZCodeProtocolAgentServer {
     this.runtimeResources.assertServing();
     if (isResponse(message)) {
       this.resolveClientRequest(message.id, message.result);
-      return undefined;
     }
     if (isErrorResponse(message)) {
       this.rejectClientRequest(
         message.id,
         new ProtocolRequestError(message.error.code, message.error.message, message.error.data),
       );
-      return undefined;
     }
     if (isRequest(message)) {
       return await this.handleRequest(message);

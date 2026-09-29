@@ -733,7 +733,30 @@ Host 仍可在关系账本和审批审计中记录 `createdBy: ai`、`resolverKi
 
 通知统一使用 `session/changed`，载荷为 `{ targetSessionId, sequence, kind, turnId?, requestId?, summary?, error? }`。`kind` 仅区分 `permission_requested`、`turn_completed`、`turn_failed`、`generation_stopped` 四类唤醒原因；它不是第二套状态机，而是目标 runtime 权威 `session/event` 的有界投影。通知不携带完整消息、审批输入或决议结果。Host 必须允许通知重复、丢失和乱序；`sequence` 只用于唤醒后的增量读取，不能替代 `ReadSession`。通知失败不得改变目标会话的运行结果，也不得在 Host 维护第二份事件队列。
 
-### 5. 与 Codex 的准确对照
+### 5. 本地事件通知闭环（已实现）
+
+本阶段把上面的通知边界落到本地 Host/Agent 链路，远程 workspace 路由仍不在范围内：
+
+```text
+target runtime session/event
+  → services 只映射显式权威事件
+  → peer relation 返回 creatorSessionId
+  → 同一 Host 的 Agent Server 按 creatorSessionId 找 resident runtime
+  → 现有 background notification 入口唤醒 creator Agent
+  → Agent 根据 JSON 中的 kind/sequence 决定是否 ReadSession 或 ResolveSessionPermission
+```
+
+实现约束：
+
+- 只接受 `permission.requested`、`turn.completed`、`turn.failed` 三类 runtime 事件；`resultType: "cancelled"` 显式映射为 `generation_stopped`。
+- `permission.requested` 缺少权威 `requestId` 时不发送通知；错误和摘要只透传事件已有字段并截断长度，不生成默认内容。
+- `creatorSessionId` 是通知路由的显式字段；找不到 creator session 或其 runtime 已回收时直接丢弃，不启动进程、不建立 Host 通知队列。
+- 通知以 model-only background input 进入 creator runtime，不写入目标会话历史，也不添加“AI 消息”标记。编排器收到后只根据显式 `kind` 行动，完整事实仍通过 `ReadSession(afterSeq)` 获取。
+- `sequence` 属于目标 session 的事件顺序域。重复、乱序和丢失不改变目标会话事实；恢复后的 Agent 必须以 `ReadSession(afterSeq)` 补读，不能根据通知内容猜测缺失状态。
+
+本阶段验收包括四类事件映射、缺少 requestId 的拒绝、显式 creator 路由、resident runtime 投递和 runtime 不存在时不启动/不排队。远程 Host 路由、主动 UI 和新的通知存储队列不属于本阶段。
+
+### 6. 与 Codex 的准确对照
 
 Codex 的 app-server 同样支持双向 JSON-RPC，因此某些“Agent 向宿主请求能力”的路径可以称为反向请求；但本地多 Agent 控制通常在同一进程内通过 `ThreadManager/AgentControl` 直接操作，并不是每次 `send_input` 都跨 stdio。
 
