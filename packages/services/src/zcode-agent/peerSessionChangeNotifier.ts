@@ -30,10 +30,11 @@ export async function notifyPeerSessionChanged(input: {
       targetSessionId: input.targetSessionId,
     });
     if (!relation) return;
-      await input.client.notify(
+    await input.client.notify(
       ZCODE_SESSION_CHANGED_NOTIFICATION,
       zcodeSessionChangedNotificationSchema.parse({
         targetSessionId: input.targetSessionId,
+        creatorSessionId: relation.creatorSessionId,
         sequence: input.sequence,
         kind: input.kind,
         ...(input.turnId ? { turnId: input.turnId } : {}),

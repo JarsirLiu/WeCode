@@ -87,6 +87,7 @@ import { updateAccountProviderConfig } from "./account-provider-config.js";
 import { updateModelIoPreferences } from "./model-io-preferences.js";
 import { updateOffPeakToolPolicy } from "./off-peak-tool-policy.js";
 import { updateDynamicWorkflowPolicy } from "./dynamic-workflow-policy.js";
+import { handleSessionChangedNotification } from "./session-change-notification.js";
 import { grantWorkspaceHookTrustForProtocol } from "./workspace-hook-trust.js";
 import {
   V4InteractionRegistry,
@@ -398,7 +399,6 @@ export class ZCodeProtocolAgentServer {
     return batch;
   }
 
-  /** connection close / server dispose 时释放尚未写出的 initial frame 引用。 */
   clearPostResponseMessages(): void {
     this.postResponseOutbox.clear();
   }
@@ -421,6 +421,7 @@ export class ZCodeProtocolAgentServer {
     if (isRequest(message)) {
       return await this.handleRequest(message);
     }
+    if (isNotification(message) && handleSessionChangedNotification(this.context, message.method, message.params)) return undefined;
     if (isNotification(message)) {
       this.logger?.debug("ZCode Protocol notification ignored", {
         event: "zcode_protocol.notification.ignored",
@@ -434,7 +435,6 @@ export class ZCodeProtocolAgentServer {
   private async handleRequest(
     request: ZCodeProtocolRequest,
   ): Promise<ZCodeProtocolError | ZCodeProtocolResponse> {
-    // request id 可在前一请求完成后复用；新请求不能继承未消费的旧 outbox。
     this.postResponseOutbox.delete(request.id);
     let releaseResidencyOperation: (() => void) | undefined;
     try {

@@ -63,6 +63,8 @@ export const zcodeAiOrchestrationRequestContextSchema = z
 export const zcodeSessionChangedNotificationSchema = z
   .object({
     targetSessionId: nonEmptyStringSchema,
+    /** Host→Agent 内部路由字段，不写入会话历史。 */
+    creatorSessionId: nonEmptyStringSchema,
     sequence: z.number().int().nonnegative(),
     kind: z.enum([
       "permission_requested",
