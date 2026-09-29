@@ -1,5 +1,4 @@
 import {
-  type AgentTelemetryErrorCategory,
   CoreErrorType,
   createChildTraceContext,
   createCoreError,
@@ -48,7 +47,7 @@ import {
   resolveTimeoutMs,
 } from "./timeout.js";
 import { createToolModelStatusSink, withDefaultToolModelStatusSink } from "./model-status-sink.js";
-import { runToolCallWithTelemetry } from "./telemetry.js";
+import { errorCategoryForToolError, runToolCallWithTelemetry } from "./telemetry.js";
 import {
   withAutomationCreateLimitTurnStop,
   withPlanExitDeniedTurnStop,
@@ -667,26 +666,6 @@ function resolveModelOutputEntry(entry: ToolEntry, output: unknown): ToolEntry {
 
 function isEmptyToolName(toolName: string): boolean {
   return toolName.trim().length === 0;
-}
-
-function errorCategoryForToolError(type: string | undefined): AgentTelemetryErrorCategory {
-  switch (type) {
-    case CoreErrorType.ConfigurationError:
-    case CoreErrorType.ToolNotFound:
-      return "configuration";
-    case CoreErrorType.PermissionDenied:
-    case CoreErrorType.PermissionEscalation:
-    case CoreErrorType.PermissionTimeout:
-      return "permission";
-    case CoreErrorType.InvalidInput:
-      return "parse";
-    case CoreErrorType.ToolCancelled:
-      return "cancelled";
-    case CoreErrorType.ToolTimeout:
-      return "timeout";
-    default:
-      return "internal";
-  }
 }
 
 function appendPreToolAdditionalContextsToErrorResult(

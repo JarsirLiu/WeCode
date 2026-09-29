@@ -95,28 +95,14 @@ import type {
 import type { NodeReplBrowserBroker } from "./node-repl-browser-broker.js";
 import type { SessionTranscriptMessage } from "../session-transcript.js";
 import type { WorkspaceHookReviewCommandResult } from "./workspace-hook-review-controller.js";
+import type {
+  RevokeWorkspaceHookTrustInput,
+  RespondWorkspaceHookReviewInput,
+  ToggleWorkspaceHookReviewItemInput,
+  WorkspaceHookReviewHostContext,
+} from "./workspace-hook-review-types.js";
 import type { AgentTelemetryRuntimeOwner, WorkspaceHookPolicy } from "@zcode/contracts";
 import type { ProviderRegistryModelSource } from "./provider-registry-model-runtime.js";
-
-export interface WorkspaceHookReviewHostContext {
-  taskId: string;
-  runId: string;
-  workspaceLabel: string;
-  remoteSessionId?: string;
-}
-
-export type RespondWorkspaceHookReviewInput = WorkspaceHookReviewTarget & {
-  decision: WorkspaceHookReviewDecision;
-};
-
-export type ToggleWorkspaceHookReviewItemInput = WorkspaceHookReviewTarget & {
-  reviewItemId: string;
-  enabled: boolean;
-};
-
-export type RevokeWorkspaceHookTrustInput =
-  | (WorkspaceHookReviewTarget & { reviewItemIds: string[] })
-  | WorkspaceHookTrustRevokeTarget;
 
 /** 新 Session 可使用 Environment 默认选择；恢复 Session 允许保持未绑定，不补默认模型。 */
 export type ZCodeAppRuntimeConfigInput = AgentRuntimeConfig;

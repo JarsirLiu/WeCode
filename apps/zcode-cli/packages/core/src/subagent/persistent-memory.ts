@@ -3,7 +3,17 @@ import { join, resolve } from "node:path";
 import type { FileSystemPort, Logger, TraceContext } from "@zcode/contracts";
 
 import { ensureMemoryDirectoryExists } from "../memory/directory.js";
-import type { AgentRuntimeConfig, MemoryRuntimeConfig } from "../runtime/types.js";
+import type { AgentRuntimeConfig } from "../runtime/types.js";
+
+export interface MemoryRuntimeConfig {
+  cliStorageRoot?: string;
+  enabled?: boolean;
+  /** 是否调度成功 Main turn 后的自动 Extraction；缺省按 true 处理。 */
+  extractionEnabled?: boolean;
+  storageRoot?: string;
+  use?: boolean;
+  workspaceIdentity?: string;
+}
 import type { AgentProfile, AgentMemoryScope } from "./profile.js";
 import { buildPersistentAgentMemoryPrompt } from "./persistent-memory-prompt.js";
 

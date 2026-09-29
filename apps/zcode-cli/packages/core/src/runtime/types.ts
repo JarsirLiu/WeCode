@@ -109,6 +109,7 @@ import type {
   OutputStylePromptConfig,
 } from "./deps.js";
 import type { AgentProfile } from "../subagent/profile.js";
+import type { MemoryRuntimeConfig } from "../subagent/persistent-memory.js";
 import type { RuntimeTaskRegistry } from "../runtime-task/registry.js";
 import type { BashTimeoutPolicy } from "../tool/bash-timeout-policy.js";
 import type { PresentationSurface } from "../context/types.js";
@@ -297,16 +298,6 @@ export interface EnqueueSubagentMessageInput {
   summary: string;
   message: string;
   traceContext: TraceContext;
-}
-
-export interface MemoryRuntimeConfig {
-  cliStorageRoot?: string;
-  enabled?: boolean;
-  /** 是否调度成功 Main turn 后的自动 Extraction；缺省按 true 处理。 */
-  extractionEnabled?: boolean;
-  storageRoot?: string;
-  use?: boolean;
-  workspaceIdentity?: string;
 }
 
 export interface AgentRuntimeDeps {

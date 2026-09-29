@@ -30,7 +30,7 @@ import {
   type WorkspaceHookReviewLifecycleEvent,
 } from "./workspace-hook-review-controller.js";
 import { createWorkspaceHookReviewMutationPort } from "./workspace-hook-review-mutation.js";
-import type { WorkspaceHookReviewHostContext } from "./types.js";
+import type { WorkspaceHookReviewHostContext } from "./workspace-hook-review-types.js";
 
 interface WorkspaceHookRuntimeSecurity {
   admission: WorkspaceHookRuntimeAdmissionPort;

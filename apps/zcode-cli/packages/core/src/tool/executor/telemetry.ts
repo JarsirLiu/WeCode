@@ -1,6 +1,30 @@
-import type { ToolExecutionSpanWriter } from "@zcode/contracts";
+import {
+  CoreErrorType,
+  type AgentTelemetryErrorCategory,
+  type ToolExecutionSpanWriter,
+} from "@zcode/contracts";
 import type { ExecutableToolCall, ToolExecutionResult } from "../types.js";
 import type { ToolExecuteOptions, ToolExecutorDeps } from "./types.js";
+
+export function errorCategoryForToolError(type: string | undefined): AgentTelemetryErrorCategory {
+  switch (type) {
+    case CoreErrorType.ConfigurationError:
+    case CoreErrorType.ToolNotFound:
+      return "configuration";
+    case CoreErrorType.PermissionDenied:
+    case CoreErrorType.PermissionEscalation:
+    case CoreErrorType.PermissionTimeout:
+      return "permission";
+    case CoreErrorType.InvalidInput:
+      return "parse";
+    case CoreErrorType.ToolCancelled:
+      return "cancelled";
+    case CoreErrorType.ToolTimeout:
+      return "timeout";
+    default:
+      return "internal";
+  }
+}
 
 export async function runToolCallWithTelemetry(
   deps: ToolExecutorDeps,

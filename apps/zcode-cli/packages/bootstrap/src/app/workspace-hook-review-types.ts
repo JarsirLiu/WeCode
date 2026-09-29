@@ -6,8 +6,16 @@ import {
   type Logger,
   type WorkspaceHookAdmissionUpdatedPayload,
 } from "@zcode/contracts";
-import type { WorkspaceHookRuntimeAdmissionPort, WorkspaceHookTrustCoordinator } from "@zcode/core";
-import type { WorkspaceHookReviewRequestPayload } from "@zcode/shared/zcode-protocol-v4";
+import type {
+  WorkspaceHookReviewTarget,
+  WorkspaceHookRuntimeAdmissionPort,
+  WorkspaceHookTrustCoordinator,
+} from "@zcode/core";
+import type {
+  WorkspaceHookReviewDecision,
+  WorkspaceHookReviewRequestPayload,
+  WorkspaceHookTrustRevokeTarget,
+} from "@zcode/shared/zcode-protocol-v4";
 
 export type WorkspaceHookReviewLifecycleEvent =
   | {
@@ -76,3 +84,23 @@ export interface WorkspaceHookReviewControllerOptions {
   now?: () => number;
   createId?: () => string;
 }
+
+export interface WorkspaceHookReviewHostContext {
+  taskId: string;
+  runId: string;
+  workspaceLabel: string;
+  remoteSessionId?: string;
+}
+
+export type RespondWorkspaceHookReviewInput = WorkspaceHookReviewTarget & {
+  decision: WorkspaceHookReviewDecision;
+};
+
+export type ToggleWorkspaceHookReviewItemInput = WorkspaceHookReviewTarget & {
+  reviewItemId: string;
+  enabled: boolean;
+};
+
+export type RevokeWorkspaceHookTrustInput =
+  | (WorkspaceHookReviewTarget & { reviewItemIds: string[] })
+  | WorkspaceHookTrustRevokeTarget;
