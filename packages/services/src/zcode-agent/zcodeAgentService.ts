@@ -8,6 +8,7 @@ import {
 import { randomUUID } from "node:crypto";
 import { ensureIndependentPlanSupport } from "./independentPlanSupport.js";
 import { notifyPeerSessionChanged } from "./peerSessionChangeNotifier.js";
+import { toPeerSessionChange } from "./peerSessionChangeEvent.js";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { Emitter } from "@zcode/rpc";
@@ -1850,10 +1851,22 @@ export function createZCodeAgentService(
   function handleSessionEvent(
     workspace: ZCodeAgentWorkspaceTarget,
     event: ZCodeSessionEvent,
+    client: Pick<ZCodeProtocolClient, "notify">,
   ): void {
     const normalizedEvent = normalizeSessionEventSeq(workspace, event);
     if (!shouldDeliverLiveSessionEvent(workspace, normalizedEvent)) {
       return;
+    }
+    const notification = toPeerSessionChange(normalizedEvent);
+    if (notification) {
+      void notifyPeerSessionChanged({
+        client,
+        workspacePath: workspace.workspacePath,
+        ...(workspace.workspaceIdentity ? { workspaceIdentity: workspace.workspaceIdentity } : {}),
+        targetSessionId: normalizedEvent.sessionId,
+        sequence: normalizedEvent.seq,
+        ...notification,
+      }).catch(() => undefined);
     }
     emitSessionEvent(workspace, normalizedEvent.sessionId, {
       type: "session.event",
@@ -1864,19 +1877,8 @@ export function createZCodeAgentService(
   function handleStateUpdated(
     workspace: ZCodeAgentWorkspaceTarget,
     notification: ZCodeStateUpdatedNotification,
-    client: Pick<ZCodeProtocolClient, "notify">,
   ): void {
     if (notification.sessionId) {
-      void notifyPeerSessionChanged({
-        client,
-        workspacePath: workspace.workspacePath,
-        ...(workspace.workspaceIdentity ? { workspaceIdentity: workspace.workspaceIdentity } : {}),
-        targetSessionId: notification.sessionId,
-        sequence: notification.revision,
-        change: notification.reason?.toLowerCase().includes("permission")
-          ? "permission_requested"
-          : "status",
-      }).catch(() => undefined);
       emitSessionEvent(workspace, notification.sessionId, {
         type: "state.updated",
         notification,
@@ -1998,7 +2000,7 @@ export function createZCodeAgentService(
         if (message.method === "session/event") {
           const parsed = zcodeSessionEventSchema.safeParse(message.params);
           if (parsed.success) {
-            handleSessionEvent(workspace, parsed.data);
+            handleSessionEvent(workspace, parsed.data, client);
           } else {
             const rawParams =
               typeof message.params === "object" && message.params !== null
@@ -2025,7 +2027,7 @@ export function createZCodeAgentService(
         if (message.method === "state.updated") {
           const parsed = zcodeStateUpdatedNotificationSchema.safeParse(message.params);
           if (parsed.success) {
-            handleStateUpdated(workspace, parsed.data, client);
+            handleStateUpdated(workspace, parsed.data);
           }
           return;
         }

@@ -731,7 +731,7 @@ Host 仍可在关系账本和审批审计中记录 `createdBy: ai`、`resolverKi
   → 如有 pendingPermissions，再调用 ResolveSessionPermission
 ```
 
-通知最小载荷为 `{ targetSessionId, change, sequence }`，不携带完整消息、审批内容或决议结果。Host 必须允许通知重复、丢失和乱序；`sequence` 只用于唤醒后的增量读取，不能替代 `ReadSession`。通知失败不得改变目标会话的运行结果，也不得在 Host 维护第二份事件队列。
+通知统一使用 `session/changed`，载荷为 `{ targetSessionId, sequence, kind, turnId?, requestId?, summary?, error? }`。`kind` 仅区分 `permission_requested`、`turn_completed`、`turn_failed`、`generation_stopped` 四类唤醒原因；它不是第二套状态机，而是目标 runtime 权威 `session/event` 的有界投影。通知不携带完整消息、审批输入或决议结果。Host 必须允许通知重复、丢失和乱序；`sequence` 只用于唤醒后的增量读取，不能替代 `ReadSession`。通知失败不得改变目标会话的运行结果，也不得在 Host 维护第二份事件队列。
 
 ### 5. 与 Codex 的准确对照
 

@@ -12,7 +12,15 @@ export async function notifyPeerSessionChanged(input: {
   workspaceIdentity?: string;
   targetSessionId: string;
   sequence: number;
-  change: "message" | "permission_requested" | "status";
+  kind:
+    | "permission_requested"
+    | "turn_completed"
+    | "turn_failed"
+    | "generation_stopped";
+  turnId?: string;
+  requestId?: string;
+  summary?: string;
+  error?: { code?: string; message: string };
 }): Promise<void> {
   const repo = new PeerSessionRelationRepo();
   try {
@@ -22,12 +30,23 @@ export async function notifyPeerSessionChanged(input: {
       targetSessionId: input.targetSessionId,
     });
     if (!relation) return;
-    await input.client.notify(
+      await input.client.notify(
       ZCODE_SESSION_CHANGED_NOTIFICATION,
       zcodeSessionChangedNotificationSchema.parse({
         targetSessionId: input.targetSessionId,
-        change: input.change,
         sequence: input.sequence,
+        kind: input.kind,
+        ...(input.turnId ? { turnId: input.turnId } : {}),
+        ...(input.requestId ? { requestId: input.requestId } : {}),
+        ...(input.summary ? { summary: input.summary.slice(0, 512) } : {}),
+        ...(input.error
+          ? {
+              error: {
+                ...(input.error.code ? { code: input.error.code } : {}),
+                message: input.error.message.slice(0, 512),
+              },
+            }
+          : {}),
       }),
     );
   } finally {

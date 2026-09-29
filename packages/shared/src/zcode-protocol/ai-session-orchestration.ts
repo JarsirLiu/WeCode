@@ -63,8 +63,23 @@ export const zcodeAiOrchestrationRequestContextSchema = z
 export const zcodeSessionChangedNotificationSchema = z
   .object({
     targetSessionId: nonEmptyStringSchema,
-    change: z.enum(["message", "permission_requested", "status"]),
     sequence: z.number().int().nonnegative(),
+    kind: z.enum([
+      "permission_requested",
+      "turn_completed",
+      "turn_failed",
+      "generation_stopped",
+    ]),
+    turnId: nonEmptyStringSchema.optional(),
+    requestId: nonEmptyStringSchema.optional(),
+    summary: z.string().max(512).optional(),
+    error: z
+      .object({
+        code: nonEmptyStringSchema.optional(),
+        message: nonEmptyStringSchema,
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 export type ZCodeSessionChangedNotification = z.infer<typeof zcodeSessionChangedNotificationSchema>;
