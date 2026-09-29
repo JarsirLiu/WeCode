@@ -7,6 +7,7 @@ import {
 /* oxlint-disable eslint(max-lines) -- ZCode Protocol transport、通知 wiring 和 app-facing session 方法必须共享同一个 client/emitter 上下文。 */
 import { randomUUID } from "node:crypto";
 import { ensureIndependentPlanSupport } from "./independentPlanSupport.js";
+import { notifyPeerSessionChanged } from "./peerSessionChangeNotifier.js";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { Emitter } from "@zcode/rpc";
@@ -1863,8 +1864,19 @@ export function createZCodeAgentService(
   function handleStateUpdated(
     workspace: ZCodeAgentWorkspaceTarget,
     notification: ZCodeStateUpdatedNotification,
+    client: Pick<ZCodeProtocolClient, "notify">,
   ): void {
     if (notification.sessionId) {
+      void notifyPeerSessionChanged({
+        client,
+        workspacePath: workspace.workspacePath,
+        ...(workspace.workspaceIdentity ? { workspaceIdentity: workspace.workspaceIdentity } : {}),
+        targetSessionId: notification.sessionId,
+        sequence: notification.revision,
+        change: notification.reason?.toLowerCase().includes("permission")
+          ? "permission_requested"
+          : "status",
+      }).catch(() => undefined);
       emitSessionEvent(workspace, notification.sessionId, {
         type: "state.updated",
         notification,
@@ -2013,7 +2025,7 @@ export function createZCodeAgentService(
         if (message.method === "state.updated") {
           const parsed = zcodeStateUpdatedNotificationSchema.safeParse(message.params);
           if (parsed.success) {
-            handleStateUpdated(workspace, parsed.data);
+            handleStateUpdated(workspace, parsed.data, client);
           }
           return;
         }

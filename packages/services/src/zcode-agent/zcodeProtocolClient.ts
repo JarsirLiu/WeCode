@@ -8,12 +8,16 @@ import type {
   ZCodeProtocolRequestId,
   ZCodeProtocolTrace,
 } from "@zcode/shared";
+import { ZCODE_SESSION_CHANGED_NOTIFICATION } from "@zcode/shared";
 import type { V4Method } from "@zcode/shared/zcode-protocol-v4";
 import type { z } from "zod";
 import type { ZCodeProtocolTransport } from "./zcodeProtocolTransport.js";
 
 /** 客户端可发的方法名：旧 zcodeProtocolMethods + v4/*（并存，收敛为 v4）。 */
-type ZCodeProtocolClientMethod = ZCodeProtocolMethod | V4Method;
+type ZCodeProtocolClientMethod =
+  | ZCodeProtocolMethod
+  | V4Method
+  | typeof ZCODE_SESSION_CHANGED_NOTIFICATION;
 
 interface ZCodeProtocolClientOptions {
   requireStorageStartup?: boolean;
