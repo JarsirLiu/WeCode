@@ -15,6 +15,8 @@ import type { IZCodeTaskService } from "../session/zcodeTaskService.js";
 import type { IZCodeSessionService } from "../zcode-session/zcodeSession.js";
 import type { ZCodeTaskServiceExecutor } from "./zcodeTaskCommandExecutor.js";
 import { PeerSessionRelationRepo } from "../session/peerSessionRelationRepo.js";
+import { PermissionResolutionError } from "./permissionResolutionError.js";
+import { runPermissionResolutionWithClaim } from "./permissionResolutionClaim.js";
 
 export function createZCodeTaskServiceExecutor(options: {
   readZCodeTaskService: () => IZCodeTaskService | undefined;
@@ -180,7 +182,10 @@ export function createZCodeTaskServiceExecutor(options: {
 
     async resolveSessionPermission(input) {
       if (input.decision === "allow_always")
-        throw new Error("allow_always is not delegated in this phase");
+        throw new PermissionResolutionError(
+          "allow_always_not_supported",
+          "allow_always is not supported for delegated session permissions",
+        );
       const repo = new PeerSessionRelationRepo();
       try {
         const relation = await repo.findCreatedSession({
@@ -191,49 +196,90 @@ export function createZCodeTaskServiceExecutor(options: {
         if (
           !relation ||
           relation.creatorSessionId !== input.creatorSessionId ||
-          relation.approvalPolicy !== "delegated" ||
           relation.workspaceKey !== input.workspaceKey ||
           relation.remoteSessionId ||
           input.remoteSessionId
         ) {
-          throw new Error("delegated permission is not authorized for this session");
+          throw new PermissionResolutionError(
+            "not_authorized",
+            "delegated permission is not authorized for this session",
+          );
+        }
+        if (relation.approvalPolicy !== "delegated") {
+          throw new PermissionResolutionError(
+            "manual_policy",
+            "target session does not allow delegated permission resolution",
+          );
         }
       } finally {
         repo.close();
       }
-      const snapshot = await session().readSession({
+      const resolved = await runPermissionResolutionWithClaim({
         workspacePath: input.workspacePath,
         ...(input.workspaceIdentity ? { workspaceIdentity: input.workspaceIdentity } : {}),
-        sessionId: input.targetSessionId,
-        messageLimit: 0,
-      });
-      const pending = snapshot.projection.pendingPermissions.find(
-        (item) => item.requestId === input.requestId,
-      );
-      if (!pending)
-        return { requestId: input.requestId, status: "already_resolved", decision: input.decision };
-      const kind = input.decision === "allow_once" ? "allowOnce" : "deny";
-      const option = pending.options.find((item) => item.kind === kind);
-      if (!option) throw new Error(`permission request does not offer ${input.decision}`);
-      const accepted = await task().respondPermission({
-        taskId: input.targetSessionId,
-        workspacePath: input.workspacePath,
-        ...(input.workspaceIdentity ? { workspaceIdentity: input.workspaceIdentity } : {}),
+        targetSessionId: input.targetSessionId,
         requestId: input.requestId,
-        optionId: option.optionId,
-        response: {
-          decision: input.decision === "deny" ? "deny" : "allow",
-          ...(input.reason ? { reason: input.reason } : {}),
-        },
-        resolution: {
-          resolverKind: "ai",
-          resolverSessionId: input.creatorSessionId,
-          ...(input.reason ? { reason: input.reason } : {}),
+        decision: input.decision,
+        resolverKind: "ai",
+        resolverSessionId: input.creatorSessionId,
+        ...(input.reason ? { reason: input.reason } : {}),
+        resolve: async () => {
+          const snapshot = await session().readSession({
+            workspacePath: input.workspacePath,
+            ...(input.workspaceIdentity ? { workspaceIdentity: input.workspaceIdentity } : {}),
+            sessionId: input.targetSessionId,
+            messageLimit: 0,
+          });
+          const pending = snapshot?.projection.pendingPermissions.find(
+            (item) => item.requestId === input.requestId,
+          );
+          if (!pending)
+            throw new PermissionResolutionError(
+              "request_not_found",
+              "permission request is not pending",
+            );
+          const kind = input.decision === "allow_once" ? "allowOnce" : "deny";
+          const option = pending.options.find((item) => item.kind === kind);
+          if (!option)
+            throw new PermissionResolutionError(
+              "request_not_found",
+              "permission request does not offer the requested decision",
+            );
+          try {
+            const accepted = await task().respondPermission({
+              taskId: input.targetSessionId,
+              workspacePath: input.workspacePath,
+              ...(input.workspaceIdentity ? { workspaceIdentity: input.workspaceIdentity } : {}),
+              requestId: input.requestId,
+              optionId: option.optionId,
+              response: {
+                decision: input.decision === "deny" ? "deny" : "allow",
+                ...(input.reason ? { reason: input.reason } : {}),
+              },
+              resolution: {
+                resolverKind: "ai",
+                resolverSessionId: input.creatorSessionId,
+                ...(input.reason ? { reason: input.reason } : {}),
+              },
+            });
+            if (!accepted)
+              throw new PermissionResolutionError(
+                "request_not_found",
+                "permission request is no longer pending",
+              );
+          } catch (error) {
+            if (error instanceof PermissionResolutionError) throw error;
+            throw new PermissionResolutionError(
+              "runtime_unavailable",
+              "target session runtime could not resolve permission",
+              { cause: error },
+            );
+          }
         },
       });
       return {
         requestId: input.requestId,
-        status: accepted ? "resolved" : "already_resolved",
+        status: resolved ? "resolved" : "already_resolved",
         decision: input.decision,
       };
     },

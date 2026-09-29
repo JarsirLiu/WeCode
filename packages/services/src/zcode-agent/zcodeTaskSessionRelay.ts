@@ -16,6 +16,7 @@ import {
 } from "@zcode/shared";
 import type { ZCodeProtocolClient } from "./zcodeProtocolClient.js";
 import type { ZCodeTaskServiceExecutor } from "./zcodeTaskCommandExecutor.js";
+import { PermissionResolutionError } from "./permissionResolutionError.js";
 
 type RelayClient = Pick<ZCodeProtocolClient, "respond" | "respondError">;
 
@@ -103,7 +104,17 @@ export function handleTaskSessionReverseRequest(args: {
         reason: parsed.data.reason,
       })
       .then((result) => client.respond(request.id, result))
-      .catch(respondFailure);
+      .catch((error) => {
+        if (error instanceof PermissionResolutionError) {
+          void client.respondError(request.id, {
+            code: -32603,
+            message: error.message,
+            data: { code: error.code },
+          });
+          return;
+        }
+        respondFailure(error);
+      });
     return true;
   }
 

@@ -123,6 +123,17 @@ resolve_session_permission({
 }
 ```
 
+审批工具自身不触发当前 Agent 会话的普通用户审批；这只避免“代审批工具先被再次审批”的闭环死锁，Host 仍必须执行创建者、目标会话、workspace、`delegated` 策略和精确 `requestId` 校验。
+
+失败时使用稳定业务分类，不以自由文本作为调用方判定依据：
+
+- `not_authorized`：创建关系、创建者身份、目标会话或 workspace 不匹配。
+- `manual_policy`：目标关系不是 `delegated`。
+- `request_not_found`：指定 request 不存在或已不再 pending。
+- `allow_always_not_supported`：本阶段不接受 `allow_always`。
+- `already_resolved`：同一 request 已被先到的用户或 AI claim。
+- `runtime_unavailable`：Host 已 claim，但目标 runtime 回执失败；claim 会释放，允许重试。
+
 用户 UI 和创建者 AI 可能同时处理同一个请求。Host 必须以 `requestId` 做单次幂等决议：先到者成功，后到者返回 `already_resolved`，不得向 Agent 发送两次响应。
 
 ## 消息与执行关联
