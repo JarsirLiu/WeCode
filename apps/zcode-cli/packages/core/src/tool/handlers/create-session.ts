@@ -46,7 +46,7 @@ const createSessionHandler: ToolHandler = async (input, context) => {
       },
     );
   }
-  return context.zcodeTaskPort.createTask({
+  const result = await context.zcodeTaskPort.createTask({
     workspacePath: parsed.data.workspacePath,
     workspaceIdentity: parsed.data.workspaceIdentity,
     mode: parsed.data.mode,
@@ -64,6 +64,28 @@ const createSessionHandler: ToolHandler = async (input, context) => {
     traceContext: context.traceContext,
     signal: context.abortSignal,
   });
+  // Host 返回完整 task meta；工具契约只公开创建结果字段，逐字段投影避免内部索引字段
+  // 触发 strict runtimeOutputSchema 校验失败。
+  return {
+    taskId: result.taskId,
+    traceId: result.traceId,
+    title: result.title,
+    workspacePath: result.workspacePath,
+    createdAt: result.createdAt,
+    updatedAt: result.updatedAt,
+    mode: result.mode,
+    ...(result.titleOverridden === undefined ? {} : { titleOverridden: result.titleOverridden }),
+    ...(result.workspaceIdentity === undefined
+      ? {}
+      : { workspaceIdentity: result.workspaceIdentity }),
+    ...(result.workspacePurpose === undefined ? {} : { workspacePurpose: result.workspacePurpose }),
+    ...(result.model === undefined ? {} : { model: result.model }),
+    ...(result.thoughtLevel === undefined ? {} : { thoughtLevel: result.thoughtLevel }),
+    ...(result.runtimeEpoch === undefined ? {} : { runtimeEpoch: result.runtimeEpoch }),
+    ...(result.initialSlashCommands === undefined
+      ? {}
+      : { initialSlashCommands: result.initialSlashCommands }),
+  };
 };
 
 export const createSessionToolEntry: ToolEntry = {

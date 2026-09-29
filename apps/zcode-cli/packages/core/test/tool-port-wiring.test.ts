@@ -45,6 +45,8 @@ const STUB_TASK_META = {
   createdAt: 0,
   updatedAt: 0,
   mode: "build" as const,
+  provider: "glm" as const,
+  status: "running" as const,
 };
 
 function createRecordingTaskPort(): { port: ZCodeTaskPort; calls: { method: string; params: unknown }[] } {

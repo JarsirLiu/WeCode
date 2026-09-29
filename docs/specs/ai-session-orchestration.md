@@ -323,13 +323,16 @@ export const CreateSessionInputSchema = z
 
 export type CreateSessionInput = z.infer<typeof CreateSessionInputSchema>;
 
-// 输出 = ZCodeTaskMeta（mirror IZCodeTaskService.createTask 返回），加 initialSlashCommands?。
+// 工具输出是 ZCodeTaskMeta 的公开子集，加 initialSlashCommands?；Host 返回的
+// status/provider/lastError 等内部索引字段不得直接透传到 strict schema。
 // 注意：taskId 即会话标识，没有单独的 sessionId 字段。
 export const CreateSessionOutputSchema = zcodeTaskMetaSchema.extend({
   initialSlashCommands: z.array(z.record(z.string(), z.unknown())).optional(),
 });
 export type CreateSessionOutput = z.infer<typeof CreateSessionOutputSchema>;
 ```
+
+`CreateSession` handler 必须逐字段投影 Host 的 `ZCodeTaskCreateResult` 后再返回工具层；不能把完整 task meta 直接透传，也不能为容纳内部字段而放宽工具输出的 strict schema。
 
 > `workspaceIdentity`/`remoteSessionId`/`clientMode` 不在工具输入里给模型——broker 的 `buildWorkspaceRequestContext` 从受信 session record 注入，覆盖任何同名输入（见 §2 身份注入）。
 
