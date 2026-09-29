@@ -134,6 +134,8 @@ export async function sendHostCasCommandV4<T extends CommandType>(input: {
   payload: CommandPayloadMap[T];
   sessionId: string;
   contextMessage: string;
+  /** 调用方已有稳定幂等键时沿用它（例如工具 traceId）。 */
+  commandId?: string;
   maxAttempts?: number;
 }): Promise<CommandAck> {
   const maxAttempts = input.maxAttempts ?? 4;
@@ -145,6 +147,7 @@ export async function sendHostCasCommandV4<T extends CommandType>(input: {
         type: input.type,
         payload: input.payload,
         sessionId: input.sessionId,
+        ...(input.commandId && attempt === 0 ? { commandId: input.commandId } : {}),
         baseRevision,
       }),
     );

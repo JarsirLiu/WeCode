@@ -92,7 +92,8 @@ export interface ZCodeTaskPort {
       automationId?: string;
       offPeakTaskId?: string;
       deferPersistenceUntilFirstPrompt?: boolean;
-      // 无 initialPrompt：Phase 1 不支持一步到位（见 §3.1）
+      // 创建与首条消息必须共享 V4 生命周期；initialPrompt 由 handler 在创建成功后
+      // 通过同一端口发送，不在 createTask 中引入第二条写入路径。
     } & ZCodeTaskPortRequestContext,
   ): Promise<ZCodeAiTaskCreateResult>;
 
@@ -277,12 +278,12 @@ agent 输入里同名提供的 `workspaceIdentity`/`remoteSessionId`/`clientMode
 
 | 工具名                  | 文件                         | 对应端口                                                                        | 核心能力                                                                                                  |
 | ----------------------- | ---------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `CreateSession`         | `create-session.ts`          | `ZCodeTaskPort.createTask`                                                      | 创建新会话，**必传 `mode`**；Phase 1 不支持 `initialPrompt` 一步到位，需 `createTask` + `sendPrompt` 两步 |
+| `CreateSession`         | `create-session.ts`          | `ZCodeTaskPort.createTask` + `sendPrompt`                                       | 创建新会话，固定使用 V4；可选 `initialPrompt` 在创建成功后经 V4 `sendText` 投递 |
 | `SendSessionMessage`    | `send-session-message.ts`    | `ZCodeTaskPort.sendPrompt`                                                      | 发消息，**异步**：发完即返（`void`），AI 主动 `read_session` 轮询                                         |
 | `ReadSession`           | `read-session.ts`            | `ZCodeSessionPort.readSession`（优先）/ `ZCodeTaskPort.getTaskSnapshot`（回退） | 读取进度/结果                                                                                             |
 | `StopSessionGeneration` | `stop-session-generation.ts` | `ZCodeTaskPort.stopGeneration`                                                  | 停止当前生成，会话保留可继续                                                                              |
-| `SetSessionModel`       | `set-session-model.ts`       | `ZCodeTaskPort.setModel`                                                        | 换模型，返回服务端 authoritative configOptions                                                            |
-| `CompactSession`        | `compact-session.ts`         | `ZCodeTaskPort.compactSession`                                                  | 手动压缩上下文                                                                                            |
+| `SetSessionModel`       | `set-session-model.ts`       | `ZCodeTaskPort.setModel` → V4 `switchModelConfig`                                | 换模型，返回服务端 authoritative configOptions                                                            |
+| `CompactSession`        | `compact-session.ts`         | `ZCodeTaskPort.compactSession` → V4 `compact`                                    | 手动压缩上下文                                                                                            |
 
 **无以下工具**（刻意不提供）：
 
@@ -315,9 +316,9 @@ export const CreateSessionInputSchema = z
     forkedFromTaskId: z.string().optional(),
     automationId: z.string().optional(),
     offPeakTaskId: z.string().optional(),
-    // initialPrompt：Phase 1 不支持一步到位。createTask 只建会话+task 索引，
-    // 第一条消息必须由后续 SendSessionMessage 发出。原因：反向请求是请求/响应模型，
-    // createTask + sendPrompt 合并成一次往返需要协议层 batch 支持，Phase 1 不引入。
+    // initialPrompt：创建成功后由 CreateSession handler 立即调用 sendPrompt，
+    // 仍保持 createTask 与 sendPrompt 的独立 admission 边界。
+    initialPrompt: z.string().min(1).optional(),
   })
   .strict();
 
@@ -332,7 +333,15 @@ export const CreateSessionOutputSchema = zcodeTaskMetaSchema.extend({
 export type CreateSessionOutput = z.infer<typeof CreateSessionOutputSchema>;
 ```
 
-`CreateSession` handler 必须逐字段投影 Host 的 `ZCodeTaskCreateResult` 后再返回工具层；不能把完整 task meta 直接透传，也不能为容纳内部字段而放宽工具输出的 strict schema。
+`CreateSession` handler 必须逐字段投影 Host 的 `ZCodeTaskCreateResult` 后再返回工具层；不能把完整 task meta 直接透传，也不能为容纳内部字段而放宽工具输出的 strict schema。创建调用必须传 `v4Create: true`。当 `initialPrompt` 存在时，handler 在创建成功后使用返回的 `taskId`/`traceId` 调用一次 `sendPrompt`；这条消息走 V4 `sendText`，并使用新的 `messageId` 作为幂等键。发送失败时创建结果不会伪装成成功，工具直接失败并保留 Host 原始错误。
+
+创建生命周期只有一个状态所有者：目标 session runtime 的 V4 `CommandInbox`。事件顺序为 `CreateSession → V4 createSession → 可选 V4 sendText → ReadSession`。没有 `initialPrompt` 时会话可以为空，标题保持 `New session`；有首条消息时由首条输入的现有标题逻辑生成标题。自定义标题不通过 `initialPrompt` 伪造，后续由明确的 rename 能力处理。
+
+`SetSessionModel` 和 `CompactSession` 也必须只写 V4 命令面：
+
+- `SetSessionModel` 发送 `v4/command(switchModelConfig)`，`traceId` 作为 command id，`modelSelection.options.reasoningLevel` 映射为 `thought`；Host 通过 V4 ACK 和最新快照返回 authoritative configOptions。
+- `CompactSession` 发送 `v4/command(compact)`，`inputId` 作为 command id；V4 compact 是异步 admission，不接受旧协议的 `instructions` 或 `expectedRevision` 参数，结果快照通过只读 projection 读取。
+- 这两个工具不得回退到 `session/setModel`、`session/compact`。V4 ACK 为 `stale` 时按 revision 重试，其他拒绝直接把 V4 reason/message 返回工具层。
 
 > `workspaceIdentity`/`remoteSessionId`/`clientMode` 不在工具输入里给模型——broker 的 `buildWorkspaceRequestContext` 从受信 session record 注入，覆盖任何同名输入（见 §2 身份注入）。
 
@@ -351,15 +360,20 @@ export const SendSessionMessageInputSchema = z
     attachments: z.array(PromptAttachmentSchema).optional(),
     toolDenylist: z.array(z.string()).optional(),
     modelSelection: ModelSelectionSchema.optional(),
-    // 无 waitForCompletion：Phase 1 纯异步。sendPrompt 入队后立即返回 void，
+    // 无 waitForCompletion：纯异步。sendPrompt 入队后立即返回 admission，
     // AI 主动 read_session 轮询。理由见 §3.2.2。
   })
   .strict();
 
 export type SendSessionMessageInput = z.infer<typeof SendSessionMessageInputSchema>;
 
-// 返回 void：消息已被 host 接受入队。进度/结果走 read_session。
-export const SendSessionMessageOutputSchema = z.object({}).strict();
+// 返回 admission：消息已被 host 接受入队。进度/结果走 read_session。
+export const SendSessionMessageOutputSchema = z.object({
+  messageId: z.string(),
+  turnId: z.string(),
+  acceptedAt: z.number(),
+  deduplicated: z.boolean(),
+}).strict();
 export type SendSessionMessageOutput = z.infer<typeof SendSessionMessageOutputSchema>;
 ```
 
@@ -459,8 +473,6 @@ export const CompactSessionInputSchema = z
   .object({
     taskId: z.string().min(1),
     inputId: z.string().optional(),
-    instructions: z.string().optional(),
-    expectedRevision: z.number().int().nonnegative().optional(),
   })
   .strict();
 
@@ -488,11 +500,11 @@ export type CompactSessionOutput = z.infer<typeof CompactSessionOutputSchema>;
 
 **本地/远程统一**：Host 侧 `windowRemoteConnectionRegistry` 按 `workspaceIdentity`/`remoteSessionId` 路由到对应 `ServiceCollection`，端口实现自动指向本地或远端 `IZCodeTaskService`。工具层完全无感。
 
-##### 3.2.2 发送语义：Phase 1 纯异步
+##### 3.2.2 发送语义：纯异步 admission
 
 **Phase 1 不实现 `waitForCompletion`**。`SendSessionMessage` 的唯一语义：
 
-1. `sendPrompt` 入队 → host 确认接受 → 返回 `void`
+1. `sendPrompt` 入队 → host 确认接受 → 返回 admission（`messageId`、`turnId`、`acceptedAt`、`deduplicated`）
 2. AI 主动调用 `read_session` 轮询进度/结果
 
 **为什么不支持同步等待**：反向请求是请求/响应模型，`waitForCompletion: true` 要把一条 stdio 上的 pending request 挂住直到会话进入终态（可能几分钟）。期间超时、取消、断连、并发占用语义都得单独定义，且 broker 的 `resultSchema` 校验在响应到达时才跑——长挂住会占满 agent 的反向请求通道。Phase 1 不引入这个复杂度。
@@ -549,7 +561,7 @@ export type CompactSessionOutput = z.infer<typeof CompactSessionOutputSchema>;
 **核心用法**：当前会话 AI 创建后台会话完全代管任务，**不卡审批、不等人**：
 
 ```typescript
-// 创建自主会话（Phase 1：createTask 不带 initialPrompt，两步走）
+// 创建自主会话；initialPrompt 存在时 handler 会在创建成功后立即发送首条消息
 const { taskId, traceId } = await create_session({
   mode: "yolo", // 关键：永不进入 plan 模式，永不请求审批
 });
@@ -811,4 +823,8 @@ ZCode 应借鉴这些边界：
 - 无外部依赖，纯内部接线
 - `ZCodeTaskPort` / `ZCodeSessionPort` 与现有 `session.port.ts` 不冲突（后者是底层 event store 抽象，前者是业务编排抽象，命名空间分离）
 - `packages/contracts` 导出需同步更新 `index.ts`（已加 `export * from "./tools/ai-session-orchestration.js"`）
-- **Phase 1 已知限制**：创建和首条消息原则上仍是两步（如保留 `initialPrompt` 字段，必须明确它只是 Host 内部的 create+send 事务糖衣）；`waitForCompletion` 同步等待不支持（纯异步+轮询）；通知流和 `SessionMessageBoard` 尚未实现；`resume_session` 工具不暴露（port 留接口）。
+- **当前边界**：创建和首条消息是两个明确的协议 admission（handler 内按顺序执行 create+send）；`waitForCompletion` 同步等待不支持（纯异步+轮询）；通知流和 `SessionMessageBoard` 尚未实现；`resume_session` 工具不暴露（port 留接口）。
+
+### 失败语义
+
+反向 relay 的成功响应必须符合对应 result schema。Host executor 或服务层抛出的异常必须通过 JSON-RPC error 响应（默认代码 `-32603`，保留错误消息；已有数值错误码则透传），不能发送 `{ success: false, error }` 作为成功 result。这样 agent 侧 `requestClient` 会直接抛出原始错误，工具层不会再把失败对象按成功 admission schema 校验而产生误导性的 Zod 字段缺失错误。

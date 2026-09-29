@@ -50,7 +50,7 @@ export const CreateSessionInputSchema = z
     automationId: z.string().optional(),
     offPeakTaskId: z.string().optional(),
     approvalPolicy: z.enum(["manual", "delegated", "autonomous"]).optional(),
-    initialPrompt: z.string().optional(),
+    initialPrompt: z.string().min(1).optional(),
   })
   .strict();
 
@@ -254,8 +254,6 @@ export const CompactSessionInputSchema = z
   .object({
     taskId: z.string().min(1),
     inputId: z.string().optional(),
-    instructions: z.string().optional(),
-    expectedRevision: z.number().int().nonnegative().optional(),
   })
   .strict();
 
@@ -283,8 +281,7 @@ export const CompactSessionOutputJsonSchema = toToolJsonSchema(CompactSessionOut
 export const COMPACT_SESSION_DESCRIPTION = [
   "Execute the built-in /compact command on a ZCode session/task to summarize and reduce context.",
   "",
-  "Required: taskId. Optional: inputId (specific input to compact), instructions (custom compacting",
-  "instructions), expectedRevision (optimistic concurrency control).",
+  "Required: taskId. Optional: inputId (the stable V4 command id for retries).",
   "",
   "Returns the compact response and the updated session snapshot.",
 ].join("\n");

@@ -49,8 +49,6 @@ const compactSessionHandler: ToolHandler = async (input, context) => {
   return context.zcodeTaskPort.compactSession({
     taskId: parsed.data.taskId,
     inputId: parsed.data.inputId,
-    instructions: parsed.data.instructions,
-    expectedRevision: parsed.data.expectedRevision,
     workspacePath: undefined,
     workspaceIdentity: undefined,
     sessionId: context.sessionId,

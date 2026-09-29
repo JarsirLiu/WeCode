@@ -11,7 +11,7 @@ Navigation map from capability to code. For a deep dive into one module, run `pn
 | shared | — | 229 | packages/shared/src | ./src/index.ts (+18) | [card](../packages/shared/README.md) |
 | provider | — | 23 | packages/provider/src | ./src/index.ts | — |
 | provider-node | — | 17 | packages/provider-node/src | ./src/index.ts | — |
-| services | — | 294 | packages/services/src | ./src/storage-startup.ts (+4) | [card](../packages/services/README.md) |
+| services | — | 295 | packages/services/src | ./src/storage-startup.ts (+4) | [card](../packages/services/README.md) |
 | session | conversation | 40 | packages/services/src/session | ./src/storage-startup.ts (+4) | — |
 | storage | desktop-settings | 13 | packages/services/src/storage | packages/services/src/storage/contract.ts | — |
 | client | — | 6 | packages/client/src | ./src/index.ts (+1) | — |

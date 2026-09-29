@@ -23,7 +23,7 @@ type RelayClient = Pick<ZCodeProtocolClient, "respond" | "respondError">;
 /**
  * AI Session Orchestration：agent 的 task/* / session/* 反向请求转发给
  * IZCodeTaskService / IZCodeSessionService 执行桥（spec: docs/specs/ai-session-orchestration.md）。
- * executor 注入方式同 botsCommandExecutor；缺省返回结构化失败，不伪造成功。
+ * executor 注入方式同 botsCommandExecutor；缺省通过 JSON-RPC error 失败，不伪造成功。
  */
 export function handleTaskSessionReverseRequest(args: {
   request: ZCodeProtocolRequest;
@@ -32,9 +32,15 @@ export function handleTaskSessionReverseRequest(args: {
 }): boolean {
   const { request, client, taskExecutor } = args;
   const respondFailure = (error: unknown): void => {
-    void client.respond(request.id, {
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
+    // 失败必须走 JSON-RPC error；发送 success=false 会被 agent 侧按结果 schema
+    // 解析，最终掩盖原始服务错误（例如 FOREIGN KEY constraint failed）。
+    const numericCode =
+      typeof error === "object" && error !== null && "code" in error
+        ? (error as { code?: unknown }).code
+        : undefined;
+    void client.respondError(request.id, {
+      code: typeof numericCode === "number" ? numericCode : -32603,
+      message: error instanceof Error ? error.message : String(error),
     });
   };
 

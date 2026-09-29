@@ -127,10 +127,53 @@ test("CreateSession 执行把 zcodeTaskPort 送达 handler 并命中 stub", asyn
   assert.equal(result.success, true, `执行应成功：${JSON.stringify(result.error ?? {})}`);
   assert.equal(calls.length, 1, "stub port 的 createTask 应被命中一次");
   assert.equal(calls[0]?.method, "createTask");
+  assert.equal((calls[0]?.params as { v4Create?: boolean }).v4Create, true);
   assert.equal(
     JSON.stringify(result.output).includes("task_stub"),
     true,
     "handler 输出应透传 stub 返回的 task meta",
+  );
+});
+
+test("CreateSession 的 initialPrompt 在 V4 创建后经 sendPrompt 投递", async () => {
+  const { port, calls } = createRecordingTaskPort();
+  const registry = createToolRegistry();
+  registerBuiltInTools(registry, { includeZCodeTask: true });
+  const executor = createToolExecutor({
+    registry,
+    permissionService: new PermissionService(),
+    emitEvent: async () => {},
+    sessionId: "sess_wiring_test",
+    getMode: () => "yolo",
+    zcodeTaskPort: port,
+  });
+
+  const result = await executor.execute({
+    id: "call_wiring_create_initial",
+    name: CREATE_SESSION_TOOL_NAME,
+    input: {
+      workspacePath: "/tmp/zcode-wiring-test",
+      initialPrompt: "implement the requested change",
+    },
+  });
+
+  assert.equal(result.success, true, `执行应成功：${JSON.stringify(result.error ?? {})}`);
+  assert.deepEqual(
+    calls.map((call) => call.method),
+    ["createTask", "sendPrompt"],
+  );
+  assert.equal((calls[0]?.params as { v4Create?: boolean }).v4Create, true);
+  assert.deepEqual(
+    calls[1]?.params && {
+      taskId: (calls[1].params as { taskId: string }).taskId,
+      traceId: (calls[1].params as { traceId: string }).traceId,
+      content: (calls[1].params as { content: string }).content,
+    },
+    {
+      taskId: STUB_TASK_META.taskId,
+      traceId: STUB_TASK_META.traceId,
+      content: "implement the requested change",
+    },
   );
 });
 

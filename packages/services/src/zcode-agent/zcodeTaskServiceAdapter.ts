@@ -149,6 +149,7 @@ import {
   createHostCommandEnvelope,
   sendHostCasCommandV4,
 } from "./zcodeV4HostCommand.js";
+import { compactTaskV4, setTaskModelV4 } from "./zcodeTaskV4Mutations.js";
 import { claudeNativeSessionImportRepo } from "#src/session/claude-native/claudeNativeSessionImportRepo.js";
 import { importClaudeNativeSessions } from "#src/session/claude-native/claudeNativeSessionImportService.js";
 import { buildImportedClaudeTaskId } from "#src/session/claude-native/buildImportedClaudeTaskFile.js";
@@ -2071,10 +2072,6 @@ export function createZCodeTaskServiceAdapter(
     },
 
     async compactSession(params) {
-      // v4 compact 是 CAS 命令（必带 v4 conversation revision
-      // 的 baseRevision），而本 facade 的 expectedRevision 是旧协议 stateRevision——
-      // 两套计数器不可互换；replayable 侧拿到 v4 revision 前强行迁移会造成假 stale。
-      // 且 v4 compact 无 instructions/runtimeModel 载荷。
       const target = params.workspacePath
         ? {
             taskId: params.taskId,
@@ -2087,25 +2084,27 @@ export function createZCodeTaskServiceAdapter(
         activePromptInputIds.set(taskKey(target), params.inputId);
       }
       try {
-        const result = await options.zcodeAgentService.compactSession({
-          workspacePath: target.workspacePath,
-          workspaceIdentity: target.workspaceIdentity,
-          sessionId: params.taskId,
+        const result = await compactTaskV4({
+          agentService: options.zcodeAgentService,
+          target,
           inputId: params.inputId,
           instructions: params.instructions,
           expectedRevision: params.expectedRevision,
         });
-        if (result.compact?.state === "accepted") {
-          return result;
-        }
         const meta = await syncTaskIndexSnapshot(result.snapshot);
         // compact 收敛是状态同步，不涉及归属；缺省 task_meta_changed 会触发全局 membership 重拉。
         emitWorkspaceTaskListChanged(target, meta, "task_status_changed");
+        return {
+          response: "",
+          snapshot: result.snapshot,
+          compact: {
+            state: "accepted" as const,
+            ...(result.inputId ? { inputId: result.inputId } : {}),
+          },
+        };
+      } finally {
+        // 无论 V4 命令成功还是失败，都释放本轮输入占位。
         activePromptInputIds.delete(taskKey(target));
-        return result;
-      } catch (error) {
-        activePromptInputIds.delete(taskKey(target));
-        throw error;
       }
     },
 
@@ -2700,7 +2699,8 @@ export function createZCodeTaskServiceAdapter(
         // session/setThoughtLevel → v4 switchModelConfig（v4 无独立思考深度命令，
         // thought 字段承载；provider/model 取当前会话选型，与桌面 v4 工具条同一命令面）。
         // 同 provider 同 model 直切，不涉及 runtimeModel（provider 凭据）解析——这正是
-        // setModel 尚不能迁移的原因（见下方 setModel 标注）。
+        // provider/model 已由当前 V4 projection 提供，因此这里只需发送同一条
+        // switchModelConfig 命令切换 thought，不再经过旧 session/setModel。
         const current = await options.zcodeAgentService.readSession({
           workspacePath: target.workspacePath,
           workspaceIdentity: target.workspaceIdentity,
@@ -2731,19 +2731,15 @@ export function createZCodeTaskServiceAdapter(
     },
 
     async setModel(params): Promise<ZCodeConfigOption[]> {
-      // replayable facade 仍依赖 legacy op 返回的 Session
-      // Snapshot；模型执行事实已经收敛到目标 Worker Registry，Host 只发送 Selection。
-      // 过渡归宿 = task facade 原生消费 V4 config 投影与 revision。
+      // AI 会话工具的模型变更只允许走 V4 switchModelConfig；旧 session/setModel
+      // 没有同一条 CommandInbox 生命周期，会把 runtime 与投影拆成两套事实源。
       const target = getTaskTarget(params.taskId);
-      await options.zcodeAgentService.setModel({
-        workspacePath: target.workspacePath,
-        workspaceIdentity: target.workspaceIdentity,
-        sessionId: params.taskId,
-        // replayable/legacy facade 的 modelId 可能只是 UI 运行态模型名（如 gpt-5.5）。
-        // 多个自定义 provider 同名时只能信任 UI 传入的结构化 ModelSelection。
-        model: params.modelSelection,
+      const snapshot = await setTaskModelV4({
+        agentService: options.zcodeAgentService,
+        target,
+        modelSelection: params.modelSelection,
+        traceId: params.traceId,
       });
-      const snapshot = await resumeSnapshot(target);
       await syncTaskIndexSnapshot(snapshot);
       return settingsToConfigOptions(snapshot.settings);
     },
