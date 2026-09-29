@@ -9,6 +9,33 @@
 - 复用现有 `IZCodeTaskService` / `IZCodeSessionService` RPC 服务
 - **核心原则**：子会话完全自主跑完（`mode: "yolo"`），不卡在审批上；当前会话通过轮询收集结果
 
+## 消息投递准入（Phase 1.5）
+
+`SendSessionMessage` 的成功返回不是“请求已写入 stdio”，而是目标 Host 已将该输入交给 CLI/runtime `CommandInbox` 后的 **admission**。唯一可变的 admission/队列事实仍属于目标 session runtime；broker、主会话和 UI 都不得维护第二份已接受输入队列。
+
+```text
+AI tool → Host task service → CommandInbox admission → target turn
+             │                    │
+             └── admission 回执 ──┘
+```
+
+返回值为：
+
+```ts
+{
+  messageId: string; // 发送方提供的重试幂等键；未提供时工具生成并回传
+  turnId: string; // 当前实现等于 V4 commandId，供 ReadSession 的结果关联
+  acceptedAt: number; // Host 收到 V4 ACK 的时间；不是完成时间
+  deduplicated: boolean; // 同 commandId 重试命中既有 admission
+}
+```
+
+- `traceId` 只用于链路观测，`queryId` 只用于上层分组；二者都不是投递幂等键。
+- 无附件的发送统一经 V4 `sendText`，`messageId → commandId → turnId`。同一个 `messageId` 的网络重试由 `CommandInbox` 返回 `duplicate`，不得新开 turn。
+- 当前遗留附件回退仍走 legacy `session/send`，没有 V4 command ACK，因而 AI 编排工具拒绝带附件输入；附件命令面完成前不把“可能重复投递”伪装成 admission。
+- `acceptedAt` 后的运行、失败、用户介入和审批均由 `ReadSession` 的权威 projection 判断；通知未来只作唤醒，不能替代读取。
+- `CommandInbox` 的既有持久回查以 commandId 为准，但尚未保存内容摘要。因此“同 messageId、不同内容”跨 runtime 重启后的冲突检测不属于本阶段；在引入持久 admission record 前，调用方必须复用 messageId 时复用原始内容。
+
 ---
 
 ## 架构现状

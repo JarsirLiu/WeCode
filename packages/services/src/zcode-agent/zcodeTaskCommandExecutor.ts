@@ -9,6 +9,7 @@ import type {
   ZCodeConfigOption,
   ZCodeSessionCompactResult,
   ZCodeAiTaskSnapshot,
+  ZCodeAiTaskPromptAdmission,
 } from "@zcode/shared";
 
 /**
@@ -60,7 +61,7 @@ export interface ZCodeTaskServiceExecutor {
     clientLabel?: string;
     toolDenylist?: string[];
     modelSelection?: ModelSelection;
-  }): Promise<void>;
+  }): Promise<ZCodeAiTaskPromptAdmission>;
 
   stopGeneration(input: {
     workspaceKey: string;

@@ -105,7 +105,7 @@ export function handleTaskSessionReverseRequest(args: {
         toolDenylist: parsed.data.toolDenylist,
         modelSelection: parsed.data.modelSelection,
       })
-      .then(() => client.respond(request.id, zcodeProtocolEmptyResultSchema.parse({})))
+      .then((result) => client.respond(request.id, result))
       .catch(respondFailure);
     return true;
   }

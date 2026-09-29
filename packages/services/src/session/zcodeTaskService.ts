@@ -261,7 +261,7 @@ export interface IZCodeTaskService {
       /** 单次执行约束与动态鉴权；仅 idle start-now 接受，不进入普通队列。 */
       modelExecution?: CommandPayloadMap["sendText"]["modelExecution"];
     } & ZCodeBackgroundTurnAttribution,
-  ): Promise<void>;
+  ): Promise<import("@zcode/shared").ZCodeAiTaskPromptAdmission>;
 
   deliverSessionMessage(
     request: SessionMessageSendRequested,

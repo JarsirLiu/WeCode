@@ -12,6 +12,7 @@ import {
   type CommandPayloadMap,
   type CommandType,
 } from "@zcode/shared/zcode-protocol-v4";
+import type { ZCodeAiTaskPromptAdmission } from "@zcode/shared";
 
 const HEX = Array.from({ length: 256 }, (_, i) => i.toString(16).padStart(2, "0"));
 
@@ -108,6 +109,14 @@ export function assertV4CommandAckOk(
     return ack;
   }
   throw new ZCodeV4CommandRejectedError(commandType, ack, contextMessage);
+}
+
+/** 将 V4 ACK 投影成 AI 编排的异步投递回执；不表达 turn 终态。 */
+export function createPromptAdmission(
+  messageId: string,
+  deduplicated = false,
+): ZCodeAiTaskPromptAdmission {
+  return { messageId, turnId: messageId, acceptedAt: Date.now(), deduplicated };
 }
 
 /**

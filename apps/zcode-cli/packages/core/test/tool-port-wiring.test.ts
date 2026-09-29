@@ -57,7 +57,15 @@ function createRecordingTaskPort(): { port: ZCodeTaskPort; calls: { method: stri
       calls.push({ method: "createTask", params });
       return { ...STUB_TASK_META, workspacePath: params.workspacePath };
     },
-    sendPrompt: unexpected("sendPrompt"),
+    sendPrompt: async (params) => {
+      calls.push({ method: "sendPrompt", params });
+      return {
+        messageId: params.messageId ?? "message_stub",
+        turnId: params.messageId ?? "turn_stub",
+        acceptedAt: 0,
+        deduplicated: false,
+      };
+    },
     stopGeneration: unexpected("stopGeneration"),
     compactSession: unexpected("compactSession"),
     resumeTask: unexpected("resumeTask"),
@@ -153,6 +161,41 @@ test("ReadSession 执行把 zcodeSessionPort 送达 handler 并命中 stub", asy
   assert.equal(result.success, true, `执行应成功：${JSON.stringify(result.error ?? {})}`);
   assert.equal(calls.length, 1);
   assert.equal(JSON.stringify(calls[0]).includes("target_session"), true);
+});
+
+test("SendSessionMessage 返回 host admission 并把 messageId 送达端口", async () => {
+  const { port, calls } = createRecordingTaskPort();
+  const registry = createToolRegistry();
+  registerBuiltInTools(registry, { includeZCodeTask: true });
+  const executor = createToolExecutor({
+    registry,
+    permissionService: new PermissionService(),
+    emitEvent: async () => {},
+    sessionId: "sess_wiring_test",
+    getMode: () => "yolo",
+    zcodeTaskPort: port,
+  });
+
+  const result = await executor.execute({
+    id: "call_wiring_send",
+    name: SEND_SESSION_MESSAGE_TOOL_NAME,
+    input: {
+      taskId: "task_stub",
+      content: "continue the task",
+      traceId: "trace_wiring_send",
+      messageId: "message_wiring_send",
+    },
+  });
+
+  assert.equal(result.success, true, `执行应成功：${JSON.stringify(result.error ?? {})}`);
+  assert.deepEqual(result.output, {
+    messageId: "message_wiring_send",
+    turnId: "message_wiring_send",
+    acceptedAt: 0,
+    deduplicated: false,
+  });
+  assert.equal(calls.at(-1)?.method, "sendPrompt");
+  assert.equal(JSON.stringify(calls.at(-1)?.params).includes("message_wiring_send"), true);
 });
 
 test("executor 缺 zcodeTaskPort 时 CreateSession 返回结构化失败而非崩溃", async () => {

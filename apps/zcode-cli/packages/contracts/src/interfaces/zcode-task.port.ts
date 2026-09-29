@@ -26,6 +26,7 @@ import type {
   TraceId,
   // AI 侧紧凑类型（spec: docs/specs/ai-session-orchestration.md）
   ZCodeAiTaskCreateResult,
+  ZCodeAiTaskPromptAdmission,
   ZCodeAiTaskSnapshot,
   ZCodeAiConfigOption,
 } from "@zcode/shared";
@@ -83,7 +84,7 @@ export interface ZCodeTaskPort {
       disallowedTools?: string[];
       [key: string]: unknown;
     };
-  } & ZCodeBackgroundTurnAttribution & ZCodeTaskPortRequestContext): Promise<void>;
+  } & ZCodeBackgroundTurnAttribution & ZCodeTaskPortRequestContext): Promise<ZCodeAiTaskPromptAdmission>;
 
   /** 停止当前正在进行的生成 */
   stopGeneration(params: {

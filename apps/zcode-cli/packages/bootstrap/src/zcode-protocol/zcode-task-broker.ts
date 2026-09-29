@@ -8,7 +8,7 @@ import {
   zcodeTaskCompactSessionResultSchema,
   zcodeTaskResumeTaskResultSchema,
   zcodeTaskListTasksResultSchema,
-  zcodeAiTaskVoidResultSchema,
+  zcodeTaskSendPromptResultSchema,
 } from "@zcode/shared";
 import { buildWorkspaceRequestContext } from "./browser-control-broker.js";
 import {
@@ -78,15 +78,14 @@ export function createProtocolZCodeTaskBroker(
         params.signal,
       ),
 
-    sendPrompt: async (params) => {
-      await request(
+    sendPrompt: (params) =>
+      request(
         zcodeProtocolMethods.taskSendPrompt,
         withTrustedContext(params),
-        zcodeAiTaskVoidResultSchema,
+        zcodeTaskSendPromptResultSchema,
         params.traceContext,
         params.signal,
-      );
-    },
+      ),
 
     stopGeneration: async (params) => {
       await request(

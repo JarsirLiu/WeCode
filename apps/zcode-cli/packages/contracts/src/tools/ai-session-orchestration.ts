@@ -98,7 +98,14 @@ export const SendSessionMessageInputSchema = z
   })
   .strict();
 
-export const SendSessionMessageOutputSchema = z.object({}).strict();
+export const SendSessionMessageOutputSchema = z
+  .object({
+    messageId: z.string().min(1),
+    turnId: z.string().min(1),
+    acceptedAt: z.number().int().nonnegative(),
+    deduplicated: z.boolean(),
+  })
+  .strict();
 
 export type SendSessionMessageInput = z.infer<typeof SendSessionMessageInputSchema>;
 export type SendSessionMessageOutput = z.infer<typeof SendSessionMessageOutputSchema>;
@@ -115,6 +122,7 @@ export const SEND_SESSION_MESSAGE_DESCRIPTION = [
   "toolDenylist (tools to hide for this turn), modelSelection (override model for this turn).",
   "",
   "The message is delivered asynchronously; use read_session to poll for progress/results.",
+  "Returns a host admission receipt. Reuse its messageId unchanged when retrying the same message.",
   "The model does NOT wait for completion — it returns immediately after the message is accepted.",
 ].join("\n");
 

@@ -15,7 +15,7 @@ import {
   CoreErrorType,
   createCoreError,
 } from "@zcode/contracts";
-import type { ModelSelection, ZCodePromptAttachment } from "@zcode/shared";
+import type { ModelSelection } from "@zcode/shared";
 import type { ToolEntry, ToolHandler } from "../types.js";
 
 const MAX_SEND_SESSION_MESSAGE_BYTES = 50_000;
@@ -46,13 +46,23 @@ const sendSessionMessageHandler: ToolHandler = async (input, context) => {
       },
     );
   }
-  await context.zcodeTaskPort.sendPrompt({
+  if (parsed.data.attachments?.length) {
+    throw createCoreError(
+      CoreErrorType.ToolExecutionFailed,
+      "SendSessionMessage does not support attachments until V4 attachment admission is available",
+      {
+        context: { toolCallId: context.toolCallId, toolName: SEND_SESSION_MESSAGE_TOOL_NAME },
+        recoverable: true,
+      },
+    );
+  }
+  const messageId = parsed.data.messageId ?? crypto.randomUUID();
+  const admission = await context.zcodeTaskPort.sendPrompt({
     taskId: parsed.data.taskId,
     content: parsed.data.content,
     traceId: parsed.data.traceId,
     queryId: parsed.data.queryId,
-    messageId: parsed.data.messageId,
-    attachments: parsed.data.attachments as unknown as ZCodePromptAttachment[] | undefined,
+    messageId,
     clientId: parsed.data.clientId,
     clientLabel: parsed.data.clientLabel,
     toolDenylist: parsed.data.toolDenylist,
@@ -61,7 +71,7 @@ const sendSessionMessageHandler: ToolHandler = async (input, context) => {
     traceContext: context.traceContext,
     signal: context.abortSignal,
   });
-  return {};
+  return admission;
 };
 
 export const sendSessionMessageToolEntry: ToolEntry = {

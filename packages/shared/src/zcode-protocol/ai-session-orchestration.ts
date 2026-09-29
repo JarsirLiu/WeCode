@@ -25,10 +25,7 @@
 // ============================================================
 
 import { z } from "zod";
-import {
-  nonEmptyStringSchema,
-  zcodeTaskMetaSchema,
-} from "../validation.js";
+import { nonEmptyStringSchema, zcodeTaskMetaSchema } from "../validation.js";
 import { modelSelectionSchema } from "../model-selection.js";
 import { zcodeTaskModeSchema } from "../zcode-task-mode-schema.js";
 import { zcodeSessionInfoSchema } from "../zcode-protocol-legacy-types.js";
@@ -181,6 +178,17 @@ export const zcodeTaskSendPromptParamsSchema = zcodeAiOrchestrationRequestContex
   .strict();
 export type ZCodeTaskSendPromptParams = z.infer<typeof zcodeTaskSendPromptParamsSchema>;
 
+/** Host 已把 AI 编排输入提交给目标 session 的 V4 CommandInbox；不是 turn 终态。 */
+export const zcodeAiTaskPromptAdmissionSchema = z
+  .object({
+    messageId: nonEmptyStringSchema,
+    turnId: nonEmptyStringSchema,
+    acceptedAt: z.number().int().nonnegative(),
+    deduplicated: z.boolean(),
+  })
+  .strict();
+export type ZCodeAiTaskPromptAdmission = z.infer<typeof zcodeAiTaskPromptAdmissionSchema>;
+
 export const zcodeTaskGetTaskSnapshotParamsSchema = zcodeAiOrchestrationRequestContextSchema
   .extend({
     taskId: nonEmptyStringSchema,
@@ -192,18 +200,14 @@ export const zcodeTaskGetTaskSnapshotParamsSchema = zcodeAiOrchestrationRequestC
     thoughtLevel: nonEmptyStringSchema.optional(),
   })
   .strict();
-export type ZCodeTaskGetTaskSnapshotParams = z.infer<
-  typeof zcodeTaskGetTaskSnapshotParamsSchema
->;
+export type ZCodeTaskGetTaskSnapshotParams = z.infer<typeof zcodeTaskGetTaskSnapshotParamsSchema>;
 
 /** 原始快照可能不存在（task 已删除或未落盘），映射层返回 null。 */
 export const zcodeTaskGetTaskSnapshotResultSchema = z.union([
   zcodeAiTaskSnapshotSchema,
   z.literal(null),
 ]);
-export type ZCodeAiTaskSnapshotResult = z.infer<
-  typeof zcodeTaskGetTaskSnapshotResultSchema
->;
+export type ZCodeAiTaskSnapshotResult = z.infer<typeof zcodeTaskGetTaskSnapshotResultSchema>;
 
 export const zcodeTaskStopGenerationParamsSchema = zcodeAiOrchestrationRequestContextSchema
   .extend({
@@ -211,9 +215,7 @@ export const zcodeTaskStopGenerationParamsSchema = zcodeAiOrchestrationRequestCo
     runId: nonEmptyStringSchema.optional(),
   })
   .strict();
-export type ZCodeTaskStopGenerationParams = z.infer<
-  typeof zcodeTaskStopGenerationParamsSchema
->;
+export type ZCodeTaskStopGenerationParams = z.infer<typeof zcodeTaskStopGenerationParamsSchema>;
 
 export const zcodeTaskSetModelParamsSchema = zcodeAiOrchestrationRequestContextSchema
   .extend({
@@ -232,9 +234,7 @@ export const zcodeTaskCompactSessionParamsSchema = zcodeAiOrchestrationRequestCo
     expectedRevision: z.number().int().nonnegative().optional(),
   })
   .strict();
-export type ZCodeTaskCompactSessionParams = z.infer<
-  typeof zcodeTaskCompactSessionParamsSchema
->;
+export type ZCodeTaskCompactSessionParams = z.infer<typeof zcodeTaskCompactSessionParamsSchema>;
 
 export const zcodeTaskResumeTaskParamsSchema = zcodeAiOrchestrationRequestContextSchema
   .extend({
@@ -283,9 +283,7 @@ export const zcodeSessionReadSessionParamsSchema = zcodeAiOrchestrationRequestCo
     afterSeq: z.number().int().nonnegative().optional(),
   })
   .strict();
-export type ZCodeSessionReadSessionParams = z.infer<
-  typeof zcodeSessionReadSessionParamsSchema
->;
+export type ZCodeSessionReadSessionParams = z.infer<typeof zcodeSessionReadSessionParamsSchema>;
 export const zcodeSessionReadSessionResultSchema = zcodeSessionStateSnapshotSchema;
 
 export const zcodeSessionListSessionsParamsSchema = zcodeAiOrchestrationRequestContextSchema
@@ -294,13 +292,11 @@ export const zcodeSessionListSessionsParamsSchema = zcodeAiOrchestrationRequestC
     limit: z.number().int().positive().optional(),
   })
   .strict();
-export type ZCodeSessionListSessionsParams = z.infer<
-  typeof zcodeSessionListSessionsParamsSchema
->;
+export type ZCodeSessionListSessionsParams = z.infer<typeof zcodeSessionListSessionsParamsSchema>;
 export const zcodeSessionListSessionsResultSchema = z.array(zcodeSessionInfoSchema);
 
 // ============================================================
-// 空结果：sendPrompt / stopGeneration 无返回体
+// stopGeneration 无返回体；sendPrompt 返回 admission 回执
 // ============================================================
 
 export const zcodeTaskCompactSessionResultSchema = zcodeSessionCompactResultSchema;
@@ -308,9 +304,10 @@ export type ZCodeAiTaskCompactResult = z.infer<typeof zcodeTaskCompactSessionRes
 
 export const zcodeTaskResumeTaskResultSchema = zcodeTaskMetaSchema;
 export const zcodeTaskSetModelResultSchema = zcodeAiConfigOptionsResultSchema;
+export const zcodeTaskSendPromptResultSchema = zcodeAiTaskPromptAdmissionSchema;
 
 // ============================================================
-// 空结果：sendPrompt / stopGeneration 无返回体
+// stopGeneration 空结果
 // ============================================================
 
 export const zcodeAiTaskVoidResultSchema = zcodeProtocolEmptyResultSchema;
