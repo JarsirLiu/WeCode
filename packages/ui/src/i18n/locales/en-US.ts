@@ -61,7 +61,8 @@ const enUS: Record<string, string> = {
   "occupationOnboarding.migration": "Migrate conversations",
   "occupationOnboarding.migrationDescription": "Migrate conversation history from Claude Code",
   "occupationOnboarding.memory": "Enable Workspace Memory",
-  "occupationOnboarding.memoryDescription": "Let WeCode remember your preferences and work context.",
+  "occupationOnboarding.memoryDescription":
+    "Let WeCode remember your preferences and work context.",
   "occupationOnboarding.suggestions": "Enable proactive task suggestions",
   "occupationOnboarding.suggestionsDescription":
     "Show suggestions in new conversations. Click to fill the composer.",
@@ -4968,6 +4969,13 @@ const enUS: Record<string, string> = {
   "chat.toolCall.sendMessage.summary": "Summary",
   "chat.toolCall.sendMessage.message": "Message",
   "chat.toolCall.sendMessage.to": "to",
+  "chat.toolCall.sessionBot.label": "Session",
+  "chat.toolCall.sessionBot.running": "Managing session",
+  "chat.toolCall.sessionBot.completed": "Session operation completed",
+  "chat.toolCall.sessionBot.failed": "Session operation failed",
+  "chat.toolCall.sessionBot.step.CreateSession": "Create session",
+  "chat.toolCall.sessionBot.step.ReadSession": "Read session result",
+  "chat.toolCall.sessionBot.step.SendSessionMessage": "Send session message",
   "chat.toolCall.respondToCoordinator.replying": "Replying",
   "chat.toolCall.respondToCoordinator.queued": "Reply queued",
   "chat.toolCall.respondToCoordinator.completed": "Completed",

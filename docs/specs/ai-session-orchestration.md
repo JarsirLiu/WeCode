@@ -1,5 +1,21 @@
 # AI 会话编排能力
 
+## UI 展示规则
+
+会话编排工具在协议层仍保留 `CreateSession`、`ReadSession`、`SendSessionMessage` 等独立
+tool-call 行，便于审计、重放、失败定位和增量恢复；聊天 UI 不应把这些内部步骤显示成三张
+互不相关的工具卡。对同一 assistant turn 内、按 `CreateSession → ReadSession →
+SendSessionMessage` 顺序连续出现的会话编排行，UI 投影为一个 `SessionBot` 工作项：
+
+- 摘要行只显示一次“会话管理”及整体状态（运行中、已完成或失败）；
+- 展开后列出实际执行的步骤和最终 `ReadSession` 快照中的结果文本；
+- 首行 `rowId` 是聚合项的稳定 UI identity，后续步骤更新不得重置展开状态；
+- 任一步骤失败、顺序不完整、跨 assistant turn 或被其他可见工作项打断时，不聚合，继续使用普通工具卡；
+- Bash、Read、MCP 等非会话工具不受影响，继续沿用各自的“开始 → 更新 → 终态结果”卡片。
+
+这只是 transcript 的派生展示，不复制 session 状态、不改变工具事件、不改变 `ReadSession`
+作为权威结果来源。desktop continuous 和 web/mobile replayable 都使用相同的 row 投影规则。
+
 ## 目标
 
 让 AI 能在当前会话中**创建独立会话、向会话发消息、读取进度/结果**，实现多任务并行编排与后台长任务代管。
@@ -276,14 +292,14 @@ agent 输入里同名提供的 `workspaceIdentity`/`remoteSessionId`/`clientMode
 
 工具名遵循仓库约定（与 `BotCommand`、`CronCreate`、`OffPeakCreate` 一致用 PascalCase）。
 
-| 工具名                  | 文件                         | 对应端口                                                                        | 核心能力                                                                                                  |
-| ----------------------- | ---------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| 工具名                  | 文件                         | 对应端口                                                                        | 核心能力                                                                        |
+| ----------------------- | ---------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
 | `CreateSession`         | `create-session.ts`          | `ZCodeTaskPort.createTask` + `sendPrompt`                                       | 创建新会话，固定使用 V4；可选 `initialPrompt` 在创建成功后经 V4 `sendText` 投递 |
-| `SendSessionMessage`    | `send-session-message.ts`    | `ZCodeTaskPort.sendPrompt`                                                      | 发消息，**异步**：发完即返（`void`），AI 主动 `read_session` 轮询                                         |
-| `ReadSession`           | `read-session.ts`            | `ZCodeSessionPort.readSession`（优先）/ `ZCodeTaskPort.getTaskSnapshot`（回退） | 读取进度/结果                                                                                             |
-| `StopSessionGeneration` | `stop-session-generation.ts` | `ZCodeTaskPort.stopGeneration`                                                  | 停止当前生成，会话保留可继续                                                                              |
-| `SetSessionModel`       | `set-session-model.ts`       | `ZCodeTaskPort.setModel` → V4 `switchModelConfig`                                | 换模型，返回服务端 authoritative configOptions                                                            |
-| `CompactSession`        | `compact-session.ts`         | `ZCodeTaskPort.compactSession` → V4 `compact`                                    | 手动压缩上下文                                                                                            |
+| `SendSessionMessage`    | `send-session-message.ts`    | `ZCodeTaskPort.sendPrompt`                                                      | 发消息，**异步**：发完即返（`void`），AI 主动 `read_session` 轮询               |
+| `ReadSession`           | `read-session.ts`            | `ZCodeSessionPort.readSession`（优先）/ `ZCodeTaskPort.getTaskSnapshot`（回退） | 读取进度/结果                                                                   |
+| `StopSessionGeneration` | `stop-session-generation.ts` | `ZCodeTaskPort.stopGeneration`                                                  | 停止当前生成，会话保留可继续                                                    |
+| `SetSessionModel`       | `set-session-model.ts`       | `ZCodeTaskPort.setModel` → V4 `switchModelConfig`                               | 换模型，返回服务端 authoritative configOptions                                  |
+| `CompactSession`        | `compact-session.ts`         | `ZCodeTaskPort.compactSession` → V4 `compact`                                   | 手动压缩上下文                                                                  |
 
 **无以下工具**（刻意不提供）：
 
@@ -368,12 +384,14 @@ export const SendSessionMessageInputSchema = z
 export type SendSessionMessageInput = z.infer<typeof SendSessionMessageInputSchema>;
 
 // 返回 admission：消息已被 host 接受入队。进度/结果走 read_session。
-export const SendSessionMessageOutputSchema = z.object({
-  messageId: z.string(),
-  turnId: z.string(),
-  acceptedAt: z.number(),
-  deduplicated: z.boolean(),
-}).strict();
+export const SendSessionMessageOutputSchema = z
+  .object({
+    messageId: z.string(),
+    turnId: z.string(),
+    acceptedAt: z.number(),
+    deduplicated: z.boolean(),
+  })
+  .strict();
 export type SendSessionMessageOutput = z.infer<typeof SendSessionMessageOutputSchema>;
 ```
 

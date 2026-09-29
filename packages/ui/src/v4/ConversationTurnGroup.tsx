@@ -87,6 +87,7 @@ import { formatConversationWorkDuration } from "@/v4/conversationWorkDuration.js
 import { ConversationTurnRow, resolveAssistantCopyText } from "@/v4/ConversationTurnRow.js";
 import { ConversationHookDetailsAction } from "@/v4/ConversationHookDetailsAction.js";
 import { toolCallRowToLegacyNode } from "@/v4/toolCallRowAdapter.js";
+import { ConversationSessionBotRow } from "@/v4/ConversationSessionBotRow.js";
 
 interface ConversationTurnGroupProps {
   unit: ConversationTurnRenderUnit;
@@ -390,6 +391,8 @@ function ConversationAssistantWorkItems({
           />
         ) : item.kind === "agentToolCall" ? (
           <ConversationAgentToolCallRow key={item.key} item={item} context={context} />
+        ) : item.kind === "sessionBot" ? (
+          <ConversationSessionBotRow key={item.key} item={item} />
         ) : item.kind === "exploreGroup" ? (
           <ConversationExploreGroupRow key={item.key} item={item} context={context} />
         ) : (

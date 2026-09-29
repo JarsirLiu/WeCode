@@ -48,6 +48,7 @@ import {
 } from "@/components/ui/collapsible.js";
 import { TooltipProvider } from "@/components/ui/tooltip.js";
 import { ToolLayout } from "@/ToolCallBlocks/ToolLayout.js";
+import { SessionBotToolCallBlock } from "@/ToolCallBlocks/renderers/session-bot.js";
 import { ConversationUserInputBody } from "@/v4/ConversationUserInputBody.js";
 import { ConversationUserInputContent } from "@/v4/ConversationUserInputContent.js";
 import { PluginReferenceIconProvider } from "@/v4/pluginReferenceIconContext.js";
@@ -592,7 +593,7 @@ function renderReadonlyRow(
 
 type GroupedToolItem = Extract<
   ConversationAssistantWorkRenderItem,
-  { kind: "cuaGroup" | "exploreGroup" | "executeGroup" | "changesGroup" }
+  { kind: "cuaGroup" | "exploreGroup" | "executeGroup" | "changesGroup" | "sessionBot" }
 >;
 
 function GroupedToolPresentation({
@@ -614,6 +615,9 @@ function GroupedToolPresentation({
 }) {
   const { intl } = useZCodeIntl();
   const rows = item.rows;
+  if (item.kind === "sessionBot") {
+    return <SessionBotToolCallBlock item={item} />;
+  }
   const groupLabel =
     item.kind === "cuaGroup"
       ? labels.computerUse

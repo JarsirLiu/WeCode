@@ -17,6 +17,11 @@ import {
   prepareCuaGroups,
   type ConversationCuaGroupRenderItem,
 } from "@/v4/conversationCuaGroups.js";
+import {
+  buildSessionBotWorkItem,
+  isSessionBotToolCallRow,
+  type SessionBotWorkItem,
+} from "@/v4/sessionBotWorkItem.js";
 
 export type ConversationAssistantWorkRenderItem =
   | {
@@ -51,7 +56,8 @@ export type ConversationAssistantWorkRenderItem =
       key: string;
       row: ToolCallRow;
       subagentRow: SubagentRow;
-    };
+    }
+  | SessionBotWorkItem;
 
 export const ENABLE_EXPLORE_TOOL_CALL_GROUPING = true;
 export { ENABLE_CUA_TOOL_CALL_GROUPING } from "@/v4/conversationCuaGroups.js";
@@ -332,6 +338,37 @@ export function buildAssistantWorkRenderItems(
       }
     }
 
+    if (isToolCallRow(row) && isSessionBotToolCallRow(row)) {
+      const sessionRows: ToolCallRow[] = [row];
+      index += 1;
+      while (index < preparedRows.length) {
+        const nextRow = preparedRows[index];
+        if (
+          !nextRow ||
+          nextRow.kind === "cuaGroup" ||
+          !isToolCallRow(nextRow) ||
+          !isSessionBotToolCallRow(nextRow)
+        )
+          break;
+        sessionRows.push(nextRow);
+        index += 1;
+      }
+      const sessionBot = buildSessionBotWorkItem(sessionRows);
+      if (sessionBot) {
+        items.push(sessionBot);
+        continue;
+      }
+      // 非完整或被打断的编排保持普通工具行，确保失败步骤仍可单独诊断。
+      for (const sessionRow of sessionRows) {
+        items.push({
+          kind: "row",
+          key: `row:${sessionRow.rowId}`,
+          row: sessionRow as AssistantWorkRow,
+        });
+      }
+      continue;
+    }
+
     const isExploreRow = isExploreToolCallRow(row);
     if (!isExploreRow) {
       if (enableChangesGrouping && isChangesToolCallRow(row)) {
@@ -384,7 +421,7 @@ export function buildAssistantWorkRenderItems(
       }
       items.push({
         kind: "row",
-        key: `row:${row.rowId}`,
+        key: `row:${(row as AssistantWorkRow & { rowId: number }).rowId}`,
         row,
       });
       index += 1;
@@ -394,7 +431,7 @@ export function buildAssistantWorkRenderItems(
     if (!enableExploreGrouping) {
       items.push({
         kind: "row",
-        key: `row:${row.rowId}`,
+        key: `row:${(row as AssistantWorkRow & { rowId: number }).rowId}`,
         row,
       });
       index += 1;
@@ -413,7 +450,11 @@ export function buildAssistantWorkRenderItems(
     }
     // Explore 只有在出现第二个连续只读工具后才成立；首项必须立即按原工具展示。
     if (groupRows.length === 1) {
-      items.push({ kind: "row", key: `row:${row.rowId}`, row });
+      items.push({
+        kind: "row",
+        key: `row:${(row as AssistantWorkRow & { rowId: number }).rowId}`,
+        row,
+      });
       continue;
     }
     items.push(
