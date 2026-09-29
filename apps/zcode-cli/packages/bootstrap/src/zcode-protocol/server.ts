@@ -385,7 +385,6 @@ export class ZCodeProtocolAgentServer {
     this.context.sessions.clear();
   }
 
-  /** 一次性取走某 request 的 post-response messages；重复 take 返回空数组。 */
   takePostResponseMessages(requestId: ZCodeProtocolRequestId): ZCodeProtocolOutboundMessage[] {
     const batch = this.takePostResponseBatch(requestId);
     batch?.commit();
