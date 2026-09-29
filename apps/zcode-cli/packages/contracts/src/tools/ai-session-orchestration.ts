@@ -33,6 +33,7 @@ export const CreateSessionInputSchema = z
     forkedFromTaskId: z.string().optional(),
     automationId: z.string().optional(),
     offPeakTaskId: z.string().optional(),
+    approvalPolicy: z.enum(["manual", "delegated", "autonomous"]).optional(),
     initialPrompt: z.string().optional(),
   })
   .strict();
@@ -73,6 +74,8 @@ export const CREATE_SESSION_DESCRIPTION = [
   "  - build: build-focused mode",
   "  - edit: edit-focused mode",
   "  - autoEdit: auto with edit bias",
+  "",
+  "approvalPolicy defaults to manual. delegated/autonomous are recorded for host policy enforcement; they do not let this tool approve a request.",
   "",
   "Optional initialPrompt: if provided, sends the first message immediately after creation.",
   "",

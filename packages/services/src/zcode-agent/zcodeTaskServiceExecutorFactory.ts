@@ -51,6 +51,11 @@ export function createZCodeTaskServiceExecutor(options: {
           ? { deferPersistenceUntilFirstPrompt: input.deferPersistenceUntilFirstPrompt }
           : {}),
         ...(input.v4Create !== undefined ? { v4Create: input.v4Create } : {}),
+        peerSessionRelation: {
+          creatorSessionId: input.creatorSessionId,
+          approvalPolicy: input.approvalPolicy ?? "manual",
+          ...(input.remoteSessionId ? { remoteSessionId: input.remoteSessionId } : {}),
+        },
       }),
 
     sendPrompt: (input) =>

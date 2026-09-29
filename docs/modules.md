@@ -8,11 +8,11 @@ Navigation map from capability to code. For a deep dive into one module, run `pn
 | Module | Owner | Files | Root | Public entry | Card |
 | --- | --- | --- | --- | --- | --- |
 | rpc | — | 16 | packages/rpc/src | ./dist/index.d.ts (+1) | — |
-| shared | — | 228 | packages/shared/src | ./src/index.ts (+18) | [card](../packages/shared/README.md) |
+| shared | — | 229 | packages/shared/src | ./src/index.ts (+18) | [card](../packages/shared/README.md) |
 | provider | — | 23 | packages/provider/src | ./src/index.ts | — |
 | provider-node | — | 17 | packages/provider-node/src | ./src/index.ts | — |
-| services | — | 289 | packages/services/src | ./src/storage-startup.ts (+4) | [card](../packages/services/README.md) |
-| session | conversation | 38 | packages/services/src/session | ./src/storage-startup.ts (+4) | — |
+| services | — | 290 | packages/services/src | ./src/storage-startup.ts (+4) | [card](../packages/services/README.md) |
+| session | conversation | 40 | packages/services/src/session | ./src/storage-startup.ts (+4) | — |
 | storage | desktop-settings | 13 | packages/services/src/storage | packages/services/src/storage/contract.ts | — |
 | client | — | 6 | packages/client/src | ./src/index.ts (+1) | — |
 | server | — | 48 | packages/server/src | ./src/index.ts (+3) | — |

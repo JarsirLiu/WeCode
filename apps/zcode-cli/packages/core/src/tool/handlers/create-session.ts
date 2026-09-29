@@ -57,6 +57,7 @@ const createSessionHandler: ToolHandler = async (input, context) => {
     forkedFromTaskId: parsed.data.forkedFromTaskId,
     automationId: parsed.data.automationId,
     offPeakTaskId: parsed.data.offPeakTaskId,
+    approvalPolicy: parsed.data.approvalPolicy,
     deferPersistenceUntilFirstPrompt: false,
     v4Create: false,
     sessionId: context.sessionId,

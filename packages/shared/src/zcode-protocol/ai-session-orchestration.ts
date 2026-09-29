@@ -28,6 +28,7 @@ import { z } from "zod";
 import { nonEmptyStringSchema, zcodeTaskMetaSchema } from "../validation.js";
 import { modelSelectionSchema } from "../model-selection.js";
 import { zcodeTaskModeSchema } from "../zcode-task-mode-schema.js";
+import { peerSessionApprovalPolicySchema } from "../peer-session-relation.js";
 import { zcodeSessionInfoSchema } from "../zcode-protocol-legacy-types.js";
 import {
   zcodeProtocolEmptyResultSchema,
@@ -152,6 +153,7 @@ export const zcodeTaskCreateTaskParamsSchema = zcodeAiOrchestrationRequestContex
     offPeakTaskId: nonEmptyStringSchema.optional(),
     deferPersistenceUntilFirstPrompt: z.boolean().optional(),
     v4Create: z.boolean().optional(),
+    approvalPolicy: peerSessionApprovalPolicySchema.optional(),
   })
   .strict();
 export type ZCodeTaskCreateTaskParams = z.infer<typeof zcodeTaskCreateTaskParamsSchema>;

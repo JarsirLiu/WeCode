@@ -62,6 +62,22 @@ Agent 与 Host 之间仍是独立进程和双向协议。反向 request 负责�
 }
 ```
 
+### Phase 1.6：关系账本
+
+创建关系由目标 Host 的 `peer_session_relations` SQLite 表唯一持有，不复制到 Agent broker、UI store 或 runtime 内存。`CreateSession` 的反向请求携带的是 Host 从调用方受信 session record 注入的 `creatorSessionId`，不能由模型填写或覆盖。
+
+```text
+CreateSession → target Host creates + indexes session → peer_session_relations insert → success
+```
+
+- 每个 `(workspaceKey, targetSessionId)` 最多一条关系，重复写入保持首个创建者和策略。
+- relation 写入失败时，Host 不向调用方返回创建成功；已经创建出的会话仍保留且按
+  `manual` 处理，不能因为账本缺失获得委托审批权。
+- 关系记录 `workspaceIdentity`、`workspacePath` 和 `remoteSessionId`，以便未来的
+  远程路由和审计不退化为“仅按路径匹配”。
+- `approvalPolicy` 默认 `manual`。本阶段仅记录策略；尚未暴露 AI 决议工具，因此
+  `delegated` 不会提前赋予任何审批能力。
+
 路由 key 统一使用 `workspaceIdentity?.trim() || workspacePath`。远程请求必须同时保留 `workspaceIdentity` 和 `remoteSessionId`，不得只按路径匹配。
 
 ## 审批策略
@@ -146,15 +162,15 @@ Phase 2 增加轻量 `session/changed` notification：
 
 ## 模块归属
 
-| 能力 | 目录 | 责任 |
-|------|------|------|
-| 工具 schema/handler | `apps/zcode-cli/packages/contracts/src/tools/`、`apps/zcode-cli/packages/core/src/tool/handlers/` | 参数校验、工具描述、调用 Port |
-| Agent 侧端口 | `apps/zcode-cli/packages/contracts/src/interfaces/` | `ZCodeTaskPort`、`ZCodeSessionPort`、`ZCodePermissionPort` |
-| 反向请求 broker | `apps/zcode-cli/packages/bootstrap/src/zcode-protocol/` | 序列化、请求上下文、取消和响应校验 |
-| Host 协议分发 | `packages/services/src/zcode-agent/` | dispatch、目标会话定位、远程路由、审批响应转发 |
-| 权限策略 | `apps/zcode-cli/packages/core/src/permission/` | manual/delegated/autonomous、风险和授权判断 |
-| 会话事实与持久化 | `packages/services/src/zcode-session/`、`packages/services/src/session/`、`packages/shared/src/zcode-protocol/` | 关系、策略、projection、协议 schema |
-| UI 展示与用户审批 | `packages/ui/src/` | 会话列表、审批面板、用户决议，不拥有审批事实 |
+| 能力                | 目录                                                                                                            | 责任                                                       |
+| ------------------- | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| 工具 schema/handler | `apps/zcode-cli/packages/contracts/src/tools/`、`apps/zcode-cli/packages/core/src/tool/handlers/`               | 参数校验、工具描述、调用 Port                              |
+| Agent 侧端口        | `apps/zcode-cli/packages/contracts/src/interfaces/`                                                             | `ZCodeTaskPort`、`ZCodeSessionPort`、`ZCodePermissionPort` |
+| 反向请求 broker     | `apps/zcode-cli/packages/bootstrap/src/zcode-protocol/`                                                         | 序列化、请求上下文、取消和响应校验                         |
+| Host 协议分发       | `packages/services/src/zcode-agent/`                                                                            | dispatch、目标会话定位、远程路由、审批响应转发             |
+| 权限策略            | `apps/zcode-cli/packages/core/src/permission/`                                                                  | manual/delegated/autonomous、风险和授权判断                |
+| 会话事实与持久化    | `packages/services/src/zcode-session/`、`packages/services/src/session/`、`packages/shared/src/zcode-protocol/` | 关系、策略、projection、协议 schema                        |
+| UI 展示与用户审批   | `packages/ui/src/`                                                                                              | 会话列表、审批面板、用户决议，不拥有审批事实               |
 
 应新增独立文件承载审批扩展，例如：
 

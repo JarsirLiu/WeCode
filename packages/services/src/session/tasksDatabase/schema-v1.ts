@@ -185,3 +185,22 @@ export const OFF_PEAK_SCHEMA = `
       CREATE INDEX IF NOT EXISTS idx_off_peak_ws
       ON off_peak_tasks (workspace_key, status);
     `;
+
+/** 独立于 task meta 的 AI 创建关系账本；审批授权不能依赖易变的 UI 投影。 */
+export const PEER_SESSION_RELATION_SCHEMA = `
+      CREATE TABLE IF NOT EXISTS peer_session_relations (
+        workspace_key TEXT NOT NULL,
+        target_session_id TEXT NOT NULL,
+        creator_session_id TEXT NOT NULL,
+        workspace_path TEXT NOT NULL,
+        workspace_identity TEXT,
+        remote_session_id TEXT,
+        created_by TEXT NOT NULL CHECK(created_by = 'ai'),
+        approval_policy TEXT NOT NULL CHECK(approval_policy IN ('manual', 'delegated', 'autonomous')),
+        created_at INTEGER NOT NULL,
+        PRIMARY KEY (workspace_key, target_session_id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_peer_session_relations_creator
+      ON peer_session_relations (workspace_key, creator_session_id, created_at DESC);
+    `;

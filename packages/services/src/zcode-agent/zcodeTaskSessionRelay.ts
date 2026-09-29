@@ -67,6 +67,8 @@ export function handleTaskSessionReverseRequest(args: {
         offPeakTaskId: parsed.data.offPeakTaskId,
         deferPersistenceUntilFirstPrompt: parsed.data.deferPersistenceUntilFirstPrompt,
         v4Create: parsed.data.v4Create,
+        creatorSessionId: parsed.data.sessionId,
+        approvalPolicy: parsed.data.approvalPolicy,
       })
       .then((result) => client.respond(request.id, result))
       .catch(respondFailure);

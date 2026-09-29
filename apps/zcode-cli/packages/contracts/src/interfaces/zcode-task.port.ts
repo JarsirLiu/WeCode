@@ -29,6 +29,7 @@ import type {
   ZCodeAiTaskPromptAdmission,
   ZCodeAiTaskSnapshot,
   ZCodeAiConfigOption,
+  PeerSessionApprovalPolicy,
 } from "@zcode/shared";
 
 /**
@@ -61,6 +62,8 @@ export interface ZCodeTaskPort {
     offPeakTaskId?: string;
     deferPersistenceUntilFirstPrompt?: boolean;
     v4Create?: boolean;
+    /** 默认 manual；实际 creator identity 由 Host 从受信会话上下文注入。 */
+    approvalPolicy?: PeerSessionApprovalPolicy;
   } & ZCodeTaskPortRequestContext): Promise<ZCodeAiTaskCreateResult>;
 
   /** 发送 prompt 到指定 task */

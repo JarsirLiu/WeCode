@@ -22,6 +22,17 @@ export function formatModelPickerValue(ref: ModelSelection | undefined): string 
   return formatSharedModelSelection(ref);
 }
 
+export function sameModelSelection(
+  left: ModelSelection | undefined,
+  right: ModelSelection | undefined,
+): boolean {
+  return (
+    left?.providerId === right?.providerId &&
+    left?.modelId === right?.modelId &&
+    left?.options?.reasoningLevel === right?.options?.reasoningLevel
+  );
+}
+
 function resolveLatestMessageModelSelection(
   messages: readonly ZCodeMessageWithParts[],
 ): ModelSelection | undefined {

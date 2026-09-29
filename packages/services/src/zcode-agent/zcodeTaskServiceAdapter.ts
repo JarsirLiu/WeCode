@@ -130,6 +130,7 @@ import type {
   SessionMessageSendRequested,
 } from "#src/session/sessionMailbox.js";
 import { TaskIndexRepo } from "#src/session/taskIndexRepo.js";
+import { finalizeCreatedTask } from "#src/zcode-agent/finalizeCreatedTask.js";
 import type {
   IZCodeAgentService,
   ZCodeAgentServiceEvent,
@@ -163,6 +164,7 @@ import {
   formatModelPickerValue,
   getZCodeAgentAvailableModes,
   normalizeAvailableZCodeMode,
+  sameModelSelection,
   settingsToConfigOptions,
 } from "./zcodeConfigOptions.js";
 import type { CuaProductMcpServerResolver } from "#src/cua-permission-broker/index.js";
@@ -215,16 +217,6 @@ const EXIT_PLAN_MODE_TOOL_NAME = "ExitPlanMode";
 const EXIT_PLAN_MODE_APPROVAL_QUESTION = "Review this implementation plan.";
 const EXIT_PLAN_MODE_APPROVAL_APPROVE = "approve";
 
-function sameModelSelection(
-  left: ModelSelection | undefined,
-  right: ModelSelection | undefined,
-): boolean {
-  return (
-    left?.providerId === right?.providerId &&
-    left?.modelId === right?.modelId &&
-    left?.options?.reasoningLevel === right?.options?.reasoningLevel
-  );
-}
 const MAX_LIVE_TOOL_PROJECTION_TASKS = 128;
 const MAX_LIVE_TOOL_PROJECTION_TOOLS_PER_TASK = 2000;
 
@@ -1819,9 +1811,7 @@ export function createZCodeTaskServiceAdapter(
         }
       }
       if (!snapshot) {
-        // v4 createSession 命令已原生（desktop
-        // v4 UI 在用），但 replayable createTask 需要 mcpServers/model/importedHistory
-        // 载荷与 snapshot 返回值（task index 同步依赖），v4 命令面均未建模；
+        // replayable createTask 仍需 snapshot 和 mcpServers，不能直接复用 v4 UI 命令面。
         if (params.v4Create === true) {
           const model = requestedSelection;
           const ack = assertV4CommandAckOk(
@@ -1863,9 +1853,7 @@ export function createZCodeTaskServiceAdapter(
             thoughtLevel: requestedSelection?.options?.reasoningLevel,
             ...(params.automationId || params.deferPersistenceUntilFirstPrompt
               ? {
-                  // 修复原因：automation / 闲时任务新建空 session 后会立即 sendText。session_input 有
-                  // session 外键，必须让 V4 admission 在首发前统一持久化 session 主记录；
-                  // 否则 create 返回成功后第一条 prompt 会稳定触发 FOREIGN KEY constraint failed。
+                  // 首发 admission 前持久化 session，避免 session_input 外键失败。
                   persistence: "deferred" as const,
                 }
               : {}),
@@ -1874,8 +1862,7 @@ export function createZCodeTaskServiceAdapter(
                   titleGenerationEnabled: false,
                 }
               : {}),
-            // Bugfix: replayable task facade 创建 session 时同样会启动 runtime；
-            // 之前这里丢掉 mcpServers，导致手机远控路径和 desktop-continuous 的 MCP 行为不一致。
+            // replayable 创建同样传递 MCP，保持与 desktop-continuous 一致。
             mcpServers,
           });
         }
@@ -1884,7 +1871,6 @@ export function createZCodeTaskServiceAdapter(
       const meta = await syncTaskIndexMeta({
         ...baseMeta,
         ...(params.automationId ? { cronAutomationId: params.automationId } : {}),
-        // 闲时派发在创建时即盖章持久归属；月亮图标与后续系统分组归属都只看该标记。
         ...(params.offPeakTaskId ? { offPeakTaskId: params.offPeakTaskId } : {}),
       });
       await taskIndexRepo.initializeGroupedTaskAtTop({
@@ -1897,11 +1883,15 @@ export function createZCodeTaskServiceAdapter(
         workspacePath: meta.workspacePath,
         workspaceIdentity: meta.workspaceIdentity,
       });
-      emitWorkspaceConfig(target, snapshot.settings);
-      // 手机端通过 shared-host 创建 task 时，桌面 renderer 没有本地乐观插入。
-      // create 事件必须保留 task_created 语义，否则 UI 会按普通 meta 事件只重排已存在项，远控首页就拿不到新任务。
-      emitWorkspaceTaskListChanged(target, meta, "task_created");
-      // task 创建结果需要携带 agent 协议快照里的命令列表；否则 replayable 首屏会覆盖为空。
+      await finalizeCreatedTask({
+        target,
+        snapshot,
+        meta,
+        relation: params.peerSessionRelation,
+        emitWorkspaceConfig,
+        emitWorkspaceTaskCreated: (workspace, task) =>
+          emitWorkspaceTaskListChanged(workspace, task, "task_created"),
+      });
       return {
         ...meta,
         initialSlashCommands: snapshot.slashCommands ?? EMPTY_SLASH_COMMANDS,
