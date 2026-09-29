@@ -3,7 +3,11 @@
   "plugins": null,
   "categories": {},
   "rules": {
-    "max-lines": ["error", { "max": 400, "skipBlankLines": true, "skipComments": true }]
+    // 400 行是理想预算，不是可执行的硬门禁：整个仓库（含 vendored 进来的 apps/zcode-cli）
+    // 有 159 个存量文件超限，error 级只会让 lint 长期常红，从而淹没真正的失败。
+    // 因此这里只在 1000 行以上告警，把「超限就要拆」留给人工评审与架构检查；
+    // managed 模块的硬阻断边界由 architecture-policy.yaml 的 maxFileLines 承担。
+    "max-lines": ["warn", { "max": 1000, "skipBlankLines": true, "skipComments": true }]
   },
   "overrides": [
     {

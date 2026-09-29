@@ -11,20 +11,22 @@
 
 以下命令从仓库根目录执行：
 
-| 用途             | 命令                                          |
-| ---------------- | --------------------------------------------- |
-| 类型检查         | `pnpm typecheck`                              |
-| Lint             | `pnpm lint` / `pnpm lint:fix`                 |
-| 格式检查         | `pnpm fmt:check`                              |
-| 桌面开发         | `pnpm dev:desktop`                            |
-| Web 开发         | `pnpm dev:web`                                |
-| 提交前检查       | `pnpm verify:pre-push`（Lint 与架构检查）     |
-| 架构检查         | `pnpm architecture:check --changed`           |
-| 模块阅读包       | `pnpm architecture:context <module-id>`       |
-| 模块导航索引     | `pnpm docs:modules`（生成 `docs/modules.md`） |
-| 文档门禁         | `pnpm docs:check`                             |
-| 未使用依赖与导出 | `pnpm knip`                                   |
-| 导出引用查询     | `pnpm dep:refs --list-exports <file>`         |
+| 用途             | 命令                                               |
+| ---------------- | -------------------------------------------------- |
+| 类型检查         | `pnpm typecheck`                                   |
+| Lint             | `pnpm lint` / `pnpm lint:fix`                      |
+| 格式检查         | `pnpm fmt:check`                                   |
+| 桌面开发         | `pnpm dev:desktop`                                 |
+| Web 开发         | `pnpm dev:web`                                     |
+| 提交前检查       | `pnpm verify:pre-push`（Lint、行数棘轮与架构检查） |
+| 架构检查         | `pnpm architecture:check --changed`                |
+| 行数棘轮         | `pnpm size:check` / `pnpm size:update`             |
+| 行数欠账名单     | `pnpm size:report`                                 |
+| 模块阅读包       | `pnpm architecture:context <module-id>`            |
+| 模块导航索引     | `pnpm docs:modules`（生成 `docs/modules.md`）      |
+| 文档门禁         | `pnpm docs:check`                                  |
+| 未使用依赖与导出 | `pnpm knip`                                        |
+| 导出引用查询     | `pnpm dep:refs --list-exports <file>`              |
 
 测试入口以目标包当前的 `package.json` 和实际测试文件为准，不假定存在统一的单测或 E2E 命令。
 
@@ -49,6 +51,7 @@
 - 必须执行 `pnpm typecheck` 和 `pnpm lint`，报告真实结果，不将已有失败写成通过。
 - 使用异步文件和网络 IO；跨包导入使用公开入口，遵守现有路径别名。
 - 禁止 UI 直接调用 Repo、Service 引用 Runtime 具体实现、跨域导入实现细节及循环依赖。
+- 改动源文件前先看它在 `.file-size-baseline.json` 里的上限：已登记文件只许减不许增，超过 1500 行的巨型文件本次触碰必须净减行（`pnpm size:check` 会拦）。新增代码放新文件，不要往超限文件里追加；拆完运行 `pnpm size:update` 收紧上限，它只降不升。内联 `eslint-disable max-lines` 对棘轮无效，不能作为豁免手段。
 
 ## UI 与平台边界
 

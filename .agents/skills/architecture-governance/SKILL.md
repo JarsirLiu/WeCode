@@ -18,6 +18,7 @@ Use this skill before editing code in the ZCode repository. It is a design guide
    - **Explicit boundaries:** choose the layer for every new file and the public contract for every cross-module edge. Use the module's declared `layers` and `layerOrder`; a file may import only its own layer or lower ones through their public surface. `domain` is pure (no IO, no `await` on the world), `app` decides side effects through ports, `adapters` executes them, `ui` depends only on this module's `contract.ts`. Quick test: needs `await`? not domain. Knows it is sqlite / MessagePort / a timer? adapters.
    - **Explicit time:** for asynchronous or remote behavior, write the event order, owner/lease, idempotency key, stale-result rule, replay/resume boundary, and desktop versus mobile delivery kind before implementation.
    - **Bounded context:** prefer the generated reading package over copying whole implementations into the prompt. Read more only when a contract or test proves it is necessary.
+   - **Shrinking size budget:** read each target file's frozen cap in `.file-size-baseline.json` before proposing edits. A registered file may not gain a net line, and a file above the `giant` threshold must be net shorter whenever it is touched, so new responsibilities land in a new file that the old one re-exports. Inline `eslint-disable max-lines` does not exempt a file from this ratchet; `pnpm size:check` measures real size. See `docs/specs/file-size-ratchet.md`.
 5. If the change crosses modules or changes state ownership, include the decision in the spec and add or update the module contract before implementation.
 
 Use this compact design sketch while planning stateful changes:
@@ -39,6 +40,7 @@ mobile: replayable ─ snapshot + gap repair ┘
 
 6. Keep changes inside the declared module and its allowed layer direction. Add a module dependency or public contract before introducing a cross-module edge.
 7. Run `pnpm architecture:check --changed` again after editing. Report new violations separately from baseline violations, along with changed modules, tests, state owners, event-order assumptions, and net line changes.
+8. Run `pnpm size:check`. When a split genuinely lowered a registered file, run `pnpm size:update` to tighten the ledger; it only lowers caps and never adds entries, so it cannot legitimise growth.
 
 The executable policy is `architecture-policy.yaml`; do not duplicate its rules in this file or in AGENTS.md. Use `pnpm architecture:baseline:update` only when a reviewed change intentionally changes the accepted legacy baseline. CI never refreshes baseline automatically.
 

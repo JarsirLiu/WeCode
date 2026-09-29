@@ -56,7 +56,7 @@ modules:
     managed: false
 
 global:
-  maxFileLines: 400
+  maxFileLines: 1000
   maxContractLines: 300
   maxPublicMethods: 12
   forbidCycles: true

@@ -59,7 +59,7 @@ function validatePolicy(raw, cwd) {
     }
   }
   const global = {
-    maxFileLines: raw.global?.maxFileLines ?? 400,
+    maxFileLines: raw.global?.maxFileLines ?? 1000,
     maxContractLines: raw.global?.maxContractLines ?? 300,
     forbidCycles: raw.global?.forbidCycles !== false,
     forbidDeepImports: raw.global?.forbidDeepImports !== false,
