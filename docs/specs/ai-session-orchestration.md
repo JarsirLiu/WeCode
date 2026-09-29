@@ -10,7 +10,16 @@ SendSessionMessage` 顺序连续出现的会话编排行，UI 投影为一个 `S
 - 摘要行只显示一次“会话管理”及整体状态（运行中、已完成或失败）；
 - 展开后列出实际执行的步骤和最终 `ReadSession` 快照中的结果文本；
 - 首行 `rowId` 是聚合项的稳定 UI identity，后续步骤更新不得重置展开状态；
-- 任一步骤失败、顺序不完整、跨 assistant turn 或被其他可见工作项打断时，不聚合，继续使用普通工具卡；
+- 任一步骤失败、顺序不完整、跨 assistant turn 或被其他可见工作项打断时，不聚合。未聚合的
+  会话编排工具行使用 `session-orchestration` 专属工具卡（见下），不得落入 raw JSON 兜底卡；
+- 会话编排七个工具（`CreateSession`、`ReadSession`、`SendSessionMessage`、
+  `StopSessionGeneration`、`SetSessionModel`、`CompactSession`、`ResolveSessionPermission`）
+  统一登记在 `packages/shared/src/tool-identity.ts` 的 `session-orchestration` family，
+  由专属 renderer（`ToolCallBlocks/renderers/session-orchestration.tsx`）渲染：摘要行为
+  机器人图标 + 具体工具动作（创建会话、读取会话结果等，不显示"会话管理"类目词），
+  展开后按工具提取结构化输入与结果摘要字段（taskId、标题、消息条数等），
+  不渲染全量 JSON dump（输出无法解析为 JSON 时才回退纯文本）；
+  该 renderer 与其他工具 renderer 完全隔离，不得复用或改动 Bash/Read/MCP 等既有渲染路径；
 - Bash、Read、MCP 等非会话工具不受影响，继续沿用各自的“开始 → 更新 → 终态结果”卡片。
 
 这只是 transcript 的派生展示，不复制 session 状态、不改变工具事件、不改变 `ReadSession`

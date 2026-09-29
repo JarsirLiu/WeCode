@@ -44,6 +44,7 @@ import { ReadSessionContextToolCallBlock } from "@/ToolCallBlocks/renderers/read
 import { RespondToCoordinatorToolCallBlock } from "@/ToolCallBlocks/renderers/respond-to-coordinator.js";
 import { SearchToolCallBlock } from "@/ToolCallBlocks/renderers/search.js";
 import { SendMessageToolCallBlock } from "@/ToolCallBlocks/renderers/send-message.js";
+import { SessionOrchestrationToolCallBlock } from "@/ToolCallBlocks/renderers/session-orchestration.js";
 import { SkillToolCallBlock } from "@/ToolCallBlocks/renderers/skill.js";
 import { SubmitResultToolCallBlock } from "@/ToolCallBlocks/renderers/submit-result.js";
 import { SwitchModeToolCallBlock } from "@/ToolCallBlocks/renderers/switch-mode.js";
@@ -153,6 +154,10 @@ export function resolveToolCallRenderer(context: ToolCallBlockRenderContext) {
         : CreateWorkflowToolCallBlock;
     case "session-context":
       return ReadSessionContextToolCallBlock;
+    case "session-orchestration":
+      // AI 会话编排工具的专属卡片；与 SessionBot 聚合块（三连链路）并存，
+      // 这里只承接未聚合的单条工具行，禁止落入 raw JSON 兜底卡。
+      return SessionOrchestrationToolCallBlock;
     case "file-read":
       return ReadToolCallBlock;
     case "file-write":

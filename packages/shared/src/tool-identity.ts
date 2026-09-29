@@ -34,6 +34,15 @@ export const ZCODE_KNOWN_TOOL_NAMES = [
   // wire 名就是 snake_case 的 submit_result（仓库里唯一一个），下划线必须字面在场：
   // 未登记时 UI identity 退回 unknown，动态工作流 actor 的提交会落到 raw fallback renderer。
   "submit_result",
+  // AI 会话编排工具：必须走 session-orchestration 专属卡片，不登记会退回
+  // raw fallback renderer（参数 + result + 全量 JSON dump 三段堆叠）。
+  "CreateSession",
+  "ReadSession",
+  "SendSessionMessage",
+  "StopSessionGeneration",
+  "SetSessionModel",
+  "CompactSession",
+  "ResolveSessionPermission",
 ] as const;
 
 export type ZCodeKnownToolName = (typeof ZCODE_KNOWN_TOOL_NAMES)[number];
@@ -52,7 +61,8 @@ export type ZCodeToolFamily =
   | "message"
   | "task-control"
   | "node-repl"
-  | "workflow";
+  | "workflow"
+  | "session-orchestration";
 
 const TOOL_FAMILY_BY_NAME: Record<ZCodeKnownToolName, ZCodeToolFamily> = {
   Read: "file-read",
@@ -89,6 +99,13 @@ const TOOL_FAMILY_BY_NAME: Record<ZCodeKnownToolName, ZCodeToolFamily> = {
   CreateWorkflow: "workflow",
   AmendWorkflow: "workflow",
   submit_result: "workflow",
+  CreateSession: "session-orchestration",
+  ReadSession: "session-orchestration",
+  SendSessionMessage: "session-orchestration",
+  StopSessionGeneration: "session-orchestration",
+  SetSessionModel: "session-orchestration",
+  CompactSession: "session-orchestration",
+  ResolveSessionPermission: "session-orchestration",
 };
 
 const TOOL_NAME_BY_LOWER = new Map<string, ZCodeKnownToolName>(

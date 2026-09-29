@@ -1,0 +1,111 @@
+// 会话编排工具专属 UI 的守卫测试：
+// 1. 七个工具统一解析到 session-orchestration family 并命中专属 renderer；
+// 2. 其他工具（Bash/Read/Skill）的 renderer 选择不受影响（隔离边界）；
+// 3. 三连链路的 SessionBot 聚合不受影响，未聚合链路回落到逐行专属卡而非 raw JSON 兜底。
+import { describe, expect, it } from "vitest";
+import type { ToolCallRow } from "@zcode/shared/zcode-protocol-v4";
+import { resolveToolCallRenderer } from "@/ToolCallBlocks/resolveRenderer.js";
+import { ExecuteToolCallBlock } from "@/ToolCallBlocks/renderers/execute.js";
+import { ReadToolCallBlock } from "@/ToolCallBlocks/renderers/read.js";
+import { SessionOrchestrationToolCallBlock } from "@/ToolCallBlocks/renderers/session-orchestration.js";
+import { SkillToolCallBlock } from "@/ToolCallBlocks/renderers/skill.js";
+import type { ToolCallBlockRenderContext } from "@/ToolCallBlocks/fileSummaryTypes.js";
+import { resolveToolCallIdentity } from "@/lib/toolIdentity.js";
+import type { ToolDisplayModel } from "@/lib/toolDisplay.js";
+import { buildSessionBotWorkItem } from "@/v4/sessionBotWorkItem.js";
+
+const SESSION_TOOL_NAMES = [
+  "CreateSession",
+  "ReadSession",
+  "SendSessionMessage",
+  "StopSessionGeneration",
+  "SetSessionModel",
+  "CompactSession",
+  "ResolveSessionPermission",
+] as const;
+
+const displayModel: ToolDisplayModel = {
+  inlinePreview: { type: "none" },
+  planResult: null,
+  viewerSource: null,
+  viewerLabelId: "codeViewer.viewCode",
+  showSummaryFileLink: false,
+  showInput: true,
+  showOutput: true,
+  showKind: false,
+};
+
+function contextFor(toolCall: Record<string, unknown>): ToolCallBlockRenderContext {
+  return {
+    toolCallNode: {
+      toolCall,
+      childToolCalls: [],
+    } as ToolCallBlockRenderContext["toolCallNode"],
+    workspacePath: "/example/workspace",
+    displayModel,
+    viewerSource: null,
+    rawFileSummaries: [],
+    isRunning: false,
+    statusLabel: "",
+    childToolList: null,
+  } as ToolCallBlockRenderContext;
+}
+
+function toolCallFor(toolName: string): Record<string, unknown> {
+  return {
+    toolId: `tool-${toolName}`,
+    toolName,
+    kind: toolName,
+    title: toolName,
+    status: "completed",
+    input: { taskId: "task-1", sessionId: "task-1" },
+    output: "{}",
+    raw: {},
+  };
+}
+
+describe("session orchestration tool ui", () => {
+  it("resolves every session orchestration tool to the dedicated family", () => {
+    for (const toolName of SESSION_TOOL_NAMES) {
+      const identity = resolveToolCallIdentity({ toolName });
+      expect(identity.family).toBe("session-orchestration");
+      expect(identity.isLegacy).toBe(false);
+    }
+  });
+
+  it("renders session orchestration tools with the dedicated card", () => {
+    for (const toolName of SESSION_TOOL_NAMES) {
+      const renderer = resolveToolCallRenderer(contextFor(toolCallFor(toolName)));
+      expect(renderer).toBe(SessionOrchestrationToolCallBlock);
+    }
+  });
+
+  it("keeps other tools on their own renderers (isolation)", () => {
+    expect(resolveToolCallRenderer(contextFor(toolCallFor("Bash")))).toBe(ExecuteToolCallBlock);
+    expect(resolveToolCallRenderer(contextFor(toolCallFor("Read")))).toBe(ReadToolCallBlock);
+    expect(resolveToolCallRenderer(contextFor(toolCallFor("Skill")))).toBe(SkillToolCallBlock);
+  });
+
+  it("still groups the complete three-step chain and leaves partial chains to per-row cards", () => {
+    const row = (rowId: number, toolName: string): ToolCallRow =>
+      ({
+        kind: "toolCall",
+        rowId,
+        toolCallId: `tool-${rowId}`,
+        toolName,
+        status: "success",
+        input: {},
+        startedAt: 1,
+      }) as ToolCallRow;
+
+    const complete = buildSessionBotWorkItem([
+      row(1, "CreateSession"),
+      row(2, "ReadSession"),
+      row(3, "SendSessionMessage"),
+    ]);
+    expect(complete?.kind).toBe("sessionBot");
+
+    // 不完整链路不聚合：两条行各自走 session-orchestration 专属卡，不进 raw JSON 兜底。
+    expect(buildSessionBotWorkItem([row(1, "CreateSession"), row(2, "ReadSession")])).toBeNull();
+  });
+});
