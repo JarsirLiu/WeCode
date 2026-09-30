@@ -817,6 +817,25 @@ ZCode 应借鉴这些边界：
 
 ---
 
+## Phase 2 依赖：远程自动重连（决策）
+
+远程派发的前置条件是**自动重连**：AI 编排不能要求用户先手动点击"连接远程服务器"。重启后连接不存在、任务中途网络断开、无人值守自动化等场景，都必须由 Host 程序化恢复连接，否则编排语义不成立。
+
+当前现状（Phase 1 不变）：
+
+- 启动只恢复"断开态远程 tab"，不做自动重连；重连是用户侧一键 UI（读取 `credentialService` 加密凭据）。
+- Bot 路径已有程序化重连（`reconnectBotRemoteWorkspaceSession`），证明机制成立，只是未泛化。
+
+Phase 2 依赖拆解：
+
+1. **Host 侧 `ensureConnected(workspaceIdentity)`**：从 Bot 重连泛化出的程序化重连原语——加载已存加密凭据 → 建立连接 → 复用现有 connection registry 缓存；编排 admission 发现目标 workspace 连接不存在或断开时调用它，而不是直接报错。
+2. **连接状态进入路由判定**：session record / workspace 路由上下文携带连接可达性，broker 在 admission 前能区分"不可达（可尝试重连）"与"凭据缺失/失效（只能失败）"；不可达且重连失败时返回明确错误，禁止静默回退本地服务。
+3. **启动自动重连作为产品策略**：对用户已明确接管过的远程 workspace 默认开启，凭据缺失或失效时保持断开态并提示，不弹窗阻塞启动。它是独立决策——即使关闭，`ensureConnected` 仍保证编排期间的按需重连。
+
+边界：自动重连只消费已存储的加密凭据，不新增凭据采集路径；重连是控制面动作，不改变目标会话的事件事实，编排层仍以 `ReadSession(afterSeq)` 补真。
+
+---
+
 ## 实现顺序
 
 | 步骤 | 交付                                                                                         | 状态          |
@@ -827,7 +846,8 @@ ZCode 应借鉴这些边界：
 | 4    | `ToolExecutionContext` 端口字段 + `call-runner.ts` 传播 + `server-operations.ts` broker 注入 | ✅            |
 | 5    | 6 个工具 handler + contracts schema + `registerBuiltInTools` 注册开关                        | ✅            |
 | 6    | contracts dist 构建（`pnpm --filter @zcode/contracts run build`）                            | ✅            |
-| 7    | E2E：AI 并行创建 3 个会话、分发任务、聚合结果                                                | ⏳ 待手动验证 |
+
+> E2E 编排场景（并行创建/分发/聚合）暂缓，后续按实际使用反馈再细调，不作为本特性的验收门槛。
 
 ---
 
@@ -836,7 +856,7 @@ ZCode 应借鉴这些边界：
 - 无外部依赖，纯内部接线
 - `ZCodeTaskPort` / `ZCodeSessionPort` 与现有 `session.port.ts` 不冲突（后者是底层 event store 抽象，前者是业务编排抽象，命名空间分离）
 - `packages/contracts` 导出需同步更新 `index.ts`（已加 `export * from "./tools/ai-session-orchestration.js"`）
-- **当前边界**：创建和首条消息是两个明确的协议 admission（handler 内按顺序执行 create+send）；`waitForCompletion` 同步等待不支持（纯异步+轮询）；通知流和 `SessionMessageBoard` 尚未实现；`resume_session` 工具不暴露（port 留接口）。
+- **当前边界**：创建和首条消息是两个明确的协议 admission（handler 内按顺序执行 create+send）；`waitForCompletion` 同步等待不支持（纯异步+轮询）；通知流和 `SessionMessageBoard` 尚未实现；`resume_session` 工具不暴露（port 留接口）；`compact_session` 不支持附带压缩指令（V4 compact payload 为空对象，明确决策按不支持收口，不做 runtime/legacy 指令链补齐）；断连后的远程重连在 Phase 1 是用户侧 UI 能力，AI 不感知也不触发；Phase 2 引入 `ensureConnected` + 启动自动重连作为远程派发前置，见"Phase 2 依赖"一节。
 
 ### 失败语义
 
