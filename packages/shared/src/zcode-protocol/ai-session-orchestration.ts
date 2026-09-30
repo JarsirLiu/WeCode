@@ -19,7 +19,7 @@
 // ZCodeTaskSnapshot——后者含文件 checkpoint、slash commands、configOptions 等 UI
 // 内部字段，整体塞给模型会爆 token 预算。映射发生在 host 侧执行桥。
 //
-// 范围约束（spec: docs/specs/ai-session-orchestration.md）：只覆盖 AI 编排需要的
+// 范围约束（spec: docs/specs/features/ai-session-orchestration.md）：只覆盖 AI 编排需要的
 // 操作。任务分组、归档、置顶、Claude 导入、快照分片等 UI 管理操作不进协议链路，
 // UI 直接走 IZCodeTaskService RPC。
 // ============================================================

@@ -2335,7 +2335,7 @@ export type ZCodeBrowserExecuteParams = z.infer<typeof zcodeBrowserExecuteParams
 export const zcodeBrowserExecuteResultSchema = browserCommandResultSchema;
 export type ZCodeBrowserExecuteResult = z.infer<typeof zcodeBrowserExecuteResultSchema>;
 
-// Bot 命令统一入口（spec: docs/specs/bot-weixin-ai-commands.md）：agent 的 BotCommand 工具经
+// Bot 命令统一入口（spec: docs/specs/features/bot-weixin-ai-commands.md）：agent 的 BotCommand 工具经
 // bots/commandExecute 反向请求调用 Host 的 IBotsService。botId/channel 由 Host 从受信 session
 // 解析，params 只携带命令事实，不含任何模型可控的身份字段。
 export const zcodeBotsCommandNameSchema = z.enum([

@@ -22,7 +22,7 @@ type RelayClient = Pick<ZCodeProtocolClient, "respond" | "respondError">;
 
 /**
  * AI Session Orchestration：agent 的 task/* / session/* 反向请求转发给
- * IZCodeTaskService / IZCodeSessionService 执行桥（spec: docs/specs/ai-session-orchestration.md）。
+ * IZCodeTaskService / IZCodeSessionService 执行桥（spec: docs/specs/features/ai-session-orchestration.md）。
  * executor 注入方式同 botsCommandExecutor；缺省通过 JSON-RPC error 失败，不伪造成功。
  */
 export function handleTaskSessionReverseRequest(args: {

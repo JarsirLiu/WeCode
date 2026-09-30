@@ -2,28 +2,16 @@
 
 ## UI 展示规则
 
-会话编排工具在协议层仍保留 `CreateSession`、`ReadSession`、`SendSessionMessage` 等独立
-tool-call 行，便于审计、重放、失败定位和增量恢复；聊天 UI 不应把这些内部步骤显示成三张
-互不相关的工具卡。对同一 assistant turn 内、按 `CreateSession → ReadSession →
-SendSessionMessage` 顺序连续出现的会话编排行，UI 投影为一个 `SessionBot` 工作项：
+会话编排工具在协议层仍保留 `CreateSession`、`ReadSession`、`SendSessionMessage` 等独立 tool-call 行，便于审计、重放、失败定位和增量恢复；聊天 UI 不应把这些内部步骤显示成三张互不相关的工具卡。对同一 assistant turn 内、按 `CreateSession → ReadSession → SendSessionMessage` 顺序连续出现的会话编排行，UI 投影为一个 `SessionBot` 工作项：
 
 - 摘要行只显示一次“会话管理”及整体状态（运行中、已完成或失败）；
 - 展开后列出实际执行的步骤和最终 `ReadSession` 快照中的结果文本；
 - 首行 `rowId` 是聚合项的稳定 UI identity，后续步骤更新不得重置展开状态；
-- 任一步骤失败、顺序不完整、跨 assistant turn 或被其他可见工作项打断时，不聚合。未聚合的
-  会话编排工具行使用 `session-orchestration` 专属工具卡（见下），不得落入 raw JSON 兜底卡；
-- 会话编排七个工具（`CreateSession`、`ReadSession`、`SendSessionMessage`、
-  `StopSessionGeneration`、`SetSessionModel`、`CompactSession`、`ResolveSessionPermission`）
-  统一登记在 `packages/shared/src/tool-identity.ts` 的 `session-orchestration` family，
-  由专属 renderer（`ToolCallBlocks/renderers/session-orchestration.tsx`）渲染：摘要行为
-  机器人图标 + 具体工具动作（创建会话、读取会话结果等，不显示"会话管理"类目词），
-  展开后按工具提取结构化输入与结果摘要字段（taskId、标题、消息条数等），
-  不渲染全量 JSON dump（输出无法解析为 JSON 时才回退纯文本）；
-  该 renderer 与其他工具 renderer 完全隔离，不得复用或改动 Bash/Read/MCP 等既有渲染路径；
+- 任一步骤失败、顺序不完整、跨 assistant turn 或被其他可见工作项打断时，不聚合。未聚合的会话编排工具行使用 `session-orchestration` 专属工具卡（见下），不得落入 raw JSON 兜底卡。
+- 会话编排七个工具（`CreateSession`、`ReadSession`、`SendSessionMessage`、`StopSessionGeneration`、`SetSessionModel`、`CompactSession`、`ResolveSessionPermission`）统一登记在 `packages/shared/src/tool-identity.ts` 的 `session-orchestration` family，由专属 renderer（`ToolCallBlocks/renderers/session-orchestration.tsx`）渲染：摘要行为机器人图标 + 具体工具动作（创建会话、读取会话结果等，不显示"会话管理"类目词），展开后按工具提取结构化输入与结果摘要字段（taskId、标题、消息条数等），不渲染全量 JSON dump（输出无法解析为 JSON 时才回退纯文本）；该 renderer 与其他工具 renderer 完全隔离，不得复用或改动 Bash/Read/MCP 等既有渲染路径。
 - Bash、Read、MCP 等非会话工具不受影响，继续沿用各自的“开始 → 更新 → 终态结果”卡片。
 
-这只是 transcript 的派生展示，不复制 session 状态、不改变工具事件、不改变 `ReadSession`
-作为权威结果来源。desktop continuous 和 web/mobile replayable 都使用相同的 row 投影规则。
+这只是 transcript 的派生展示，不复制 session 状态、不改变工具事件、不改变 `ReadSession`作为权威结果来源。desktop continuous 和 web/mobile replayable 都使用相同的 row 投影规则。
 
 ## 目标
 
@@ -243,7 +231,7 @@ Agent runtime 是 host（Electron main / zcode-server）`spawn` 出的**独立�
 
 #### 实际路径：broker 反向请求
 
-与 `BotCommand` 完全同构（见 `docs/specs/bot-weixin-ai-commands.md`「Port 与协议边界」）。正向是 host → agent（host 驱动 agent 跑任务）；**反向**是 agent → host（agent 请求 host 执行服务）。JSON-RPC 2.0 天然支持双向。一次工具调用的数据流：
+与 `BotCommand` 完全同构（见 `docs/specs/features/bot-weixin-ai-commands.md`「Port 与协议边界」）。正向是 host → agent（host 驱动 agent 跑任务）；**反向**是 agent → host（agent 请求 host 执行服务）。JSON-RPC 2.0 天然支持双向。一次工具调用的数据流：
 
 ```text
 agent 子进程                                   host 进程
