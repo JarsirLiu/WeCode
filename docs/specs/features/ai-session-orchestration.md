@@ -289,14 +289,14 @@ agent 输入里同名提供的 `workspaceIdentity`/`remoteSessionId`/`clientMode
 
 工具名遵循仓库约定（与 `BotCommand`、`CronCreate`、`OffPeakCreate` 一致用 PascalCase）。
 
-| 工具名                  | 文件                         | 对应端口                                                                        | 核心能力                                                                        |
-| ----------------------- | ---------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `CreateSession`         | `create-session.ts`          | `ZCodeTaskPort.createTask` + `sendPrompt`                                       | 创建新会话，固定使用 V4；可选 `initialPrompt` 在创建成功后经 V4 `sendText` 投递 |
-| `SendSessionMessage`    | `send-session-message.ts`    | `ZCodeTaskPort.sendPrompt`                                                      | 发消息，**异步**：发完即返（`void`），AI 主动 `read_session` 轮询               |
-| `ReadSession`           | `read-session.ts`            | `ZCodeSessionPort.readSession`（优先）/ `ZCodeTaskPort.getTaskSnapshot`（回退） | 读取进度/结果                                                                   |
-| `StopSessionGeneration` | `stop-session-generation.ts` | `ZCodeTaskPort.stopGeneration`                                                  | 停止当前生成，会话保留可继续                                                    |
-| `SetSessionModel`       | `set-session-model.ts`       | `ZCodeTaskPort.setModel` → V4 `switchModelConfig`                               | 换模型，返回服务端 authoritative configOptions                                  |
-| `CompactSession`        | `compact-session.ts`         | `ZCodeTaskPort.compactSession` → V4 `compact`                                   | 手动压缩上下文                                                                  |
+| 工具名                  | 文件                         | 对应端口                                                                        | 核心能力                                                                                                                     |
+| ----------------------- | ---------------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `CreateSession`         | `create-session.ts`          | `ZCodeTaskPort.createTask` + `sendPrompt`                                       | 创建新会话，固定使用 V4；可选 `initialPrompt` 在创建成功后经 V4 `sendText` 投递                                              |
+| `SendSessionMessage`    | `send-session-message.ts`    | `ZCodeTaskPort.sendPrompt`                                                      | 发消息，**异步**：发完即返；目标会话 turn 终态/审批/停止经 `session/changed` 唤醒创建者（见 §5），`ReadSession` 补读权威结果 |
+| `ReadSession`           | `read-session.ts`            | `ZCodeSessionPort.readSession`（优先）/ `ZCodeTaskPort.getTaskSnapshot`（回退） | 读取进度/结果                                                                                                                |
+| `StopSessionGeneration` | `stop-session-generation.ts` | `ZCodeTaskPort.stopGeneration`                                                  | 停止当前生成，会话保留可继续                                                                                                 |
+| `SetSessionModel`       | `set-session-model.ts`       | `ZCodeTaskPort.setModel` → V4 `switchModelConfig`                               | 换模型，返回服务端 authoritative configOptions                                                                               |
+| `CompactSession`        | `compact-session.ts`         | `ZCodeTaskPort.compactSession` → V4 `compact`                                   | 手动压缩上下文                                                                                                               |
 
 **无以下工具**（刻意不提供）：
 
@@ -520,11 +520,12 @@ export type CompactSessionOutput = z.infer<typeof CompactSessionOutputSchema>;
 **Phase 1 不实现 `waitForCompletion`**。`SendSessionMessage` 的唯一语义：
 
 1. `sendPrompt` 入队 → host 确认接受 → 返回 admission（`messageId`、`turnId`、`acceptedAt`、`deduplicated`）
-2. AI 主动调用 `read_session` 轮询进度/结果
+2. 编排 AI **结束当前回合**，等待 §5 的 `session/changed` 通知唤醒（目标会话 turn 完成/失败、权限请求、停止生成四类事件）
+3. 收到唤醒后调用 `ReadSession`（可带 `afterSeq` 增量）获取权威结果；通知是 best-effort 且本阶段仅本地 workspace，可能丢失或重复——长时间未收到时以低频 `read_session` 轮询兜底，禁止在同一回合内用 sleep 循环忙等
 
 **为什么不支持同步等待**：反向请求是请求/响应模型，`waitForCompletion: true` 要把一条 stdio 上的 pending request 挂住直到会话进入终态（可能几分钟）。期间超时、取消、断连、并发占用语义都得单独定义，且 broker 的 `resultSchema` 校验在响应到达时才跑——长挂住会占满 agent 的反向请求通道。Phase 1 不引入这个复杂度。
 
-**轮询节奏完全由编排 AI 自主把控**：通过工具调用的时间节奏控制频率——想快查就快调用 `read_session`，想慢查就晚调用。不提供定时器、不预设间隔、不推荐数值。
+**等待语义必须写进工具描述**：模型只看得到工具描述，通知机制的醒来路径对模型不可见。`SendSessionMessage`、`CreateSession`（`initialPrompt` 触发同样 turn 生命周期）和 `StopSessionGeneration` 的描述必须如实告知：turn 结束（完成/失败/权限请求/停止）会收到 `session/changed` 通知，权威状态用 `ReadSession` 读取；模型也可以稍等后主动 `read_session` 获取回复。`ReadSession` 描述把唤醒后补读列为主用法，不再把轮询列为主用法。
 
 **后续扩展**：若要支持同步等待，正确做法是在 broker 侧发 `sendPrompt` 后内部轮询 `getTaskSnapshot` 直到终态再 resolve（多次短请求，不挂住单条连接），而非把单条反向请求挂几分钟。这是 Phase 2+ 的事。
 
@@ -581,18 +582,15 @@ const { taskId, traceId } = await create_session({
   mode: "yolo", // 关键：永不进入 plan 模式，永不请求审批
 });
 
-// 发第一条消息（异步，发完即返）
+// 发第一条消息（异步，发完即返；然后结束回合等 session/changed 唤醒）
 await send_session_message({
   taskId,
   traceId,
   content: "重构 auth 模块：拆分接口、迁移调用、删旧代码、跑测试",
 });
 
-// 当前会话 AI 自主决定轮询节奏（无预设间隔、无定时器）
+// 收到唤醒通知后读取权威结果（afterSeq 增量读）；通知丢失时低频轮询兜底
 const snapshot = await read_session({ sessionId: taskId, messageLimit: 10 });
-if (snapshot.projection.status === "running") {
-  // 编排 AI 自己决定下一次查的时间，不由框架控制
-}
 ```
 
 > **轮询间隔完全由编排 AI 自主把控**。编排 AI 通过工具调用的时间节奏自然控制频率——想快查就快调用 `read_session`，想慢查就晚调用。不提供定时器、不预设选项、不推荐数值。
@@ -735,13 +733,13 @@ Host 接受消息后才返回 `accepted`。如果响应丢失，调用方可以�
 
 ### 4. 轮询、通知与读取语义
 
-Phase 1 仍采用：
+Phase 1 的默认路径是通知唤醒（§5）：
 
 ```text
-send -> accepted(turnId) -> AI 自主 read_session(afterSeq/turnId)
+send -> accepted(turnId) -> 结束回合 -> session/changed 唤醒 -> read_session(afterSeq/turnId)
 ```
 
-轮询间隔由编排 AI 决定，但框架应通过 `afterSeq`、`turnId` 和字节预算支持增量读取，避免每次返回完整历史。Phase 1 不提供框架定时器，也不把一次长时间等待挂在单个反向请求上。
+`afterSeq`/`turnId` 和字节预算支持增量读取，避免每次返回完整历史。轮询只作兜底：通知丢失或重复不改变目标会话事实，低频 `read_session` 补读即可；不提供框架定时器，也不把一次长时间等待挂在单个反向请求上。
 
 后续 Phase 2 可增加通知流：目标会话状态或消息发生变化时发送轻量 notification；编排 AI 收到通知后再调用 `ReadSession` 获取权威快照。通知只负责唤醒，不负责承载完整状态，也不应自动启动一个空闲目标会话。
 

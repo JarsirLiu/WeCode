@@ -81,7 +81,7 @@ export const CreateSessionInputJsonSchema = toToolJsonSchema(CreateSessionInputS
 export const CreateSessionOutputJsonSchema = toToolJsonSchema(CreateSessionOutputSchema);
 
 export const CREATE_SESSION_DESCRIPTION = [
-  "Create a new ZCode session/task in the specified workspace. Returns the taskId for subsequent operations.",
+  "Create a new WeCode session/task in the specified workspace. Returns the taskId for subsequent operations.",
   "",
   "Modes:",
   "  - yolo: fully autonomous, no approval prompts (recommended for background tasks)",
@@ -93,7 +93,7 @@ export const CREATE_SESSION_DESCRIPTION = [
   "",
   "approvalPolicy defaults to manual. delegated/autonomous are recorded for host policy enforcement; they do not let this tool approve a request.",
   "",
-  "Optional initialPrompt: if provided, sends the first message immediately after creation.",
+  "Optional initialPrompt: sends the first message immediately after creation. That turn wakes you with a session/changed notification when it completes, fails, or requests approval — same as send_session_message.",
   "",
   "The returned taskId is used with send_session_message, read_session, stop_session_generation,",
   "set_session_model, and compact_session.",
@@ -133,16 +133,19 @@ export const SendSessionMessageInputJsonSchema = toToolJsonSchema(SendSessionMes
 export const SendSessionMessageOutputJsonSchema = toToolJsonSchema(SendSessionMessageOutputSchema);
 
 export const SEND_SESSION_MESSAGE_DESCRIPTION = [
-  "Send a message to an existing ZCode session/task (like a user would).",
+  "Send a message to an existing WeCode session/task (like a user would).",
   "",
   "Required: taskId (from create_session), content (the prompt text), traceId (for tracing).",
   "",
   "Optional: attachments, clientId/clientLabel (for bot delivery tracking),",
   "toolDenylist (tools to hide for this turn), modelSelection (override model for this turn).",
   "",
-  "The message is delivered asynchronously; use read_session to poll for progress/results.",
-  "Returns a host admission receipt. Reuse its messageId unchanged when retrying the same message.",
-  "The model does NOT wait for completion — it returns immediately after the message is accepted.",
+  "The message is delivered asynchronously. Returns a host admission receipt immediately;",
+  "reuse its messageId unchanged when retrying the same message.",
+  "",
+  "When the target session finishes the turn — completed, failed, permission requested, or stopped —",
+  "you receive a session/changed notification; read the authoritative state with read_session",
+  "(afterSeq for incremental reads). You may also wait a while and call read_session to fetch the reply.",
 ].join("\n");
 
 // ============================================================
@@ -169,14 +172,20 @@ export const ReadSessionInputJsonSchema = toToolJsonSchema(ReadSessionInputSchem
 export const ReadSessionOutputJsonSchema = toToolJsonSchema(ReadSessionOutputSchema);
 
 export const READ_SESSION_DESCRIPTION = [
-  "Read the full state of a ZCode session (history, runtime status, todos, etc.).",
+  "Read the full state of a WeCode session (history, runtime status, todos, etc.).",
   "",
   "Required: sessionId (the taskId or session identifier).",
   "",
   "Optional: messageLimit (default 50), afterSeq (for incremental reads).",
   "",
   "Returns a structured snapshot with: session info, settings, runtime status, messages,",
-  "todos, goals, and available slash commands. Use for polling progress after send_session_message.",
+  "todos, goals, and available slash commands. Primary usage: read the authoritative state",
+  "after a session/changed wake-up notification (afterSeq gives incremental reads).",
+  "Also usable as a low-frequency fallback poll when no notification arrives.",
+  "",
+  "The snapshot carries context pressure in projection (contextUsed, contextWindow, totalTokenCount)",
+  "and runtime.contextUsage (used, size, cost) — use contextUsed/contextWindow to decide when to",
+  "call compact_session.",
 ].join("\n");
 
 // ============================================================
@@ -198,11 +207,13 @@ export const StopSessionGenerationInputJsonSchema = toToolJsonSchema(StopSession
 export const StopSessionGenerationOutputJsonSchema = toToolJsonSchema(StopSessionGenerationOutputSchema);
 
 export const STOP_SESSION_GENERATION_DESCRIPTION = [
-  "Stop the currently running generation in a ZCode session/task.",
+  "Stop the currently running generation in a WeCode session/task.",
   "",
   "Required: taskId. Optional: runId (specific run to stop, otherwise stops current).",
   "",
-  "The stopped turn is marked as interrupted; subsequent read_session will show status=stopped.",
+  "The stopped turn is marked as interrupted and the session returns to idle — there is no",
+  "'stopped' session status. You will be woken by a session/changed notification with kind=generation_stopped;",
+  "use read_session afterwards for the authoritative state.",
   "Does not delete the session — use compact_session or let the user resume manually.",
 ].join("\n");
 
@@ -239,7 +250,7 @@ export const SetSessionModelInputJsonSchema = toToolJsonSchema(SetSessionModelIn
 export const SetSessionModelOutputJsonSchema = toToolJsonSchema(SetSessionModelOutputSchema);
 
 export const SET_SESSION_MODEL_DESCRIPTION = [
-  "Change the model for a ZCode session/task. Returns the authoritative configOptions from the server.",
+  "Change the model for a WeCode session/task. Returns the authoritative configOptions from the server.",
   "",
   "Required: taskId, traceId, modelSelection (providerId + modelId + optional thoughtLevel).",
   "",
@@ -279,9 +290,27 @@ export const CompactSessionInputJsonSchema = toToolJsonSchema(CompactSessionInpu
 export const CompactSessionOutputJsonSchema = toToolJsonSchema(CompactSessionOutputSchema);
 
 export const COMPACT_SESSION_DESCRIPTION = [
-  "Execute the built-in /compact command on a ZCode session/task to summarize and reduce context.",
+  "Compact a WeCode session/task to summarize its context and free window space.",
   "",
   "Required: taskId. Optional: inputId (the stable V4 command id for retries).",
   "",
-  "Returns the compact response and the updated session snapshot.",
+  "Timing: idle target compacts immediately as a background compact turn; a running turn is never",
+  "aborted — the request queues as a FIFO barrier and runs between turns. A second compact while",
+  "one is running or queued is rejected.",
+  "",
+  "Decide from read_session's projection, weighing absolute usage (contextUsed) first and the ratio",
+  "(contextUsed / contextWindow) second:",
+  "- Under 128k tokens used: compact cautiously — a small context loses more detail than it saves.",
+  "- Reaching 200k tokens used: prioritize compacting — call compact_session before your next message.",
+  "- Above 300k tokens used: almost certainly compact now, before dispatching any further work.",
+  "- Small-window models: the contextUsed/contextWindow ratio forces the decision even below 200k;",
+  "  compact when the window is filling, not only at the absolute thresholds.",
+  "Below 20% of the window and under ~128k tokens it is a judgment call, not a skip — compact at a",
+  "natural boundary (the target just finished a milestone phase, you are about to dispatch a new",
+  "independent subtask, or there was heavy tool output).",
+  "Do not rely on the runtime's automatic compaction: it only fires near the window ceiling",
+  "(window minus output reserve), which wastes tokens and degrades quality on large-window models.",
+  "",
+  "Resolve pending permissions first — compacting while pendingPermissions is non-empty queues",
+  "behind the blocked turn. Returns the compact response and the updated session snapshot.",
 ].join("\n");
