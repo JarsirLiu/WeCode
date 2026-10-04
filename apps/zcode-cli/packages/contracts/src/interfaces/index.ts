@@ -26,6 +26,7 @@ export * from "./bots-service.port.js";
 export * from "./zcode-task.port.js";
 export * from "./zcode-session.port.js";
 export * from "./zcode-permission.port.js";
+export * from "./tool-set-loader.port.js";
 export * from "./shared.js";
 
 export * from "./permission-full-access.js";

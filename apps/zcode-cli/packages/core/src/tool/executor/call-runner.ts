@@ -46,8 +46,8 @@ import {
   observeToolAdmissionClock,
   resolveTimeoutMs,
 } from "./timeout.js";
-import { createToolModelStatusSink, withDefaultToolModelStatusSink } from "./model-status-sink.js";
 import { errorCategoryForToolError, runToolCallWithTelemetry } from "./telemetry.js";
+import { buildExecutionContext } from "./execution-context-builder.js";
 import {
   withAutomationCreateLimitTurnStop,
   withPlanExitDeniedTurnStop,
@@ -58,8 +58,9 @@ import { mergeToolExecutionTelemetry, readToolExecutionTelemetry } from "../hand
 import type { ToolExecuteOptions, ToolExecutorDeps } from "./types.js";
 import { validateInitialModelToolInput, validateInput, validateOutput } from "./validation.js";
 import type { ExecutableToolCall } from "../types.js";
-import { resolveEmbeddedSearchBranchCapability } from "../../embedded-search/capability.js";
 import { resolveToolEntryModelContract } from "../model-contract.js";
+import { handleToolSuccessResult } from "./tool-result-handler.js";
+import { resolveModelOutputEntry } from "./model-output-entry.js";
 
 export async function executeToolCall(
   deps: ToolExecutorDeps,
@@ -365,12 +366,8 @@ async function executeToolCallImpl(
   let skillTelemetryMetadata: SkillTelemetryMetadata | undefined;
 
   try {
-    const model = options?.model ?? deps.model;
-    const bashShellSelection = deps.getBashShellSelection?.() ?? deps.bashShellSelection;
-    const embeddedSearchDecision = resolveEmbeddedSearchBranchCapability({
-      bashAvailable: deps.registry.has("Bash"),
-    });
-    const context: ToolExecutionContext = {
+    const context = buildExecutionContext({
+      canonicalToolCall,
       toolCallId: canonicalToolCall.id,
       telemetry,
       automationTurn: options?.automationTurn,
@@ -379,68 +376,18 @@ async function executeToolCallImpl(
       traceId,
       spanId: traceContext.spanId,
       parentSpanId: traceContext.parentSpanId,
-      abortSignal: executionAbortController.signal,
-      backgroundTaskControlPort: deps.backgroundTaskControlPort,
+      executionAbortController,
+      startTime,
+      turnId,
       emitEvent,
-      executionPort: deps.executionPort,
-      browserControlPort: deps.browserControlPort,
-      botsServicePort: deps.botsServicePort,
-      zcodeTaskPort: deps.zcodeTaskPort,
-      zcodeSessionPort: deps.zcodeSessionPort, zcodePermissionPort: deps.zcodePermissionPort,
-      browserDocumentationRoot: deps.browserDocumentationRoot,
-      fileSystemPort: deps.fileSystemPort,
-      httpClientPort: deps.httpClientPort,
-      imageProcessorPort: deps.imageProcessorPort,
-      pdfDocumentPort: deps.pdfDocumentPort,
-      // 工具内部的模型请求默认把状态事件发进会话：deadline 暂停与 driver 相位都靠这条流。
-      model: withDefaultToolModelStatusSink(
-        model,
-        createToolModelStatusSink({ emitEvent, sessionId: deps.sessionId, turnId, traceId }),
-      ),
-      subagentModelOverride: options?.subagentModelOverride,
-      embeddedSearch: {
-        ...(deps.embeddedSearchBackend ? { backend: deps.embeddedSearchBackend } : {}),
-        enabled: embeddedSearchDecision?.useEmbeddedSearchBranch ?? false,
-        ...(deps.nativeSearchEnhancementsEnabled === false ? { findAndGrepEnabled: false } : {}),
-      },
-      skillPort: deps.skillPort,
-      subagentPort: deps.subagentPort,
-      coordinatorResponsePort: deps.coordinatorResponsePort,
-      workflowSubmitPort: deps.workflowSubmitPort,
-      workflowEscalatePort: deps.workflowEscalatePort,
-      artifactStore: deps.artifactStore,
-      automationPort: deps.automationPort,
-      offPeakPort: deps.offPeakPort,
-      sessionStore: deps.sessionStore,
-      sessionModePort: deps.sessionModePort,
-      workflowPort: deps.workflowPort,
-      dynamicWorkflowRunPort: deps.dynamicWorkflowRunPort,
-      dynamicWorkflowSnippetPort: deps.dynamicWorkflowSnippetPort,
-      modelCatalogPort: deps.modelCatalogPort,
-      runtimeTaskRegistry: deps.runtimeTaskRegistry,
-      readFileState: deps.readFileState,
-      recordReadFileStateMetadata: (metadata) => {
+      deps,
+      onReadFileStateMetadata: (metadata) => {
         readFileStateMetadata = metadata;
       },
-      recordSkillTelemetryMetadata: (metadata) => {
+      onSkillTelemetryMetadata: (metadata) => {
         skillTelemetryMetadata = metadata;
       },
-      bashShellSelection,
-      setWorkingDirectory: deps.setWorkingDirectory,
-      workingDirectory: deps.getWorkingDirectory(),
-      workspaceRoot: deps.getWorkspaceRoot(),
-      workspaceIdentity: deps.workspaceIdentity,
-      remoteSessionId: deps.remoteSessionId,
-      clientMode: deps.clientMode,
-      deliveryKind: deps.deliveryKind,
-      memoryRoot: deps.getMemoryRoot?.(),
-      runtimeScope: deps.runtimeScope,
-      providerVisibleToolNames: deps.registry
-        .list()
-        .filter((name) => deps.registry.getMetadata(name)?.providerVisible !== false),
-      sessionId: deps.sessionId,
-      turnId,
-    };
+    });
 
     const output = await executeWithTimeout(
       entry.handler,
@@ -452,96 +399,27 @@ async function executeToolCallImpl(
     );
     const durationMs = Date.now() - startTime;
     if (isToolHandlerFailure(output)) {
-      // handler 用返回值表达可预期业务失败；这里只转换到既有异常控制流，
-      // 继续复用原来的 failure hook、事件和日志，不引入第二套执行生命周期。
       throw createToolHandlerFailureError(canonicalToolCall, output);
     }
     validateOutput(output, entry);
-    // node_repl 同时承载 Browser Use 与 CUA，不能在注册时把整个 server 标成 official。
-    // CUA SDK 结果带 producer integrity metadata 时，才为本次序列化临时打开原子帧保护；
-    // 否则通用 resultBudget 会截断/重排 image_ref，或非 authority 路径会把引用剥掉。
-    const modelOutputEntry = resolveModelOutputEntry(entry, output);
-    failureStage = "serialize";
-    let serialization = await serializeOutput(
+
+    const result = await handleToolSuccessResult({
       deps,
-      output,
-      modelOutputEntry,
-      traceContext,
-      canonicalToolCall.id,
-      executionAbortController.signal,
-    );
-    failureStage = "post_hook";
-    const postToolHookResult = await runPostToolUseHooks(
-      deps,
+      entry,
       canonicalToolCall,
+      output,
       executionInput,
-      output,
-      serialization.artifactPath,
-      traceContext,
-      options?.signal,
-    );
-    serialization = appendHookAdditionalContexts(
-      serialization,
-      [...preToolHookResult.additionalContexts, ...postToolHookResult.additionalContexts],
-      modelOutputEntry,
-    );
-    const display = createToolResultDisplay(canonicalToolCall.name, output, {
-      mcp: entry.metadata.mcpPresentation,
-      officialCua: entry.modelContentProtection === OFFICIAL_CUA_FRAME_MODEL_CONTENT_PROTECTION,
-    });
-    const perf = mergeToolExecutionTelemetry(readToolExecutionTelemetry(output), {
-      permissionWaitMs,
-      // totalMs 是用户感知的工具生命周期：registry lookup、校验、Hook、权限等待、
-      // handler、序列化与 PostToolUse。durationMs 继续只表示 handler 主执行段。
-      totalMs: Date.now() - totalStartedAt,
-    });
-
-    const finalModelContent = serialization.modelContent ?? serialization.content;
-    const modelContentProtection = modelOutputEntry.modelContentProtection
-      ? attestOfficialCuaFrameContent(finalModelContent, modelOutputEntry.modelContentProtection)
-      : undefined;
-    if (
-      modelOutputEntry.modelContentProtection &&
-      Array.isArray(finalModelContent) &&
-      finalModelContent.some((block) => block.type === "image") &&
-      !modelContentProtection
-    ) {
-      throw createCoreError(
-        CoreErrorType.ToolExecutionFailed,
-        "Official CUA frame failed final model-content attestation",
-        { recoverable: true },
-      );
-    }
-
-    const result: ToolExecutionResult = withTerminalToolTurnStop(
-      {
-        toolCallId: canonicalToolCall.id,
-        toolName: canonicalToolCall.name,
-        success: true,
-        output,
-        display,
-        modelContent: finalModelContent,
-        ...(readFileStateMetadata ? { readFileStateMetadata } : {}),
-        performance: perf,
-        serialization,
-        durationMs,
-        startedAt: new Date(startTime),
-        completedAt: new Date(),
-      },
-      { entry },
-    );
-
-    await emitToolCallResult(
-      deps,
-      canonicalToolCall,
+      preToolHookResult,
       traceContext,
       turnId,
-      serialization,
+      executionAbortController,
+      startTime,
+      totalStartedAt,
       durationMs,
-      display,
-      perf,
+      permissionWaitMs,
+      readFileStateMetadata,
       skillTelemetryMetadata,
-    );
+    });
 
     await backgroundTasks.trackBackgroundTask(canonicalToolCall, output, traceContext, turnId);
 
@@ -555,8 +433,8 @@ async function executeToolCallImpl(
       toolName: canonicalToolCall.name,
     });
 
-    telemetry?.setOutputBytes(serialization.returnedBytes);
-    telemetry?.setOutputTruncated(serialization.truncated);
+    telemetry?.setOutputBytes(result.serialization?.returnedBytes);
+    telemetry?.setOutputTruncated(result.serialization?.truncated);
     telemetry?.finishCompleted();
     return result;
   } catch (error) {

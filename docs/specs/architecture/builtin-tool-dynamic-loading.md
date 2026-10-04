@@ -2,7 +2,7 @@
 
 ## 目标
 
-解决现状：40+ 内置工具全量注册，首轮上下文占用 20k+ token。引入 **ToolSearch + LoadToolSet** 双工具协作，实现：
+解决现状：48 个内置工具全量注册，首轮上下文占用 20k+ token。引入 **ToolSearch + LoadToolSet** 双工具协作，实现：
 
 - **首轮仅暴露 2 个元工具 + core 8 个工具**（~5k token）
 - **模型按需加载工具集**，加载后永久驻留当前会话 ToolRegistry
@@ -14,13 +14,13 @@
 
 | 原则 | 说明 |
 |------|------|
-| **内置工具分组** | 现有 42 个工具按领域分为 9 个工具集，每集 3-10 个工具 |
+| **内置工具分组** | 现有 48 个工具按领域分为 8 个工具集，每集 1-10 个工具 |
 | **静态目录、动态注册** | 工具集元数据（名字、描述、关键词、包含工具）编译期固化；运行时按需批量注册 |
 | **会话级持久** | 一次 `LoadToolSet` 后，该工具集的工具永久留在当前 `AgentRuntime` 的 `ToolRegistry`，后续轮次直接可用 |
 | **无加载 = 不可见** | 未加载的工具集：**不在 `registry.list()`、不在 `registry.toContracts()`、模型 schema 里没有、ToolSearch 也只返回元数据不返回可调用 schema** |
-| **复用现有架构** | 复用 `ToolRegistry.register/unregister`、`registerBuiltInTools` 门控机制、`ToolExecutionContext` 传播、`needsApproval` 权限流 |
-| **Glob/Grep 隐藏** | 开启 `embeddedSearchEnabled: true`，由 Bash `find()`/`grep()` shell function 接管，不再单独注册 |
-| **Read 保留** | 多模态、缓存、结构化输出、权限集成等 Bash 无法替代的能力 |
+| **复用现有架构** | 复用 `ToolRegistry.register/unregister`、`registerBuiltInTools` 门控机制、端口注入、`needsApproval` 权限流 |
+| **Glob/Grep 保留核心** | 结构化搜索、权限集成、token 预算控制是 Bash `find()`/`grep()` 无法替代的；embedded search 是补充能力（快速纯文本搜索）|
+| **Embedded Search** | 当 `embeddedSearchEnabled: true` 时，Bash 注入 `find()`/`grep()` shell function 加速纯文本搜索（与 Glob/Grep 工具并存） |
 
 ---
 
@@ -28,41 +28,49 @@
 
 | 层级 | 组件 | 状态 |
 |------|------|------|
-| **Registry** | `ToolRegistryImpl` (`packages/core/src/tool/registry.ts`) | ✅ 单例，随 `AgentRuntime` 生命周期 |
-| **注册入口** | `registerBuiltInTools` (`packages/core/src/tool/handlers/index.ts`) | ✅ 启动时一次性注册所有内置工具 |
-| **工具定义** | 42 个 `ToolEntry` 分散在 `handlers/*.ts` | ✅ 已有 |
-| **运行时上下文** | `ToolExecutionContext.runtime.registry` | ✅ handler 可访问 |
+| **Registry** | `ToolRegistryImpl` (`apps/zcode-cli/packages/core/src/tool/registry.ts`) | ✅ 单例，随 `AgentRuntime` 生命周期 |
+| **注册入口** | `registerBuiltInTools` (`apps/zcode-cli/packages/core/src/tool/handlers/index.ts`) | ✅ 启动时一次性注册所有内置工具 |
+| **工具定义** | 48 个 `ToolEntry` 分散在 `handlers/*.ts` | ✅ 已有 |
+| **端口注入** | `ToolExecutionContext` 的 50+ 端口字段 | ✅ handler 通过端口访问运行时能力 |
 | **权限流** | `needsApproval` + `PermissionBroker` | ✅ 完整 |
-| **Embedded Search** | `embeddedSearchEnabled` 开关隐藏 Glob/Grep，Bash 注入 `find()`/`grep()` | ✅ 已实现 |
+| **Embedded Search** | Bash 注入 `find()`/`grep()` shell function，加速纯文本搜索，与 Glob/Grep 工具并存 | ✅ 已实现 |
+| **缓存失效** | `runtime.invalidateToolCache()` | ✅ MCP 注册后调用的先例（`runtime/methods/mcp.ts:147`） |
+| **Child 防护** | `WORKFLOW_CHILD_DISALLOWED_TOOLS` | ✅ 已有先例（`runtime/helpers/tool-allowlist.ts:26`） |
 
 ---
 
-## 最终分组方案（9 组，42 个工具）
+## 最终分组方案（8 组，48 个工具）
 
 | 组名 | 工具列表 | 默认 | 门控开关 |
 |------|---------|------|---------|
-| **core** (8) | `Read`, `Write`, `Edit`, `Bash`, `WebFetch`, `WebSearch`, `TodoRead`, `TodoWrite` | ✅ | 无 |
+| **core** (10) | `Read`, `Write`, `Edit`, `Bash`, `WebFetch`, `WebSearch`, `TodoRead`, `TodoWrite`, `Glob`, `Grep` | ✅ | 无 |
 | **plan** (3) | `EnterPlanMode`, `ExitPlanMode`, `AskUserQuestion` | ❌ | 无 |
 | **automation** (6) | `CronCreate`, `CronList`, `CronUpdate`, `CronDelete`, `OffPeakCreate`, `OffPeakList` | ❌ | `includeAutomation` / `includeOffPeak` |
 | **session** (7) | `CreateSession`, `SendSessionMessage`, `ReadSession`, `StopSessionGeneration`, `SetSessionModel`, `CompactSession`, `ResolveSessionPermission` | ❌ | `includeZCodeTask` |
-| **subagent** (10) | `Agent`, `Task`, `Skill`, `SendMessage`, `RespondToCoordinator`, `SubmitResult`, `Escalate`, `TaskOutput`, `TaskStop`, `ReadSessionContext` | ❌ | `includeAgent` / `includeSkill` / `includeSendMessage` / `includeRespondToCoordinator` / `includeSubmitResult` / `includeEscalate` |
+| **subagent** (8) | `Agent`, `Task`, `Skill`, `SendMessage`, `RespondToCoordinator`, `submit_result`, `escalate`, `ReadSessionContext` | ❌ | `includeAgent` / `includeSkill` / `includeSendMessage` / `includeRespondToCoordinator` / `includeSubmitResult` / `includeEscalate` |
+| **task-control** (2) | `TaskOutput`, `TaskStop` | ✅ | 无（主会话必需，用于控制后台 Bash 任务） |
 | **workflow** (10) | `CreateWorkflow`, `AmendWorkflow`, `SaveWorkflow`, `EvalWorkflowSnippet`, `ListSavedWorkflows`, `ListModels`, `ListWorkflowRuns`, `GetWorkflowRun`, `ResumeWorkflowRun`, `ResolveWorkflowQuestion` | ❌ | `includeDynamicWorkflow` |
 | **js** (1) | `js` | ❌ | `includeNodeRepl` |
 | **bot** (1) | `BotCommand` | ❌ | `includeBotCommand`（远程平台检测到时自动开启） |
 
-> **Glob/Grep**：不再注册，走 `embeddedSearchEnabled: true` 分支，由 Bash `find()`/`grep()` 接管。
+> **Glob/Grep 核心地位**：
+>> - Bash `find()`/`grep()` 首轮截断到 30k inline，超出需追加 Read 调用（浪费 token）
+>> - Glob/Grep 提供**结构化 JSON 输出**、**权限集成**、**token 预算**，大型搜索必需
+>> - Embedded search 是**补充能力**（快速纯文本），不是替代品
+> 
+> **工具名修正**：`submit_result` 和 `escalate` 使用下划线（与 contracts 一致），非驼峰。  
+> **TaskOutput/TaskStop 独立分组**：主会话依赖它们控制后台 Bash 任务，不能放入 subagent 组默认关闭。
 
 ---
 
 ## 设计方案
 
-### 1. 共享层：工具集规格（编译期常量）
+### 1. 契约层：工具集规格（纯数据）
 
-**`packages/shared/src/tool-sets.ts`**
+**`apps/zcode-cli/packages/contracts/src/tool-sets.ts`**
 
 ```typescript
-import type { ToolEntry } from '../core/src/tool/types.js';
-
+/** 工具集元数据（纯数据，无 ToolEntry 依赖） */
 export interface ToolSetSpec {
   /** 唯一 ID，LoadToolSet 传这个 */
   id: string;
@@ -72,47 +80,48 @@ export interface ToolSetSpec {
   keywords: string[];
   /** 该工具集包含的工具名（必须与 handlers 里工具名一致） */
   tools: string[];
-  /** 默认激活（仅 core 设 true） */
+  /** 默认激活（core + task-control 设 true） */
   defaultEnabled?: boolean;
-  /** 懒加载器：返回 ToolEntry[] */
-  load: () => Promise<ToolEntry[]>;
 }
 
+/** 工具集运行时状态（core 层使用） */
 export interface ToolSetState {
   spec: ToolSetSpec;
   loaded: boolean;
-  toolEntries: ToolEntry[];
 }
 ```
 
-> **放在 `shared` 的理由**：UI、CLI、Web 可能需要读取工具集目录做展示/配置，不能耦合 `core` 实现。
+> **架构修正**：
+> - `ToolSetSpec` 放 `contracts`（纯数据），不依赖 `core` 的 `ToolEntry`
+> - 不放 `packages/shared`（那是 UI/protocol 共享层，不是契约层）
+> - `load` 函数留在 `core` 层，不跨包传递
 
 ---
 
 ### 2. Registry 扩展：批量注册/注销工具集
 
-**`packages/core/src/tool/registry.ts`** —— `ToolRegistryImpl` 类内新增
+**`apps/zcode-cli/packages/core/src/tool/registry.ts`** —— `ToolRegistryImpl` 类内新增
 
 ```typescript
-import type { ToolSetState } from '@zcode/shared/tool-sets.js';
+import type { ToolSetSpec, ToolSetState } from '@zcode/contracts';
 
 private toolSets = new Map<string, ToolSetState>();
 
 /** 批量注册一个工具集的所有工具 */
-registerToolSet(state: ToolSetState): void {
-  if (this.toolSets.has(state.spec.id)) return;
-  for (const entry of state.toolEntries) {
+registerToolSet(spec: ToolSetSpec, entries: ToolEntry[]): void {
+  if (this.toolSets.has(spec.id)) return;
+  for (const entry of entries) {
     this.register(entry, { silentDuplicateWarning: true });
   }
-  this.toolSets.set(state.spec.id, state);
+  this.toolSets.set(spec.id, { spec, loaded: true });
 }
 
 /** 批量注销一个工具集 */
 unregisterToolSet(setId: string): void {
   const state = this.toolSets.get(setId);
   if (!state) return;
-  for (const entry of state.toolEntries) {
-    this.unregister(entry.metadata.name);
+  for (const toolName of state.spec.tools) {
+    this.unregister(toolName);
   }
   this.toolSets.delete(setId);
 }
@@ -134,122 +143,172 @@ getToolSetCatalog(): { spec: ToolSetSpec; loaded: boolean }[] {
 }
 ```
 
+> **接口修正**：
+> - `registerToolSet` 接受 `spec` 和 `entries` 两个参数（解耦 load 逻辑）
+> - `unregisterToolSet` 按工具名注销（不依赖 entries 缓存）
+
 ---
 
 ### 3. 工具集目录：单一事实来源
 
-**`packages/core/src/tool/handlers/tool-set-catalog.ts`**
+**`apps/zcode-cli/packages/core/src/tool/handlers/tool-set-catalog.ts`**
 
 ```typescript
-import type { ToolSetSpec } from '@zcode/shared/tool-sets.js';
+import type { ToolSetSpec } from '@zcode/contracts';
+import type { ToolEntry } from '../types.js';
 
-export const builtInToolSets: ToolSetSpec[] = [
+export interface ToolSetLoader {
+  spec: ToolSetSpec;
+  load: () => Promise<ToolEntry[]> | ToolEntry[];
+}
+
+export const builtInToolSetLoaders: ToolSetLoader[] = [
   {
-    id: 'core',
-    description: 'Core file/terminal/web operations and task tracking (always active)',
-    keywords: ['file', 'read', 'write', 'edit', 'bash', 'terminal', 'web', 'fetch', 'search', 'todo', 'task'],
-    tools: ['Read', 'Write', 'Edit', 'Bash', 'WebFetch', 'WebSearch', 'TodoRead', 'TodoWrite'],
-    defaultEnabled: true,
-    load: async () => {
-      const { readToolEntry, writeToolEntry, editToolEntry, bashToolEntry, webFetchToolEntry, webSearchToolEntry, todoReadToolEntry, todoWriteToolEntry } 
-        = await import('./index.js');
-      return [readToolEntry, writeToolEntry, editToolEntry, bashToolEntry, webFetchToolEntry, webSearchToolEntry, todoReadToolEntry, todoWriteToolEntry];
+    spec: {
+      id: 'core',
+      description: 'Core file/terminal/web operations and structured search (always active)',
+      keywords: ['file', 'read', 'write', 'edit', 'bash', 'terminal', 'web', 'fetch', 'glob', 'grep', 'search', 'todo', 'task'],
+      tools: ['Read', 'Write', 'Edit', 'Bash', 'WebFetch', 'WebSearch', 'TodoRead', 'TodoWrite', 'Glob', 'Grep'],
+      defaultEnabled: true,
+    },
+    load: () => {
+      const { readToolEntry, writeToolEntry, editToolEntry, bashToolEntry, 
+              webFetchToolEntry, webSearchToolEntry, todoReadToolEntry, todoWriteToolEntry,
+              globToolEntry, grepToolEntry } 
+        = require('./index.js');
+      return [readToolEntry, writeToolEntry, editToolEntry, bashToolEntry, 
+              webFetchToolEntry, webSearchToolEntry, todoReadToolEntry, todoWriteToolEntry,
+              globToolEntry, grepToolEntry];
     },
   },
   {
-    id: 'plan',
-    description: 'Planning mode and user interaction tools',
-    keywords: ['plan', 'planning', 'question', 'user', 'interaction'],
-    tools: ['EnterPlanMode', 'ExitPlanMode', 'AskUserQuestion'],
-    load: async () => {
+    spec: {
+      id: 'task-control',
+      description: 'Background task control (TaskOutput, TaskStop) - always active for main session',
+      keywords: ['task', 'background', 'output', 'stop', 'control'],
+      tools: ['TaskOutput', 'TaskStop'],
+      defaultEnabled: true,
+    },
+    load: () => {
+      const { taskOutputToolEntry, taskStopToolEntry } = require('./index.js');
+      return [taskOutputToolEntry, taskStopToolEntry];
+    },
+  },
+  {
+    spec: {
+      id: 'plan',
+      description: 'Planning mode and user interaction tools',
+      keywords: ['plan', 'planning', 'question', 'user', 'interaction'],
+      tools: ['EnterPlanMode', 'ExitPlanMode', 'AskUserQuestion'],
+    },
+    load: () => {
       const { enterPlanModeToolEntry, exitPlanModeToolEntry, askUserQuestionToolEntry } 
-        = await import('./index.js');
+        = require('./index.js');
       return [enterPlanModeToolEntry, exitPlanModeToolEntry, askUserQuestionToolEntry];
     },
   },
   {
-    id: 'automation',
-    description: 'Scheduled and background task automation (cron, off-peak)',
-    keywords: ['cron', 'schedule', 'automation', 'offpeak', 'background', 'timer'],
-    tools: ['CronCreate', 'CronList', 'CronUpdate', 'CronDelete', 'OffPeakCreate', 'OffPeakList'],
-    load: async () => {
-      const { cronCreateToolEntry, cronListToolEntry, cronUpdateToolEntry, cronDeleteToolEntry, offPeakCreateToolEntry, offPeakListToolEntry } 
-        = await import('./index.js');
-      return [cronCreateToolEntry, cronListToolEntry, cronUpdateToolEntry, cronDeleteToolEntry, offPeakCreateToolEntry, offPeakListToolEntry];
+    spec: {
+      id: 'automation',
+      description: 'Scheduled and background task automation (cron, off-peak)',
+      keywords: ['cron', 'schedule', 'automation', 'offpeak', 'background', 'timer'],
+      tools: ['CronCreate', 'CronList', 'CronUpdate', 'CronDelete', 'OffPeakCreate', 'OffPeakList'],
+    },
+    load: () => {
+      const { cronCreateToolEntry, cronListToolEntry, cronUpdateToolEntry, cronDeleteToolEntry, 
+              offPeakCreateToolEntry, offPeakListToolEntry } = require('./index.js');
+      return [cronCreateToolEntry, cronListToolEntry, cronUpdateToolEntry, cronDeleteToolEntry, 
+              offPeakCreateToolEntry, offPeakListToolEntry];
     },
   },
   {
-    id: 'session',
-    description: 'AI session orchestration (create, send, read, stop, compact, permission)',
-    keywords: ['session', 'orchestration', 'ai', 'agent', 'subagent', 'permission', 'model', 'create', 'send', 'read', 'stop', 'compact'],
-    tools: ['CreateSession', 'SendSessionMessage', 'ReadSession', 'StopSessionGeneration', 'SetSessionModel', 'CompactSession', 'ResolveSessionPermission'],
-    load: async () => {
-      const mod = await import('./index.js');
+    spec: {
+      id: 'session',
+      description: 'AI session orchestration (create, send, read, stop, compact, permission)',
+      keywords: ['session', 'orchestration', 'ai', 'agent', 'subagent', 'permission', 'model', 'create', 'send', 'read', 'stop', 'compact'],
+      tools: ['CreateSession', 'SendSessionMessage', 'ReadSession', 'StopSessionGeneration', 'SetSessionModel', 'CompactSession', 'ResolveSessionPermission'],
+    },
+    load: () => {
+      const mod = require('./index.js');
       return [mod.createSessionToolEntry, mod.sendSessionMessageToolEntry, mod.readSessionToolEntry,
               mod.stopSessionGenerationToolEntry, mod.setSessionModelToolEntry, mod.compactSessionToolEntry,
               mod.resolveSessionPermissionToolEntry];
     },
   },
   {
-    id: 'subagent',
-    description: 'Subagent/actor communication and coordination channels',
-    keywords: ['agent', 'task', 'subagent', 'actor', 'message', 'coordinator', 'result', 'escalate', 'output', 'stop', 'context'],
-    tools: ['Agent', 'Task', 'Skill', 'SendMessage', 'RespondToCoordinator', 'SubmitResult', 'Escalate', 'TaskOutput', 'TaskStop', 'ReadSessionContext'],
-    load: async () => {
-      const mod = await import('./index.js');
+    spec: {
+      id: 'subagent',
+      description: 'Subagent/actor communication and coordination channels',
+      keywords: ['agent', 'task', 'subagent', 'actor', 'message', 'coordinator', 'result', 'escalate', 'context'],
+      tools: ['Agent', 'Task', 'Skill', 'SendMessage', 'RespondToCoordinator', 'submit_result', 'escalate', 'ReadSessionContext'],
+    },
+    load: () => {
+      const mod = require('./index.js');
       return [mod.agentToolEntry, mod.taskToolEntry, mod.skillToolEntry, mod.sendMessageToolEntry,
               mod.respondToCoordinatorToolEntry, mod.submitResultToolEntry, mod.escalateToolEntry,
-              mod.taskOutputToolEntry, mod.taskStopToolEntry, mod.readSessionContextToolEntry];
+              mod.readSessionContextToolEntry];
     },
   },
   {
-    id: 'workflow',
-    description: 'Dynamic workflow orchestration (create, amend, save, list, resume runs)',
-    keywords: ['workflow', 'orchestration', 'pipeline', 'automation', 'cron', 'schedule', 'run', 'create', 'amend', 'save', 'list', 'get', 'resume'],
-    tools: ['CreateWorkflow', 'AmendWorkflow', 'SaveWorkflow', 'EvalWorkflowSnippet', 'ListSavedWorkflows', 'ListModels', 'ListWorkflowRuns', 'GetWorkflowRun', 'ResumeWorkflowRun', 'ResolveWorkflowQuestion'],
-    load: async () => {
-      const mod = await import('./index.js');
+    spec: {
+      id: 'workflow',
+      description: 'Dynamic workflow orchestration (create, amend, save, list, resume runs)',
+      keywords: ['workflow', 'orchestration', 'pipeline', 'automation', 'run', 'create', 'amend', 'save', 'list', 'get', 'resume'],
+      tools: ['CreateWorkflow', 'AmendWorkflow', 'SaveWorkflow', 'EvalWorkflowSnippet', 'ListSavedWorkflows', 'ListModels', 'ListWorkflowRuns', 'GetWorkflowRun', 'ResumeWorkflowRun', 'ResolveWorkflowQuestion'],
+    },
+    load: () => {
+      const mod = require('./index.js');
       return [mod.createWorkflowToolEntry, mod.amendWorkflowToolEntry, mod.saveWorkflowToolEntry,
-              mod.listSavedWorkflowsToolEntry, mod.listModelsToolEntry, mod.listWorkflowRunsToolEntry,
-              mod.getWorkflowRunToolEntry, mod.resumeWorkflowRunToolEntry, mod.resolveWorkflowQuestionToolEntry];
+              mod.evalWorkflowSnippetToolEntry, mod.listSavedWorkflowsToolEntry, mod.listModelsToolEntry, 
+              mod.listWorkflowRunsToolEntry, mod.getWorkflowRunToolEntry, mod.resumeWorkflowRunToolEntry, 
+              mod.resolveWorkflowQuestionToolEntry];
     },
   },
   {
-    id: 'js',
-    description: 'JavaScript/Node.js REPL execution',
-    keywords: ['js', 'javascript', 'node', 'repl', 'eval', 'execute'],
-    tools: ['js'],
-    load: async () => {
-      const { jsToolEntry } = await import('./index.js');
+    spec: {
+      id: 'js',
+      description: 'JavaScript/Node.js REPL execution',
+      keywords: ['js', 'javascript', 'node', 'repl', 'eval', 'execute'],
+      tools: ['js'],
+    },
+    load: () => {
+      const { jsToolEntry } = require('./index.js');
       return [jsToolEntry];
     },
   },
   {
-    id: 'bot',
-    description: 'Remote platform command proxy (WeChat, Feishu, etc.) - auto-enabled when remote platform detected',
-    keywords: ['bot', 'wechat', 'feishu', 'remote', 'mobile', 'command', 'proxy'],
-    tools: ['BotCommand'],
-    load: async () => {
-      const { botCommandToolEntry } = await import('./index.js');
+    spec: {
+      id: 'bot',
+      description: 'Remote platform command proxy (WeChat, Feishu, etc.) - auto-enabled when remote platform detected',
+      keywords: ['bot', 'wechat', 'feishu', 'remote', 'mobile', 'command', 'proxy'],
+      tools: ['BotCommand'],
+    },
+    load: () => {
+      const { botCommandToolEntry } = require('./index.js');
       return [botCommandToolEntry];
     },
   },
 ];
 ```
 
+> **关键修正**：
+> - `load` 函数返回 `ToolEntry[]`（不是 `Promise`），使用同步 `require()`
+> - `spec` 与 `load` 分离，`spec` 可独立传递到 UI/协议层
+> - 工具名与 contracts 严格一致（`submit_result`、`escalate` 带下划线）
+
 ---
 
 ### 4. ToolSearch：只读入口，首轮直接给模型
 
-**`packages/core/src/tool/handlers/tool-search.ts`**
+**`apps/zcode-cli/packages/core/src/tool/handlers/tool-search.ts`**
 
 ```typescript
-import type { ToolEntry } from '../types.js';
-import { builtInToolSets } from './tool-set-catalog.js';
+import type { ToolEntry, ToolExecutionContext, ToolHandler } from '../types.js';
+import { builtInToolSetLoaders } from './tool-set-catalog.js';
 
 function buildDescription(): string {
-  const lines = builtInToolSets.map(s => 
-    `- ${s.id}: ${s.description} [keywords: ${s.keywords.join(', ')}]${s.defaultEnabled ? ' (default loaded)' : ''}`
+  const lines = builtInToolSetLoaders.map(({ spec }) => 
+    `- ${spec.id}: ${spec.description} [keywords: ${spec.keywords.join(', ')}]${spec.defaultEnabled ? ' (default loaded)' : ''}`
   );
   return `Discover available built-in tool sets. Call LoadToolSet to activate a set.
 
@@ -262,59 +321,99 @@ Usage:
 3. Then use tools directly (e.g., GhIssueList)`;
 }
 
+const execute: ToolHandler = async ({ query }, ctx: ToolExecutionContext) => {
+  const registry = ctx.toolSetRegistryPort;
+  if (!registry) {
+    return { error: 'ToolSetRegistry port not available' };
+  }
+  
+  const loadedSets = registry.listToolSets();
+  const loadedMap = new Map(loadedSets.map(s => [s.spec.id, s.loaded]));
+  
+  const q = query.toLowerCase();
+  const matches = builtInToolSetLoaders
+    .map(({ spec }) => spec)
+    .filter(s => !q || s.id.includes(q) || s.description.toLowerCase().includes(q) || s.keywords.some(k => k.includes(q)))
+    .map(s => ({
+      id: s.id,
+      description: s.description,
+      keywords: s.keywords,
+      tools: s.tools,
+      defaultEnabled: s.defaultEnabled,
+      loaded: loadedMap.get(s.id) ?? false,
+    }));
+    
+  return { toolSets: matches };
+};
+
 export const toolSearchToolEntry: ToolEntry = {
   metadata: {
     name: 'ToolSearch',
     description: buildDescription(),
     readOnly: true,
+    destructive: false,
     concurrentSafe: true,
+    needsApproval: false,
     sideEffectScope: 'none',
+    riskLevel: 'low',
     providerVisible: true,
   },
   capability: { type: 'function' },
-  executionMode: 'local',
+  executionMode: 'client',
   inputSchema: {
     type: 'object',
     properties: {
       query: { type: 'string', description: 'Keywords to filter tool sets (empty = list all)' },
     },
-    required: ['query'],
+    required: [],
   },
-  execute: async ({ query }, ctx) => {
-    const registry = ctx.runtime.registry;
-    const loadedSets = registry.listToolSets();
-    const loadedMap = new Map(loadedSets.map(s => [s.spec.id, s.loaded]));
-    
-    const q = query.toLowerCase();
-    const matches = builtInToolSets
-      .filter(s => !q || s.id.includes(q) || s.description.toLowerCase().includes(q) || s.keywords.some(k => k.includes(q)))
-      .map(s => ({
-        id: s.id,
-        description: s.description,
-        keywords: s.keywords,
-        tools: s.tools,
-        defaultEnabled: s.defaultEnabled,
-        loaded: loadedMap.get(s.id) ?? false,
-      }));
-    return { toolSets: matches };
-  },
+  execute,
 };
 ```
 
-**关键点**：
-- `description` 里**静态列出所有工具集摘要**（id、description、keywords、是否默认加载）
-- 返回值只包含**元数据**，不包含工具的输入 schema
-- `providerVisible: true` → 始终出现在 `registry.toContracts()` → 模型首轮可见
+> **架构修正**：
+> - `executionMode: 'client'`（不是 `'local'`，那不是有效值）
+> - `ctx.toolSetRegistryPort` 端口注入（不是 `ctx.runtime.registry`）
+> - 必需的元数据字段补全（`destructive`、`riskLevel`）
 
 ---
 
-### 5. LoadToolSet：写入口，需权限
+### 5. LoadToolSet：写入口，需权限，防 child 挂起
 
-**`packages/core/src/tool/handlers/load-tool-set.ts`**
+**`apps/zcode-cli/packages/core/src/tool/handlers/load-tool-set.ts`**
 
 ```typescript
-import type { ToolEntry } from '../types.js';
-import { builtInToolSets } from './tool-set-catalog.js';
+import type { ToolEntry, ToolExecutionContext, ToolHandler } from '../types.js';
+import { builtInToolSetLoaders } from './tool-set-catalog.js';
+
+const execute: ToolHandler = async ({ setId }, ctx: ToolExecutionContext) => {
+  const loader = builtInToolSetLoaders.find(l => l.spec.id === setId);
+  if (!loader) {
+    return { success: false, error: `Unknown tool set: ${setId}` };
+  }
+  
+  const registry = ctx.toolSetRegistryPort;
+  if (!registry) {
+    return { success: false, error: 'ToolSetRegistry port not available' };
+  }
+  
+  const existing = registry.getToolSet(setId);
+  if (existing?.loaded) {
+    return { success: true, message: `Tool set "${setId}" already loaded`, tools: loader.spec.tools };
+  }
+  
+  // 懒加载工具条目
+  const entries = loader.load();
+  registry.registerToolSet(loader.spec, entries);
+  
+  // **缓存失效必需步骤**：模型下一轮请求才能看到新工具
+  const runtimePort = ctx.agentRuntimePort;
+  if (runtimePort) {
+    runtimePort.invalidateToolCache();
+  }
+  
+  return { success: true, message: `Loaded tool set "${setId}"`, tools: loader.spec.tools };
+};
 
 export const loadToolSetToolEntry: ToolEntry = {
   metadata: {
@@ -324,12 +423,14 @@ Once loaded, all tools in that set become available for direct use.
 Requires user approval (modifies session tool surface).`,
     destructive: false,
     readOnly: false,
+    concurrentSafe: false,
     needsApproval: true,      // 修改工具面需要用户确认
     sideEffectScope: 'session',
+    riskLevel: 'medium',
     providerVisible: true,
   },
   capability: { type: 'function' },
-  executionMode: 'local',
+  executionMode: 'client',
   inputSchema: {
     type: 'object',
     properties: {
@@ -337,112 +438,156 @@ Requires user approval (modifies session tool surface).`,
     },
     required: ['setId'],
   },
-  execute: async ({ setId }, ctx) => {
-    const spec = builtInToolSets.find(s => s.id === setId);
-    if (!spec) {
-      return { success: false, error: `Unknown tool set: ${setId}` };
-    }
-    const registry = ctx.runtime.registry;
-    const existing = registry.getToolSet(setId);
-    if (existing?.loaded) {
-      return { success: true, message: `Tool set "${setId}" already loaded`, tools: spec.tools };
-    }
-    // 懒加载工具条目
-    const entries = await spec.load();
-    const state = { spec, loaded: true, toolEntries: entries };
-    registry.registerToolSet(state);
-    return { success: true, message: `Loaded tool set "${setId}"`, tools: spec.tools };
-  },
+  execute,
 };
 ```
 
-**关键点**：
-- `needsApproval: true` → 触发现有 `PermissionBroker` 流程，用户确认后才注册
-- 成功后调用 `registry.registerToolSet()` 批量注册，**永久驻留当前 `AgentRuntime`**
-- 返回 `tools: string[]` 告知模型「现在可以用这些工具名了」
+> **关键修正**：
+> - `ctx.toolSetRegistryPort` 和 `ctx.agentRuntimePort` 端口注入
+> - **调用 `invalidateToolCache()`**（MCP 先例：`runtime/methods/mcp.ts:147`）
+> - `concurrentSafe: false`（修改全局注册表不可并发）
+> - `riskLevel: 'medium'`（修改会话工具面）
 
 ---
 
-### 6. 启动时：自动加载默认工具集 + 元工具
+### 6. 端口定义：ToolSetRegistry 与 AgentRuntime
 
-**`packages/core/src/tool/handlers/index.ts`** —— 修改 `registerBuiltInTools`
+**`apps/zcode-cli/packages/contracts/src/tool-registry-port.ts`** (新文件)
 
 ```typescript
-import { builtInToolSets } from './tool-set-catalog.js';
+import type { ToolSetSpec, ToolSetState } from './tool-sets.js';
+
+export interface ToolSetRegistryPort {
+  registerToolSet(spec: ToolSetSpec, entries: unknown[]): void;
+  unregisterToolSet(setId: string): void;
+  getToolSet(setId: string): ToolSetState | undefined;
+  listToolSets(): ToolSetState[];
+}
+```
+
+**`apps/zcode-cli/packages/contracts/src/agent-runtime-port.ts`** (新文件)
+
+```typescript
+export interface AgentRuntimePort {
+  invalidateToolCache(): void;
+}
+```
+
+**`apps/zcode-cli/packages/core/src/tool/types.ts`** —— `ToolExecutionContext` 新增
+
+```typescript
+export interface ToolExecutionContext {
+  // ... 现有 50+ 字段
+  /** 工具集注册端口；ToolSearch/LoadToolSet 经此访问 ToolRegistry */
+  toolSetRegistryPort?: ToolSetRegistryPort;
+  /** Agent 运行时端口；LoadToolSet 用它失效工具缓存 */
+  agentRuntimePort?: AgentRuntimePort;
+}
+```
+
+> **架构修正**：
+> - 端口放 `contracts`（跨包契约）
+> - 避免 `ctx.runtime` 直接暴露（那会打破封装）
+> - 与现有端口注入模式一致（`executionPort`、`skillPort` 等）
+
+---
+
+### 7. 启动时：自动加载默认工具集 + 元工具
+
+**`apps/zcode-cli/packages/core/src/tool/handlers/index.ts`** —— 修改 `registerBuiltInTools`
+
+```typescript
+import { builtInToolSetLoaders } from './tool-set-catalog.js';
 import { toolSearchToolEntry } from './tool-search.js';
 import { loadToolSetToolEntry } from './load-tool-set.js';
 
-export async function registerBuiltInTools(
+export function registerBuiltInTools(
   registry: ToolRegistry,
   options: RegisterBuiltInToolsOptions = {},
-): Promise<void> {
+): void {
   // 1. 先注册两个元工具（永远可见）
   registry.register(toolSearchToolEntry);
   registry.register(loadToolSetToolEntry);
 
-  // 2. 自动加载 defaultEnabled: true 的工具集（core）
-  for (const spec of builtInToolSets) {
-    if (spec.defaultEnabled) {
-      const entries = await spec.load();
-      registry.registerToolSet({ spec, loaded: true, toolEntries: entries });
+  // 2. 自动加载 defaultEnabled: true 的工具集（core + task-control）
+  for (const loader of builtInToolSetLoaders) {
+    if (loader.spec.defaultEnabled) {
+      const entries = loader.load();
+      registry.registerToolSet(loader.spec, entries);
     }
   }
 
   // 3. 原有的 includeAgent/includeSkill 等门控逻辑保留，针对非默认工具集
   //    例如：includeZCodeTask 控制 session 工具集是否可被 LoadToolSet 加载
+  //    实现：在 ToolSearch.execute 里过滤未开启的工具集
   // ...
 }
 ```
 
-> **改为 `async`**：因为懒加载器是 `Promise<ToolEntry[]>`，启动时需 await。
+> **保持同步**：不改为 `async`（`load` 函数是同步的）
 
 ---
 
-### 7. 门控集成：复用现有 `includeXxx` 开关
+### 8. Workflow Child 防护：防止权限挂起
 
-在 `RegisterBuiltInToolsOptions` 里现有开关直接映射到工具集：
+**`apps/zcode-cli/packages/core/src/runtime/helpers/tool-allowlist.ts`** —— 修改 `WORKFLOW_CHILD_DISALLOWED_TOOLS`
 
 ```typescript
-interface RegisterBuiltInToolsOptions {
-  // ... 现有字段
-  includeAutomation?: boolean;      // automation 工具集
-  includeOffPeak?: boolean;         // automation 工具集（OffPeak*）
-  includeZCodeTask?: boolean;       // session 工具集
-  includeAgent?: boolean;           // subagent 工具集
-  includeSkill?: boolean;           // subagent 工具集
-  includeSendMessage?: boolean;     // subagent 工具集
-  includeRespondToCoordinator?: boolean; // subagent 工具集
-  includeSubmitResult?: boolean;    // subagent 工具集
-  includeEscalate?: boolean;        // subagent 工具集
-  includeDynamicWorkflow?: boolean; // workflow 工具集
-  includeNodeRepl?: boolean;        // js 工具集
-  includeBotCommand?: boolean;      // bot 工具集（远程平台检测到时由 Host 自动传 true）
-  embeddedSearchEnabled?: boolean;  // 隐藏 Glob/Grep，Bash 接管
-  // ...
+const WORKFLOW_CHILD_DISALLOWED_TOOLS = [
+  CREATE_WORKFLOW_TOOL_NAME,
+  AMEND_WORKFLOW_TOOL_NAME,
+  SAVE_WORKFLOW_TOOL_NAME,
+  RESUME_WORKFLOW_RUN_TOOL_NAME,
+  RESOLVE_WORKFLOW_QUESTION_TOOL_NAME,
+  // **LoadToolSet 同样声明 needsApproval: true**，在 child yolo 模式下会发出父界面
+  // 看不到的确认请求并挂到权限超时（与 CreateWorkflow 同根因）。
+  'LoadToolSet',  // ← 新增
+] as const;
+```
+
+> **血泪教训复现**：`tool-allowlist.ts:20-22` 注释已记录这个坑。
+
+---
+
+### 9. 双入口同步：runtime-tools + embedded-search-branch
+
+**`apps/zcode-cli/packages/core/src/runtime/helpers/runtime-tools.ts`** (启动入口)
+
+```typescript
+import { registerBuiltInTools } from '../../tool/handlers/index.js';
+
+export function setupRuntimeTools(runtime: AgentRuntimeInternal): void {
+  const registry = runtime.registry;
+  registerBuiltInTools(registry, {
+    embeddedSearchEnabled: runtime.config.embeddedSearchEnabled ?? true,
+    includeAgent: runtime.config.includeAgent,
+    includeZCodeTask: runtime.config.includeZCodeTask,
+    // ... 其他门控
+  });
 }
 ```
 
-在 `tool-search.ts` 的 `execute` 里过滤：对应开关为 `false` 时隐藏该工具集。
-
-**BotCommand 特殊逻辑**：
-```typescript
-// bootstrap/server-operations.ts 装配时
-includeBotCommand: !!deps.botsServicePort  // 只有远程平台注入 BotsServicePort 时为 true
-```
-
----
-
-### 8. Embedded Search 默认开启
-
-**`packages/core/src/tool/handlers/index.ts`** 调用处：
+**`apps/zcode-cli/packages/core/src/runtime/methods/embedded-search-branch.ts`** (shell 快照初始化)
 
 ```typescript
-// bootstrap 或 CLI 入口传递
-registerBuiltInTools(registry, { 
-  embeddedSearchEnabled: true,  // 默认开启，隐藏 Glob/Grep
-  ...otherOptions 
-})
+// 注入 embedded search 时，无需隐藏 Glob/Grep，只需注入 find()/grep() shell function
+export function refreshToolsForEmbeddedSearch(runtime: AgentRuntimeInternal): void {
+  // embedded search 分支只处理 shell function 注入，不触碰工具注册
+  // Glob/Grep 工具继续驻留在 registry 中，模型可根据需要选择：
+  // - 快速纯文本搜索 → 用 Bash find()/grep()
+  // - 结构化/权限敏感搜索 → 用 Glob/Grep 工具
+  
+  // shell prelude 由 ExecutionPort 负责注入，不在此处处理
+  // 缓存失效：仅当工具集改变时才需要
+  // 因为 embedded search 不改变可用工具集，所以无需调用 invalidateToolCache()
+}
 ```
+
+> **关键修正**：
+> - embedded search 分支**不隐藏 Glob/Grep**
+> - **不清空 registry**，工具集状态保持一致
+> - shell function 注入由 ExecutionPort 负责，registry 无需干预
+> - Glob/Grep 始终保留，模型可混合使用两种搜索策略
 
 ---
 
@@ -464,6 +609,7 @@ Model: [调用 ToolSearch({ query: "cron" })]
 Model: [调用 LoadToolSet({ setId: "automation" })]
 → 权限弹窗 → 用户批准
 → 返回: { success: true, tools: ["CronCreate", "CronList", ...] }
+→ runtime.invalidateToolCache() 被调用
 
 Model: [调用 CronCreate({ schedule: "0 2 * * *", command: "backup.sh" })]
 → 返回创建结果
@@ -480,7 +626,9 @@ Model: [调用 CronCreate({ schedule: "0 2 * * *", command: "backup.sh" })]
 | **会话级** | `ToolRegistry` 实例属于单个 `AgentRuntime`，随会话生命周期。会话结束销毁，新会话重新启动只加载 `defaultEnabled` 集 |
 | **跨会话不共享** | 会话 A 加载了 automation，会话 B 仍需自己 `LoadToolSet` |
 | **远程会话** | `workspaceIdentity` 隔离，远程 Host 维护自己的 `ToolRegistry`，本地只转发工具调用 |
-| **重连恢复** | Desktop continuous：`ToolRegistry` 内存态随进程存活；Web replayable：需在会话快照里持久化 `loadedToolSetIds: string[]`，重连时重放加载 |
+| **重连恢复** | Desktop continuous：`ToolRegistry` 内存态随进程存活；Web replayable：接受丢失（重连需重新 LoadToolSet，可接受） |
+
+> **不新增快照字段**：`loadedToolSetIds` 是可重建状态，不需持久化。接受重连后需重新加载的代价。
 
 ---
 
@@ -492,7 +640,7 @@ Model: [调用 CronCreate({ schedule: "0 2 * * *", command: "backup.sh" })]
 | `LoadToolSet` | 中 | **需审批** | 修改当前会话工具面（用户可见、可撤销） |
 | 工具集内工具 | 各自原有等级 | 各自原有规则 | 不变 |
 
-> **撤销**：后续可提供 `UnloadToolSet` 工具（对称），同样需审批。或用户在 UI 侧边栏点击卸载。
+> **Child 防护**：`LoadToolSet` 进 `WORKFLOW_CHILD_DISALLOWED_TOOLS`，避免权限挂起。
 
 ---
 
@@ -500,47 +648,64 @@ Model: [调用 CronCreate({ schedule: "0 2 * * *", command: "backup.sh" })]
 
 | 方案 | 首轮工具定义 token | 机制 |
 |------|-------------------|------|
-| 现状（40+ 全量） | ~20k | 全塞给模型 |
-| **ToolSearch + LoadToolSet + core** | **~5k** | 2 个元工具 + core 8 个工具 + 目录文本 |
+| 现状（48 个全量） | ~20k | 全塞给模型 |
+| **ToolSearch + LoadToolSet + core(10) + task-control(2)** | **~7k** | 2 个元工具 + 12 个默认工具 + 目录文本 |
 | 按需加载后 | +每集 ~1k | 模型用到时再 LoadToolSet |
+
+> **成本解析**：
+> - Glob/Grep 在 core 中默认加载，但与 Read/Bash 比，结构化搜索结果开销相对固定
+> - 大型搜索时，Glob/Grep 的结构化结果避免追加 Read 调用，总体 token 更效率
 
 ---
 
 ## 验收场景
 
-1. **冷启动**：新会话只看到 `ToolSearch`、`LoadToolSet` + `core` 8 个工具，token < 6k
-2. **Glob/Grep 隐藏**：`embeddedSearchEnabled: true` 时，模型不见 Glob/Grep，用 Bash `find()`/`grep()` 替代
-3. **按需加载**：模型搜 "cron" → 加载 automation 集 → 后续轮次直接用 `CronCreate`
-4. **持久驻留**：同一会话第 2 次用 automation 工具，无需再次 LoadToolSet
-5. **权限拦截**：用户拒绝 LoadToolSet → 模型收到拒绝，不能调用该集工具
-6. **会话隔离**：会话 A 加载了 session，会话 B 不受影响
-7. **BotCommand 自动门控**：本地 CLI 无 BotsServicePort → 不注册；远程手机连接有 BotsServicePort → 注册 BotCommand
-8. **远程透传**：远程会话加载工具集，本地只转发调用，不维护工具注册表
+1. **冷启动**：新会话只看到 `ToolSearch`、`LoadToolSet` + `core` 10 个工具（含 Glob/Grep）+ `task-control` 2 个工具，token ~7k
+2. **Glob/Grep 可用**：默认加载，提供结构化搜索、权限集成、token 预算
+3. **Embedded Search 补充**：`embeddedSearchEnabled: true` 时，Bash 同步注入 `find()`/`grep()` shell function 加速纯文本搜索
+4. **混合搜索策略**：
+   - 快速纯文本 → 用 Bash `find()` 或 `grep()`
+   - 大型结构化搜索 → 用 Glob/Grep 工具（避免追加 Read 调用）
+   - 权限敏感操作 → 必须用 Glob/Grep（权限集成）
+5. **按需加载**：模型搜 "cron" → 加载 automation 集 → 后续轮次直接用 `CronCreate`
+6. **持久驻留**：同一会话第 2 次用 automation 工具，无需再次 LoadToolSet
+7. **权限拦截**：用户拒绝 LoadToolSet → 模型收到拒绝，不能调用该集工具
+8. **会话隔离**：会话 A 加载了 session，会话 B 不受影响
+9. **BotCommand 自动门控**：本地 CLI 无 BotsServicePort → 不注册；远程手机连接有 BotsServicePort → 注册 BotCommand
+10. **远程透传**：远程会话加载工具集，本地只转发调用，不维护工具注册表
+11. **Child 防护**：workflow child 调用 `LoadToolSet` → 直接拒绝（工具不可用），不挂起
+12. **缓存失效**：LoadToolSet 后，模型下一个请求能看到新工具（`invalidateToolCache()` 生效）
+13. **双入口一致**：切换 embedded search 分支后，工具集状态正确重建，Glob/Grep 始终保留
 
 ---
 
-## 实现顺序
+## 实现文件清单
 
-| 步骤 | 交付 | 预估 |
-|------|------|------|
-| 1 | `packages/shared/src/tool-sets.ts` | 10 min |
-| 2 | `packages/core/src/tool/handlers/tool-set-catalog.ts`（按上表分组） | 30 min |
-| 3 | `packages/core/src/tool/registry.ts` 扩展 `registerToolSet` 等 | 15 min |
-| 4 | `tool-search.ts` / `load-tool-set.ts` 两个 handler | 20 min |
-| 5 | `handlers/index.ts` 修改 `registerBuiltInTools`（改 async、自动加载 core、注册元工具） | 15 min |
-| 6 | 启动入口默认传 `embeddedSearchEnabled: true` | 5 min |
-| 7 | Contracts schema 同步（`ToolSearch`、`LoadToolSet` 入 `@zcode/contracts`） | 10 min |
-| 8 | `pnpm typecheck && pnpm lint` 通过 | 5 min |
-| 9 | 手动验证：新会话 token 数、LoadToolSet 流程、会话隔离、Glob/Grep 隐藏 | 20 min |
+| 文件 | 改动类型 | 说明 |
+|------|---------|------|
+| `apps/zcode-cli/packages/contracts/src/tool-sets.ts` | 新增 | `ToolSetSpec`、`ToolSetState` 数据定义 |
+| `apps/zcode-cli/packages/contracts/src/tool-registry-port.ts` | 新增 | `ToolSetRegistryPort` 端口契约 |
+| `apps/zcode-cli/packages/contracts/src/agent-runtime-port.ts` | 新增 | `AgentRuntimePort` 端口契约 |
+| `apps/zcode-cli/packages/core/src/tool/handlers/tool-set-catalog.ts` | 新增 | 工具集目录 + 加载器 |
+| `apps/zcode-cli/packages/core/src/tool/handlers/tool-search.ts` | 新增 | `ToolSearch` handler |
+| `apps/zcode-cli/packages/core/src/tool/handlers/load-tool-set.ts` | 新增 | `LoadToolSet` handler |
+| `apps/zcode-cli/packages/core/src/tool/types.ts` | 修改 | `ToolExecutionContext` 新增端口字段 |
+| `apps/zcode-cli/packages/core/src/tool/registry.ts` | 修改 | `ToolRegistryImpl` 新增工具集管理方法 |
+| `apps/zcode-cli/packages/core/src/tool/handlers/index.ts` | 修改 | `registerBuiltInTools` 加载默认工具集 + 元工具 |
+| `apps/zcode-cli/packages/core/src/runtime/helpers/tool-allowlist.ts` | 修改 | `WORKFLOW_CHILD_DISALLOWED_TOOLS` 加入 `LoadToolSet` |
+| `apps/zcode-cli/packages/core/src/runtime/helpers/runtime-tools.ts` | 修改 | 启动时注册工具集（传 embeddedSearchEnabled） |
+| `apps/zcode-cli/packages/core/src/runtime/methods/embedded-search-branch.ts` | 修改 | 切换分支时重新注册工具集 + 失效缓存 |
+| `apps/zcode-cli/packages/core/src/runtime/agent-runtime.ts` | 修改 | 实现 `AgentRuntimePort`，注入 `toolSetRegistryPort` |
 
 ---
 
 ## 依赖与阻塞
 
 - 无外部依赖，纯内部接线
-- 需同步更新 `packages/contracts/src/tools/` 新增两个工具 schema
 - 需运行 `pnpm --filter @zcode/contracts run build` 生成 dist
-- **不阻塞**：现有 42 个工具 handler 不动、权限流不动、协议不动
+- 需运行 `pnpm typecheck && pnpm lint` 通过
+- 需运行 `pnpm architecture:check` 验证无循环依赖
+- **不阻塞**：现有 48 个工具 handler 不动、权限流不动、协议不动
 
 ---
 
@@ -552,7 +717,7 @@ Model: [调用 CronCreate({ schedule: "0 2 * * *", command: "backup.sh" })]
 | `MCP` | 正交。MCP 工具走 `mcp_handler_cache.appendMcpTools()` 另一条管道 |
 | `DynamicWorkflow` | 正交。Workflow 工具集是内置工具集之一（`includeDynamicWorkflow` 门控） |
 | `OffPeak` / `Cron` / `BotCommand` | 同机制：受 `includeXxx` 开关控制的工具集 |
-| `Embedded Search` | 互斥：开启时隐藏 Glob/Grep，Bash 接管搜索 |
+| `Embedded Search` | 补充能力：Bash `find()`/`grep()` 加速纯文本搜索，与 Glob/Grep 工具并存 |
 
 ---
 
@@ -562,6 +727,7 @@ Model: [调用 CronCreate({ schedule: "0 2 * * *", command: "backup.sh" })]
 - `LoadToolSet` 加载器抛错 → 返回 `{ success: false, error: "load failed: ..." }`，回滚不注册
 - `ToolSearch` 查询无结果 → 返回 `{ toolSets: [] }`，不报错
 - 工具集 ID 冲突 → `registerToolSet` 幂等，已加载直接返回成功
+- Workflow child 调用 `LoadToolSet` → 直接拒绝（`WORKFLOW_CHILD_DISALLOWED_TOOLS` 拦截）
 
 ---
 
@@ -574,3 +740,4 @@ Model: [调用 CronCreate({ schedule: "0 2 * * *", command: "backup.sh" })]
 | 远程工具集发现 | 从远程 Host 拉取可用工具集目录 |
 | 工具集依赖图 | `dependsOn: ['core']` 自动级联加载 |
 | UI 侧边栏管理 | 用户可在 UI 点击启用/禁用工具集，不依赖模型调用 |
+| 快照持久化 | `loadedToolSetIds: string[]` 存入快照，远程重连自动恢复 |

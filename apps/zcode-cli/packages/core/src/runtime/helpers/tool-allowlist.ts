@@ -1,6 +1,7 @@
 import {
   AMEND_WORKFLOW_TOOL_NAME,
   CREATE_WORKFLOW_TOOL_NAME,
+  LOAD_TOOL_SET_TOOL_NAME,
   RESOLVE_WORKFLOW_QUESTION_TOOL_NAME,
   RESPOND_TO_COORDINATOR_TOOL_NAME,
   RESUME_WORKFLOW_RUN_TOOL_NAME,
@@ -22,6 +23,9 @@ const EXPLORE_AGENT_ALLOWED_TOOL_SET = new Set<string>(EXPLORE_AGENT_ALLOWED_TOO
  * child 拿到的是干净的"工具不可用"错误，而不是隐形挂起。
  *
  * 长期解法是把 workflow child 的交互事件也镜像到父会话，随执行引擎落地时一并处理
+ *
+ * LoadToolSet 进列是因为结构性禁用：child 不应修改父会话的工具面（可能污染并发运行的其他
+ * 代理）。动态加载本质是 child 对 runtime 状态的侵入性修改，即使 needsApproval=false。
  */
 const WORKFLOW_CHILD_DISALLOWED_TOOLS = [
   CREATE_WORKFLOW_TOOL_NAME,
@@ -44,6 +48,8 @@ const WORKFLOW_CHILD_DISALLOWED_TOOLS = [
   // 先例）：那一份是 driver 侧 persona 工具面的减法；这一份按 taskType 覆盖全部 workflow
   // child，不依赖 driver 记得写。
   RESOLVE_WORKFLOW_QUESTION_TOOL_NAME,
+  // 动态工具集加载：结构性禁用。child 不应修改父会话的工具面（可能污染并发运行的其他代理）。
+  LOAD_TOOL_SET_TOOL_NAME,
 ] as const;
 
 /**

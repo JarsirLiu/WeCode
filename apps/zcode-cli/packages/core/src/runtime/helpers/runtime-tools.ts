@@ -13,6 +13,7 @@ import type { AgentRuntimeDeps } from "../types.js";
 import { resolveRuntimeEmbeddedSearchEnabled } from "../methods/embedded-search-branch.js";
 import { getSessionShellSelectionFromConfig } from "../methods/session-shell-environment.js";
 import { createRuntimeSessionModePort } from "../session-mode-port.js";
+import { createToolSetLoaderPort } from "./tool-set-loader-port.js";
 import { shouldSuppressSealedSubagentBashNotification } from "../../runtime-task/notification-policy.js";
 import {
   resolveBuiltInToolAllowlist,
@@ -207,6 +208,7 @@ function createRuntimeToolExecutor(
     dynamicWorkflowRunPort: deps.dynamicWorkflowRunPort,
     dynamicWorkflowSnippetPort: deps.dynamicWorkflowSnippetPort,
     modelCatalogPort: deps.modelCatalogPort,
+    toolSetLoaderPort: createToolSetLoaderPort(runtime),
     runtimeTaskRegistry: runtime.runtimeTaskRegistry,
     readFileState: runtime.readFileState,
     // 工作流创作工具的技能门（tool/handlers/workflow-skill-gate.ts）：按模型此刻看得见的历史回答
