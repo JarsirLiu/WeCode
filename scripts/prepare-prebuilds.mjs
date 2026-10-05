@@ -520,7 +520,7 @@ async function stageRemoteBundledSkillPack(glmDir) {
 // 远端部署时已经有一份独立 node（跑 zcode-server.cjs），agent 复用它执行 zcode.cjs 即可，
 // 不必再为每个平台准备一份内嵌 node 的 SEA 二进制。zcode.cjs 跨平台同一份，逐平台只是放进各自的
 // glm/<platform> 组件目录，保持现有 manifest 组件结构不变。
-async function stageRemoteAgentBundles() {
+async function stageRemoteAgentBundles(targetPlatforms = remotePlatforms) {
   console.log("==> Building zcode-cli bundle for remote agents");
   // 复用桌面同款构建脚本（turbo build:desktop-agent --filter=@zcode/cli），命中缓存时几乎瞬时。
   runCommand(process.execPath, [join(rootDir, "scripts/build-desktop-agent-cli.mjs")], {
@@ -535,7 +535,7 @@ async function stageRemoteAgentBundles() {
     throw new Error(`[prepare-prebuilds] expected cli bundle missing: ${cliBundlePath}`);
   }
 
-  for (const platformKey of remotePlatforms) {
+  for (const platformKey of targetPlatforms) {
     const glmDir = join(releaseDir, "glm", platformKey);
     // 干净重建：glm 组件现在只含 zcode.cjs，清掉历史遗留的原生二进制 / 旧 meta，
     // 避免被打进组件 tar 把远端资源撑大。
@@ -777,9 +777,9 @@ export function restoreReusableReleaseAssets({
   }
 }
 
-function buildReusableComponentDefinitionsByPlatform() {
+function buildReusableComponentDefinitionsByPlatform(targetPlatforms = remotePlatforms) {
   return new Map(
-    remotePlatforms.map((platformKey) => [
+    targetPlatforms.map((platformKey) => [
       platformKey,
       buildRemoteComponentDefinitions(platformKey).map((component) => ({
         id: component.id,
@@ -977,13 +977,13 @@ export function prepareRemoteComponentArtifact({
   };
 }
 
-function prepareRemoteComponentArtifacts() {
+function prepareRemoteComponentArtifacts(targetPlatforms = remotePlatforms) {
   console.log("==> Packaging component artifacts and manifests");
 
   const componentRootDir = join(mockCdnDir, "components");
   mkdirSync(componentRootDir, { recursive: true });
 
-  for (const platformKey of remotePlatforms) {
+  for (const platformKey of targetPlatforms) {
     const componentManifestEntries = [];
     const componentDefinitions = buildRemoteComponentDefinitions(platformKey);
     const previousComponents = normalizeManifestComponents(
@@ -1028,7 +1028,18 @@ function prepareRemoteComponentArtifacts() {
   }
 }
 
+function getTargetPlatforms() {
+  const envPlatforms = process.env.ZCODE_REMOTE_ASSET_PLATFORMS?.trim();
+  if (envPlatforms) {
+    const platforms = envPlatforms.split(",").map(p => p.trim()).filter(Boolean);
+    console.log(`==> Building remote assets for specific platforms: ${platforms.join(", ")}`);
+    return platforms;
+  }
+  return remotePlatforms;
+}
+
 async function main() {
+  const targetPlatforms = getTargetPlatforms();
   console.log(`==> Preparing mock CDN release in ${releaseDir}`);
 
   mkdirSync(releaseDir, { recursive: true });
@@ -1036,22 +1047,94 @@ async function main() {
     mockCdnDir,
     currentVersion: version,
     releaseDir,
-    componentDefinitionsByPlatform: buildReusableComponentDefinitionsByPlatform(),
+    componentDefinitionsByPlatform: buildReusableComponentDefinitionsByPlatform(targetPlatforms),
   });
 
-  await prepareNodeBinaries();
+  // 只为目标平台准备 node binaries
+  for (const platformKey of targetPlatforms) {
+    const nodeDir = join(releaseDir, "node", platformKey);
+    const nodeBinaryPath = join(nodeDir, "node");
+    await stageNodeNotices(nodeDir, nodeVersion, rootDir);
+
+    if (!existsSync(nodeBinaryPath)) {
+      mkdirSync(nodeDir, { recursive: true });
+      const archiveName = `node-${nodeVersion}-${platformKey}.tar.xz`;
+      const url = `${nodeDistBase()}/${nodeVersion}/${archiveName}`;
+      console.log(`  [download] ${url}`);
+      try {
+        await extractArchiveMember(url, nodeDir, `node-${nodeVersion}-${platformKey}/bin/node`);
+        chmodSync(nodeBinaryPath, 0o755);
+        console.log(`  [ok] mock-cdn node/${platformKey}`);
+      } catch (error) {
+        console.error(`  [error] 下载或解压失败: ${url}`);
+        throw error;
+      }
+    } else {
+      console.log(`  [skip] mock-cdn node/${platformKey} already exists`);
+    }
+  }
+
   buildServerBundle();
   copyServerBundle();
-  copyNodePtyPrebuilds();
-  await stageRemoteAgentBundles();
-  await prepareRemoteNativeSearchTools();
+
+  // 只为目标平台拷贝 node-pty
+  for (const platformKey of targetPlatforms) {
+    const ptyDir = join(releaseDir, "node-pty", platformKey);
+    const targetBinaryPath = join(ptyDir, "pty.node");
+    const targetSpawnHelperPath = join(ptyDir, "spawn-helper");
+    const requiresSpawnHelper = platformKey.startsWith("darwin-");
+
+    if (
+      existsSync(targetBinaryPath) &&
+      (!requiresSpawnHelper || existsSync(targetSpawnHelperPath))
+    ) {
+      console.log(`  [skip] mock-cdn node-pty/${platformKey} already exists`);
+      continue;
+    }
+
+    mkdirSync(ptyDir, { recursive: true });
+
+    const packageName = resolveNodePtyPackageName(platformKey);
+    let packageRoot;
+    try {
+      packageRoot = resolveDedicatedPackageRoot(packageName, join(rootDir, "packages/server"));
+    } catch {
+      console.log(`  [warn] ${packageName} not found, run: pnpm install`);
+      continue;
+    }
+
+    const sourcePrebuildDir = join(packageRoot, "prebuilds", platformKey);
+    const sourceBinaryPath = join(sourcePrebuildDir, "pty.node");
+    if (!existsSync(sourceBinaryPath)) {
+      console.log(`  [warn] binary not found at ${sourceBinaryPath}`);
+      continue;
+    }
+
+    copyFileSync(sourceBinaryPath, targetBinaryPath);
+    if (requiresSpawnHelper) {
+      const sourceSpawnHelperPath = join(sourcePrebuildDir, "spawn-helper");
+      if (!existsSync(sourceSpawnHelperPath)) {
+        console.log(`  [warn] spawn-helper not found at ${sourceSpawnHelperPath}`);
+        continue;
+      }
+      copyFileSync(sourceSpawnHelperPath, targetSpawnHelperPath);
+      chmodSync(targetSpawnHelperPath, 0o755);
+    }
+    console.log(`  [ok] mock-cdn node-pty/${platformKey} (copied from ${packageName})`);
+  }
+
+  await stageRemoteAgentBundles(targetPlatforms);
+
+  // 只为目标平台准备 native search tools
+  await prepareRemoteNativeSearchTools({ platforms: targetPlatforms });
+
   // 修复：server、pty、agent 均可独立下载，需在组件哈希计算前补齐各自的声明。
   await stageThirdPartyNotices(join(releaseDir, "server"), rootDir);
-  for (const platformKey of remotePlatforms) {
+  for (const platformKey of targetPlatforms) {
     await stageThirdPartyNotices(join(releaseDir, "node-pty", platformKey), rootDir);
     await stageThirdPartyNotices(join(releaseDir, "glm", platformKey), rootDir);
   }
-  prepareRemoteComponentArtifacts();
+  prepareRemoteComponentArtifacts(targetPlatforms);
 
   console.log(`==> Done! Mock CDN release ready at ${releaseDir}`);
 }

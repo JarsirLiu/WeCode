@@ -1,12 +1,11 @@
-# 桌面安装包产物构建
+# 桌面安装包 + 远程连接资源 产物构建
 #
 # 触发方式：
-#   - 打 tag（v*）：五个目标全量构建，并创建 GitHub Release。这是主路径。
-#   - 手动 workflow_dispatch：用三个开关选子集，便于单独重跑某个平台。
+#   - 打 tag（v*）：全量构建，并创建 GitHub Release。这是主路径。
+#   - 手动 workflow_dispatch：用开关选子集，便于单独重跑某类产物。
 #
-# 注意：这不是交叉编译。每个 job 都在对应 OS 的原生 runner 上编自己那个平台。
-# node-pty 是原生模块，真正的跨平台交叉编译走不通；标准做法就是原生 runner 并行编。
-# 私有仓库拿不到 macos/windows 托管 runner，本流程按公开仓库配置。
+# 架构：安装包构建与远程资源构建完全解耦为独立 job 并行跑，
+# 任意一方失败不阻断另一方；publish 需两类 artifact 齐全才发布。
 
 name: build-desktop
 
@@ -16,18 +15,23 @@ on:
       - "v*"
   workflow_dispatch:
     inputs:
-      build_linux:
-        description: "构建 Linux（x64 + arm64）"
+      build_installer_linux:
+        description: "构建 Linux 安装包（x64 + arm64）"
         required: false
         type: boolean
         default: true
-      build_mac:
-        description: "构建 macOS（arm64 + x64）"
+      build_installer_mac:
+        description: "构建 macOS 安装包（arm64 + x64）"
         required: false
         type: boolean
         default: true
-      build_win:
-        description: "构建 Windows x64"
+      build_installer_win:
+        description: "构建 Windows 安装包（x64）"
+        required: false
+        type: boolean
+        default: true
+      build_remote_assets:
+        description: "构建远程连接资源（6 平台并行：linux-x64/arm64, darwin-x64/arm64, win32-x64）"
         required: false
         type: boolean
         default: true
@@ -44,23 +48,20 @@ env:
   # 与 publish 阶段要求的 WeCode-${version}-... 文件名不一致。
   ZCODE_ENV: production
   ZCODE_PREVIEW_IDENTITY: "0"
-  # 桌面安装包不依赖 mock-cdn remote 资产（远端资源生产态运行时从 CDN 下载）。
-  # 开关见 prepare-runtime-assets.mjs，作者就是为 CI 加的：无条件准备 remote 资产
-  # 会把 CI 时间串行拉高到逼近 1 小时上限。
-  ZCODE_SKIP_REMOTE_ASSETS: "1"
+  # 远程资源 CDN 基址，发布时指向 GitHub Releases
+  ZCODE_CDN_BASE_URL: https://github.com/${{ github.repository }}/releases/download
+  ZCODE_REMOTE_ASSET_CDN_BASE_URL: https://github.com/${{ github.repository }}/releases/download
+
+# ============================================================
+# 1) 安装包构建：每平台一个独立 job，互不依赖
+# ============================================================
 
 jobs:
-  build-linux:
-    if: github.event_name != 'workflow_dispatch' || inputs.build_linux == true
-    name: Linux ${{ matrix.arch }}
+  build-installer-linux-x64:
+    if: github.event_name != 'workflow_dispatch' || inputs.build_installer_linux == true
+    name: Installer Linux x64
     runs-on: ubuntu-24.04
     timeout-minutes: 55
-    strategy:
-      fail-fast: false
-      # Linux 走纯打包（AppImage/deb/rpm/zst），不涉及签名和 wine，
-      # x64 runner 上交叉编 arm64 是安全的。
-      matrix:
-        arch: [x64, arm64]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -79,14 +80,10 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install pacman packaging tools
-        # pacman target 由 fpm 生成 .MTREE，依赖 bsdtar（libarchive-tools）。
-        # ubuntu-24.04 镜像默认不带；AppImage/deb/rpm 三个 target 不需要它。
         run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends libarchive-tools
 
       - name: Build installer
-        # bundle:desktop 内部已含 pnpm run 的分隔符，这里再加 -- 会被原样透传成字符串参数。
-        # --publish never 关闭 electron-builder 的隐式发布（tag push 会触发），产物由 publish job 统一发。
-        run: pnpm bundle:desktop --os linux --arch ${{ matrix.arch }} --publish never
+        run: pnpm bundle:desktop --os linux --arch x64 --publish never
 
       - name: Show generated installers
         if: github.event_name == 'workflow_dispatch'
@@ -98,7 +95,7 @@ jobs:
         shell: bash
         env:
           VERSION: ${{ github.ref_name }}
-          ARCH: ${{ matrix.arch }}
+          ARCH: x64
         run: |
           set -euo pipefail
           VERSION="${VERSION#v}"
@@ -108,29 +105,75 @@ jobs:
             test -s "$asset" || { echo "Missing Linux installer: $asset" >&2; exit 1; }
           done
 
-      - name: Upload artifact
+      - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: desktop-linux-${{ matrix.arch }}
-          path: packages/desktop/dist/*
+          name: desktop-linux-x64
+          path: packages/desktop/dist/*.{AppImage,deb,rpm,pkg.tar.zst}
           if-no-files-found: error
           retention-days: 30
 
-  build-mac:
-    if: github.event_name != 'workflow_dispatch' || inputs.build_mac == true
-    name: macOS ${{ matrix.arch }}
-    runs-on: ${{ matrix.runner }}
+  build-installer-linux-arm64:
+    if: github.event_name != 'workflow_dispatch' || inputs.build_installer_linux == true
+    name: Installer Linux arm64
+    runs-on: ubuntu-24.04
     timeout-minutes: 55
-    strategy:
-      fail-fast: false
-      # macos-15 是 arm64 runner，macos-14 是 x64 runner。各自在自己架构上编，
-      # 不交叉：dmg-builder 和 arm64/x64 原生产物在跨架构时容易出 Mach-O 问题。
-      matrix:
-        include:
-          - arch: arm64
-            runner: macos-15
-          - arch: x64
-            runner: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.14.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install pacman packaging tools
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends libarchive-tools
+
+      - name: Build installer
+        run: pnpm bundle:desktop --os linux --arch arm64 --publish never
+
+      - name: Show generated installers
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: find packages/desktop/dist -maxdepth 1 -type f -printf '%f\n' | sort
+
+      - name: Validate Linux installers
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          VERSION: ${{ github.ref_name }}
+          ARCH: arm64
+        run: |
+          set -euo pipefail
+          VERSION="${VERSION#v}"
+          find packages/desktop/dist -maxdepth 1 -type f -printf '%f\n' | sort
+          for ext in AppImage deb rpm pkg.tar.zst; do
+            asset="packages/desktop/dist/WeCode-${VERSION}-linux-${ARCH}.${ext}"
+            test -s "$asset" || { echo "Missing Linux installer: $asset" >&2; exit 1; }
+          done
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-linux-arm64
+          path: packages/desktop/dist/*.{AppImage,deb,rpm,pkg.tar.zst}
+          if-no-files-found: error
+          retention-days: 30
+
+  build-installer-mac-arm64:
+    if: github.event_name != 'workflow_dispatch' || inputs.build_installer_mac == true
+    name: Installer macOS arm64
+    runs-on: macos-15
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
         with:
@@ -149,19 +192,52 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build installer
-        run: pnpm bundle:desktop --os mac --arch ${{ matrix.arch }} --publish never
+        run: pnpm bundle:desktop --os mac --arch arm64 --publish never
 
-      - name: Upload artifact
+      - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: desktop-mac-${{ matrix.arch }}
-          path: packages/desktop/dist/*
+          name: desktop-mac-arm64
+          path: packages/desktop/dist/*.{dmg,zip}
           if-no-files-found: error
           retention-days: 30
 
-  build-win:
-    if: github.event_name != 'workflow_dispatch' || inputs.build_win == true
-    name: Windows x64
+  build-installer-mac-x64:
+    if: github.event_name != 'workflow_dispatch' || inputs.build_installer_mac == true
+    name: Installer macOS x64
+    runs-on: macos-14
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.14.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build installer
+        run: pnpm bundle:desktop --os mac --arch x64 --publish never
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-mac-x64
+          path: packages/desktop/dist/*.{dmg,zip}
+          if-no-files-found: error
+          retention-days: 30
+
+  build-installer-win-x64:
+    if: github.event_name != 'workflow_dispatch' || inputs.build_installer_win == true
+    name: Installer Windows x64
     runs-on: windows-2022
     timeout-minutes: 55
     steps:
@@ -184,24 +260,93 @@ jobs:
       - name: Build installer
         run: pnpm bundle:desktop --os win --arch x64 --publish never
 
-      - name: Upload artifact
+      - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
           name: desktop-win-x64
-          path: packages/desktop/dist/*
+          path: packages/desktop/dist/*.exe
           if-no-files-found: error
           retention-days: 30
 
+# ============================================================
+# 2) 远程连接资源构建：独立 matrix，6 平台并行
+# ============================================================
+
+  build-remote-assets:
+    if: github.event_name != 'workflow_dispatch' || inputs.build_remote_assets == true
+    name: Remote Assets ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x64
+            runner: ubuntu-24.04
+            mock_platform: linux-x64
+          - platform: linux-arm64
+            runner: ubuntu-24.04
+            mock_platform: linux-arm64
+          - platform: darwin-x64
+            runner: macos-14
+            mock_platform: darwin-x64
+          - platform: darwin-arm64
+            runner: macos-15
+            mock_platform: darwin-arm64
+          - platform: win32-x64
+            runner: windows-2022
+            mock_platform: win32-x64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.14.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prepare remote assets (mock-cdn)
+        # 只构建当前平台对应的 mock-cdn 产物，避免重复下载/编译
+        env:
+          ZCODE_REMOTE_ASSET_PLATFORMS: ${{ matrix.mock_platform }}
+        run: |
+          pnpm prepare:remote-assets
+          pnpm pack:remote-assets
+
+      - name: Upload remote assets artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: remote-assets-${{ matrix.platform }}
+          path: packages/desktop/dist/remote-assets/${{ matrix.platform }}/*
+          if-no-files-found: error
+          retention-days: 30
+
+# ============================================================
+# 3) 发布：需所有安装包 job + 远程资源 job 全部成功
+# ============================================================
+
   publish:
     if: startsWith(github.ref, 'refs/tags/v')
-    name: Create release
-    needs: [build-linux, build-mac, build-win]
+    name: Create Release
+    needs:
+      - build-installer-linux-x64
+      - build-installer-linux-arm64
+      - build-installer-mac-arm64
+      - build-installer-mac-x64
+      - build-installer-win-x64
+      - build-remote-assets
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
-          # gh release create --verify-tag 要用 git 本地核对 tag 对象；job 默认不 checkout，
-          # 目录里没有 .git 会直接 fatal。fetch-depth 0 同时拉全所有 tag。
           fetch-depth: 0
 
       - name: Collect artifacts
@@ -219,7 +364,7 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           assets=()
 
-          # 下载产物可能包含 linux-*-unpacked 等辅助目录；逐个收集正式安装包，避免 gh 将目录当作上传文件。
+          # --- 收集安装包 ---
           for arch in x64 arm64; do
             for ext in AppImage deb rpm pkg.tar.zst; do
               assets+=("release-assets/WeCode-${VERSION}-linux-${arch}.${ext}")
@@ -233,6 +378,25 @@ jobs:
           for asset in "${assets[@]}"; do
             test -s "$asset" || { echo "Missing release installer: $asset" >&2; exit 1; }
           done
+
+          # --- 收集远程连接资源（6 平台 × 约 7 组件 + manifest）---
+          remote_platforms=(linux-x64 linux-arm64 darwin-x64 darwin-arm64 win32-x64)
+          found_remote=0
+          for platform in "${remote_platforms[@]}"; do
+            if [[ -d "release-assets/remote-assets-${platform}" ]]; then
+              for file in release-assets/remote-assets-${platform}/*; do
+                [[ -f "$file" ]] && assets+=("$file")
+              done
+              ((found_remote++))
+            fi
+          done
+          echo "Found remote assets for ${found_remote} platforms"
+
+          # 校验：tag push 时要求远程资源全平台齐全
+          if [[ $found_remote -ne 6 ]]; then
+            echo "ERROR: Expected 6 remote asset platforms, got ${found_remote}" >&2
+            exit 1
+          fi
 
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" "${assets[@]}" --clobber --repo "$GITHUB_REPOSITORY"
