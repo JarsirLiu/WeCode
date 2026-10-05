@@ -23,6 +23,7 @@ import type {
 } from "@zcode/shared";
 import { isZCodeAgentMcpStatusModeUnsupportedError, type IMcpSyncService } from "@zcode/services";
 import { Button } from "@/components/ui/button.js";
+import { Switch } from "@/components/ui/switch.js";
 import { toast } from "@/components/ui/toast.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
@@ -72,6 +73,8 @@ import { ExternalLink, Import, Plus, UploadCloud } from "lucide-react";
 import { SettingsSegmentedTabs } from "@/settings/SettingsSegmentedTabs.js";
 import { formatRemoteSkillSyncTarget } from "@/settings/RemoteSkillSyncDialog.js";
 import { selectPluginsForScope } from "@/settings/pluginCapabilityProjection.js";
+import { McpConfigDisplay } from "@/settings/McpConfigDisplay.js";
+import { McpEnableToggle } from "@/settings/McpEnableToggle.js";
 
 const DEFAULT_MCP_SOURCE: ServerScope = "zcodeagentmcp";
 const MCP_OAUTH_AUTHORIZATION_STATUS_REFRESH_MS = 1_000;
@@ -548,6 +551,8 @@ interface McpSettingsSectionProps {
   onFormScopeKeyChange?: (scopeKey: string | null) => void;
   onOpenPluginStore?: () => void;
   showMarketplaceBreadcrumb?: boolean;
+  mcpEnabled?: boolean;
+  onMcpEnabledChange?: (enabled: boolean) => Promise<void>;
 }
 
 export function McpSettingsSection({
@@ -565,6 +570,8 @@ export function McpSettingsSection({
   onFormScopeKeyChange,
   onOpenPluginStore,
   showMarketplaceBreadcrumb = false,
+  mcpEnabled = true,
+  onMcpEnabledChange,
 }: McpSettingsSectionProps) {
   const { intl, locale } = useZCodeIntl();
   const confirmDialog = useConfirmDialog();
@@ -1418,6 +1425,13 @@ export function McpSettingsSection({
 
   return (
     <div className="space-y-4">
+      <McpEnableToggle
+        mcpEnabled={mcpEnabled}
+        onMcpEnabledChange={onMcpEnabledChange}
+      />
+
+      {mcpEnabled ? <McpConfigDisplay /> : null}
+
       {connectedRemoteSyncTarget ? (
         <div className="flex justify-end">
           <ControlHintTooltip title={intl.formatMessage({ id: "settings.mcp.remoteSync.open" })}>

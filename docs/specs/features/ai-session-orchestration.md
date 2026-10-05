@@ -60,7 +60,7 @@ AI tool → Host task service → CommandInbox admission → target turn
 | **RPC 暴露**      | `ServiceChannels.ZCodeTask` / `ZCodeSession` / `ZCodeAgent`                  | ✅ Host 已注册并通过 ChannelServer 暴露                                                                                                                          |
 | **Renderer 访问** | `RemoteServiceAccess.zcodeTaskService` / `zcodeSessionService`               | ✅ `packages/client/src/remoteServiceAccess.ts`                                                                                                                  |
 | **Core Runtime**  | 端口注入到 `ToolExecutionContext`                                            | ✅ 完整：`ZCodeTaskPort`/`ZCodeSessionPort` 已声明并传播到 `call-runner.ts`                                                                                      |
-| **AI 工具**       | 6 个会话编排工具                                                             | ✅ 完整：contracts schema + handler + `includeZCodeTask` gate 已实现，contracts dist 已构建                                                                      |
+| **AI 工具**       | 9 个会话编排工具                                                             | ✅ 完整：contracts schema + handler + `includeWeCodeTask` gate 已实现，contracts dist 已构建                                                                     |
 
 ---
 

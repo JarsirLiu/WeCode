@@ -126,6 +126,8 @@ interface PluginsSectionProps {
   onCreateTask?: (request?: CreateTaskRequest) => void;
   onOpenPluginStore: (returnScopeKey?: string, intent?: "add-marketplace") => void;
   showMarketplaceBreadcrumb?: boolean;
+  mcpEnabled?: boolean;
+  onMcpEnabledChange?: (enabled: boolean) => Promise<void>;
 }
 
 function workspaceKey(tab: WorkspaceTabState): string {
@@ -958,6 +960,8 @@ export function PluginsSection({
   onCreateTask,
   onOpenPluginStore,
   showMarketplaceBreadcrumb = false,
+  mcpEnabled = true,
+  onMcpEnabledChange,
 }: PluginsSectionProps) {
   const { intl } = useZCodeIntl();
   const tabs = useTabStore((state) => state.tabs);
@@ -1325,6 +1329,8 @@ export function PluginsSection({
                   selectedScope.kind === "user" ? openPluginStoreForSelectedScope : undefined
                 }
                 showMarketplaceBreadcrumb={showMarketplaceBreadcrumb}
+                mcpEnabled={mcpEnabled}
+                onMcpEnabledChange={onMcpEnabledChange}
               />
             ) : (
               <EmptyState

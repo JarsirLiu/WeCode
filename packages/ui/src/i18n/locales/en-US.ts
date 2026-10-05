@@ -2149,6 +2149,14 @@ const enUS: Record<string, string> = {
   "settings.nativeSearchEnhancementsDescription":
     "Use enhanced Find and Grep in new sessions and sessions restored after an app restart. Active sessions keep their current setting; Find remains unchanged on Windows.",
   "settings.memory": "Memory",
+  "settings.mcp": "MCP Servers",
+  "settings.mcp.enable.title": "Enable MCP",
+  "settings.mcp.enable.description": "Allow external AI applications to discover and use WeCode through the Model Context Protocol.",
+  "settings.mcp.toggleFailed": "Failed to toggle MCP server. Please try again.",
+  "settings.mcp.config.title": "MCP Configuration",
+  "settings.mcp.config.description": "Copy this configuration JSON and paste it into your Agent app to connect:",
+  "settings.mcp.config.copy": "Copy configuration",
+  "settings.mcp.config.copied": "Configuration copied to clipboard",
   "settings.memory.workspaceMemory": "Workspace Memory",
   "settings.memoryDescription":
     "Save and reuse long-term context in workspaces. Applies to new sessions and may increase model requests and token costs.",

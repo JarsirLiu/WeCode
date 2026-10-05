@@ -2017,6 +2017,14 @@ const zhCN: Record<string, string> = {
   "settings.nativeSearchEnhancementsDescription":
     "在新建会话或应用重启后恢复的会话中使用增强 Find 和 Grep。当前会话保持现有设置；Windows 的 Find 保持不变。",
   "settings.memory": "记忆",
+  "settings.mcp": "MCP 服务器",
+  "settings.mcp.enable.title": "启用 MCP",
+  "settings.mcp.enable.description": "允许外部 AI 应用通过模型上下文协议发现并使用 WeCode。",
+  "settings.mcp.toggleFailed": "启用/禁用 MCP 服务器失败，请重试。",
+  "settings.mcp.config.title": "MCP 配置",
+  "settings.mcp.config.description": "复制此配置 JSON 并粘贴到你的 Agent 应用中以连接：",
+  "settings.mcp.config.copy": "复制配置",
+  "settings.mcp.config.copied": "配置已复制到剪贴板",
   "settings.memory.workspaceMemory": "工作区记忆",
   "settings.memoryDescription":
     "在工作区中保存并复用长期上下文，新会话生效。开启后可能增加模型调用和 Token 成本。",
