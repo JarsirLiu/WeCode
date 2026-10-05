@@ -9,11 +9,15 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 
 const MCP_CONFIG = {
-  command: "npx",
-  args: ["zcode", "mcp", "stdio"],
-  env: {
-    ZCODE_AGENT_HOST: "127.0.0.1",
-    ZCODE_AGENT_PORT: 3000,
+  mcpServers: {
+    zcode: {
+      command: "npx",
+      args: ["zcode", "mcp", "stdio"],
+      env: {
+        ZCODE_AGENT_HOST: "127.0.0.1",
+        ZCODE_AGENT_PORT: "3000",
+      },
+    },
   },
 };
 
