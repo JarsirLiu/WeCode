@@ -16,6 +16,7 @@
     }
   },
   "scripts": {
+    "test": "node --test --import tsx \"test/**/*.test.ts\"",
     "build": "tsc",
     "clean": "node ../../scripts/clean-dist.mjs",
     "typecheck": "tsc --noEmit",

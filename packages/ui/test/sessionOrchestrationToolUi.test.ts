@@ -2,7 +2,8 @@
 // 1. 七个工具统一解析到 session-orchestration family 并命中专属 renderer；
 // 2. 其他工具（Bash/Read/Skill）的 renderer 选择不受影响（隔离边界）；
 // 3. 三连链路的 SessionBot 聚合不受影响，未聚合链路回落到逐行专属卡而非 raw JSON 兜底。
-import { describe, expect, it } from "vitest";
+import assert from "node:assert/strict";
+import test from "node:test";
 import type { ToolCallRow } from "@zcode/shared/zcode-protocol-v4";
 import { resolveToolCallRenderer } from "@/ToolCallBlocks/resolveRenderer.js";
 import { ExecuteToolCallBlock } from "@/ToolCallBlocks/renderers/execute.js";
@@ -64,48 +65,47 @@ function toolCallFor(toolName: string): Record<string, unknown> {
   };
 }
 
-describe("session orchestration tool ui", () => {
-  it("resolves every session orchestration tool to the dedicated family", () => {
-    for (const toolName of SESSION_TOOL_NAMES) {
-      const identity = resolveToolCallIdentity({ toolName });
-      expect(identity.family).toBe("session-orchestration");
-      expect(identity.isLegacy).toBe(false);
-    }
-  });
+test("session orchestration tool ui: resolves every session orchestration tool to the dedicated family", () => {
+  for (const toolName of SESSION_TOOL_NAMES) {
+    const identity = resolveToolCallIdentity({ toolName });
+    assert.equal(identity.family, "session-orchestration");
+    assert.equal(identity.isLegacy, false);
+  }
+});
 
-  it("renders session orchestration tools with the dedicated card", () => {
-    for (const toolName of SESSION_TOOL_NAMES) {
-      const renderer = resolveToolCallRenderer(contextFor(toolCallFor(toolName)));
-      expect(renderer).toBe(SessionOrchestrationToolCallBlock);
-    }
-  });
+test("session orchestration tool ui: renders session orchestration tools with the dedicated card", () => {
+  for (const toolName of SESSION_TOOL_NAMES) {
+    const renderer = resolveToolCallRenderer(contextFor(toolCallFor(toolName)));
+    assert.equal(renderer, SessionOrchestrationToolCallBlock);
+  }
+});
 
-  it("keeps other tools on their own renderers (isolation)", () => {
-    expect(resolveToolCallRenderer(contextFor(toolCallFor("Bash")))).toBe(ExecuteToolCallBlock);
-    expect(resolveToolCallRenderer(contextFor(toolCallFor("Read")))).toBe(ReadToolCallBlock);
-    expect(resolveToolCallRenderer(contextFor(toolCallFor("Skill")))).toBe(SkillToolCallBlock);
-  });
+test("session orchestration tool ui: keeps other tools on their own renderers (isolation)", () => {
+  assert.equal(resolveToolCallRenderer(contextFor(toolCallFor("Bash"))), ExecuteToolCallBlock);
+  assert.equal(resolveToolCallRenderer(contextFor(toolCallFor("Read"))), ReadToolCallBlock);
+  assert.equal(resolveToolCallRenderer(contextFor(toolCallFor("Skill"))), SkillToolCallBlock);
+});
 
-  it("still groups the complete three-step chain and leaves partial chains to per-row cards", () => {
-    const row = (rowId: number, toolName: string): ToolCallRow =>
-      ({
-        kind: "toolCall",
-        rowId,
-        toolCallId: `tool-${rowId}`,
-        toolName,
-        status: "success",
-        input: {},
-        startedAt: 1,
-      }) as ToolCallRow;
+test("session orchestration tool ui: still groups the complete three-step chain and leaves partial chains to per-row cards", () => {
+  const row = (rowId: number, toolName: string): ToolCallRow =>
+    ({
+      kind: "toolCall",
+      rowId,
+      toolCallId: `tool-${rowId}`,
+      toolName,
+      status: "success",
+      input: {},
+      inputText: "",
+      startedAt: 1,
+    }) as ToolCallRow;
 
-    const complete = buildSessionBotWorkItem([
-      row(1, "CreateSession"),
-      row(2, "ReadSession"),
-      row(3, "SendSessionMessage"),
-    ]);
-    expect(complete?.kind).toBe("sessionBot");
+  const complete = buildSessionBotWorkItem([
+    row(1, "CreateSession"),
+    row(2, "ReadSession"),
+    row(3, "SendSessionMessage"),
+  ]);
+  assert.equal(complete?.kind, "sessionBot");
 
-    // 不完整链路不聚合：两条行各自走 session-orchestration 专属卡，不进 raw JSON 兜底。
-    expect(buildSessionBotWorkItem([row(1, "CreateSession"), row(2, "ReadSession")])).toBeNull();
-  });
+  // 不完整链路不聚合：两条行各自走 session-orchestration 专属卡，不进 raw JSON 兜底。
+  assert.equal(buildSessionBotWorkItem([row(1, "CreateSession"), row(2, "ReadSession")]), null);
 });
