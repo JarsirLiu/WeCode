@@ -28,6 +28,7 @@ import {
 } from "./runtime/uninstallGuard.js";
 import { readPersistedStatus, readPersistedStatusDetailed } from "./runtime/statusSnapshot.js";
 import { waitForServerStopped } from "./runtime/shutdownWait.js";
+import { runMcpStdio, createWeCodeToolHandler } from "./mcp-stdio.js";
 export { readPersistedStatus } from "./runtime/statusSnapshot.js";
 import {
   hasLegacyServiceRegistration,
@@ -102,6 +103,8 @@ export async function runServerCli(
         );
       case "uninstall":
         return await runUninstall(io, json, layout);
+      case "mcp":
+        return await runMcpCommand(parsed.argv.slice(1), io);
       default:
         return await (io.legacyDelegate?.(parsed.argv) ?? delegateLegacyCli(parsed.argv, io));
     }
@@ -514,4 +517,14 @@ async function delegateLegacyCli(argv: readonly string[], io: CliIO): Promise<nu
   }
   const child = fork(candidate, [...argv], { stdio: "inherit" });
   return await new Promise<number>((resolve) => child.once("exit", (code) => resolve(code ?? 1)));
+}
+
+async function runMcpCommand(args: readonly string[], io: CliIO): Promise<number> {
+  const subcommand = args[0];
+  if (subcommand === "stdio") {
+    const toolHandler = createWeCodeToolHandler();
+    return await runMcpStdio(args.slice(1), io, toolHandler);
+  }
+  stderr(io, `Unknown MCP subcommand: ${subcommand}. Available: stdio`);
+  return 1;
 }

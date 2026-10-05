@@ -4,6 +4,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./mcp": "./src/mcp/index.ts",
     "./stdio": "./src/stdio.ts",
     "./remote": "./src/remote/index.ts",
     "./remote/*.js": "./src/remote/*.ts"
@@ -12,6 +13,7 @@
     "dev": "tsup --watch --onSuccess 'node dist/entry-http.js'",
     "build": "tsup && pnpm run build:remote",
     "build:remote": "tsx build-remote.ts",
+    "test": "tsx --test test/**/*.test.ts",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix"
   },
@@ -22,6 +24,7 @@
     "@lydell/node-pty-darwin-x64": "1.2.0-beta.10",
     "@lydell/node-pty-linux-arm64": "1.2.0-beta.10",
     "@lydell/node-pty-linux-x64": "1.2.0-beta.10",
+    "@modelcontextprotocol/sdk": "^1.32.0",
     "@zcode/client": "workspace:*",
     "@zcode/rpc": "workspace:*",
     "@zcode/services": "workspace:*",
