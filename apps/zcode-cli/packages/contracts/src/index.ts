@@ -107,5 +107,6 @@ export {
 export * from "./tracing/local-turn-preparation.js";
 export type { LocalTtftDetail } from "@zcode/shared";
 
+export * from "./interfaces/tool-set-loader.port.js";
 export * from "./interfaces/permission-full-access.js";
 export * from "./interfaces/zcode-permission.port.js";

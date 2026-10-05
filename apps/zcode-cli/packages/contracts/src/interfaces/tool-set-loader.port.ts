@@ -11,8 +11,6 @@
  * - 便于测试和未来的运行时策略变更（如远程、云端工具加载）
  */
 
-import type { ToolEntry } from "../tools/index.js";
-
 export interface ToolSetLoaderPort {
   /**
    * 检查工具是否已在当前会话的 registry 中注册。
@@ -28,7 +26,7 @@ export interface ToolSetLoaderPort {
    * @param toolEntry 工具条目（包含元数据、schema、handler）
    * @throws 如果注册失败（如工具定义无效）
    */
-  registerTool(toolEntry: ToolEntry): void;
+  registerTool(toolEntry: unknown): void;
 
   /**
    * 批量注册多个工具。
@@ -37,7 +35,7 @@ export interface ToolSetLoaderPort {
    * @param toolEntries 工具条目数组
    * @throws 如果任何工具注册失败，整个操作回滚
    */
-  registerTools(toolEntries: ToolEntry[]): void;
+  registerTools(toolEntries: unknown[]): void;
 
   /**
    * 失效工具缓存，使模型在下一轮能看到最新注册的工具。

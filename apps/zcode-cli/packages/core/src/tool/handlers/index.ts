@@ -12,6 +12,7 @@ import {
   LIST_MODELS_TOOL_NAME,
   LIST_SAVED_WORKFLOWS_TOOL_NAME,
   LIST_WORKFLOW_RUNS_TOOL_NAME,
+  LIST_SESSIONS_TOOL_NAME,
   READ_SESSION_TOOL_NAME,
   RESOLVE_WORKFLOW_QUESTION_TOOL_NAME,
   RESOLVE_SESSION_PERMISSION_TOOL_NAME,
@@ -21,6 +22,7 @@ import {
   SET_SESSION_MODEL_TOOL_NAME,
   STOP_SESSION_GENERATION_TOOL_NAME,
   SUBMIT_RESULT_TOOL_NAME,
+  WORKSPACE_LIST_TOOL_NAME,
   type JsonSchema,
 } from "@zcode/contracts";
 import type { ToolEntry } from "../types.js";
@@ -60,12 +62,14 @@ import { askUserQuestionToolEntry } from "./ask-user-question.js";
 import { botCommandToolEntry } from "./bot-command.js";
 import { compactSessionToolEntry } from "./compact-session.js";
 import { createSessionToolEntry } from "./create-session.js";
+import { listSessionsToolEntry } from "./list-sessions.js";
 import { readSessionToolEntry } from "./read-session.js";
 import { resolveSessionPermissionToolEntry } from "./resolve-session-permission.js";
 import { sendMessageToolEntry } from "./send-message.js";
 import { sendSessionMessageToolEntry } from "./send-session-message.js";
 import { setSessionModelToolEntry } from "./set-session-model.js";
 import { stopSessionGenerationToolEntry } from "./stop-session-generation.js";
+import { workspaceListToolEntry } from "./workspace-list.js";
 import { respondToCoordinatorToolEntry } from "./respond-to-coordinator.js";
 import { createSubmitResultToolEntry, submitResultToolEntry } from "./submit-result.js";
 import { escalateToolEntry } from "./escalate.js";
@@ -113,7 +117,7 @@ export const builtInTools: ToolEntry[] = [
   askUserQuestionToolEntry,
   // Bot 命令入口：端口在场即注册（includeBotCommand），纯 CLI 无 BotsServicePort 时不存在。
   botCommandToolEntry,
-  // AI Session Orchestration：6 个会话编排工具，受 includeZCodeTask 开关控制。
+  // AI Session Orchestration：6 个会话编排工具 + workspace_list + list_sessions，受 includeZCodeTask 开关控制。
   createSessionToolEntry,
   sendSessionMessageToolEntry,
   readSessionToolEntry,
@@ -121,6 +125,8 @@ export const builtInTools: ToolEntry[] = [
   setSessionModelToolEntry,
   compactSessionToolEntry,
   resolveSessionPermissionToolEntry,
+  workspaceListToolEntry,
+  listSessionsToolEntry,
   sendMessageToolEntry,
   respondToCoordinatorToolEntry,
   submitResultToolEntry,
@@ -188,7 +194,7 @@ const DYNAMIC_WORKFLOW_TOOL_NAMES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * AI Session Orchestration 工具集（spec: docs/specs/ai-session-orchestration.md）。
+ * AI Session Orchestration 工具集（spec: docs/specs/ai-session-orchestration.md + mcp-server-support.md）。
  * includeZCodeTask 开关控制注册；纯 CLI 无 zcodeTaskPort 时不注册。
  */
 const ZCODE_TASK_TOOL_NAMES: ReadonlySet<string> = new Set([
@@ -199,6 +205,8 @@ const ZCODE_TASK_TOOL_NAMES: ReadonlySet<string> = new Set([
   SET_SESSION_MODEL_TOOL_NAME,
   COMPACT_SESSION_TOOL_NAME,
   RESOLVE_SESSION_PERMISSION_TOOL_NAME,
+  WORKSPACE_LIST_TOOL_NAME,
+  LIST_SESSIONS_TOOL_NAME,
 ]);
 
 interface RegisterBuiltInToolsOptions {

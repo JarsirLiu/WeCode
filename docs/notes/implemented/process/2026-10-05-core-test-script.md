@@ -41,11 +41,13 @@ The same pattern applies to the other seven packages that have test files but no
 ## Consequences
 
 **Positive**:
+
 - 15 tests now execute, including `tool-port-wiring.test.ts` which exercises the full executor chain (deps → call-runner context → handler) and would have flagged the `466ec43` split break at the next `pnpm test` instead of at the next `pnpm build`.
 - No new dependencies, no config files, no rewrite of existing tests.
 - Establishes the convention the rest of the repo can copy: `node --test --import tsx "test/**/*.test.ts"`.
 
 **Negative**:
+
 - Tests run against source via `tsx`, not against the built `dist/`. A test can pass while the build is broken (e.g., a `tsc`-only type error in a non-test file). Mitigation: `pnpm build` (tsc) remains the type gate; `pnpm test` is the behavior gate. The two are complementary, not substitutes.
 - Only `@zcode/core` is wired. The other seven packages with test files still cannot run theirs until the same script is added. A regression in, say, `packages/services` would still escape `pnpm test` from root.
 - Not in CI or `verify:pre-push` yet, so a developer who skips local `pnpm test` can still push a broken test.

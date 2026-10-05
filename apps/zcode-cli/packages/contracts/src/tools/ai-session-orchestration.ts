@@ -4,8 +4,11 @@
 //
 // 6 tools: create_session, send_session_message, read_session,
 // stop_session_generation, set_session_model, compact_session
+// + workspace_list (for MCP server)
+// + list_sessions (for MCP server)
 //
 // spec: docs/specs/ai-session-orchestration.md
+// spec: docs/specs/features/mcp-server-support.md
 
 import { z } from "zod";
 import { toToolJsonSchema } from "./json-schema.js";
@@ -18,21 +21,32 @@ export const STOP_SESSION_GENERATION_TOOL_NAME = "StopSessionGeneration";
 export const SET_SESSION_MODEL_TOOL_NAME = "SetSessionModel";
 export const COMPACT_SESSION_TOOL_NAME = "CompactSession";
 export const RESOLVE_SESSION_PERMISSION_TOOL_NAME = "ResolveSessionPermission";
+export const WORKSPACE_LIST_TOOL_NAME = "WorkspaceList";
+export const LIST_SESSIONS_TOOL_NAME = "ListSessions";
 
-export const ResolveSessionPermissionInputSchema = z.object({
-  sessionId: z.string().min(1),
-  requestId: z.string().min(1),
-  decision: z.enum(["allow_once", "allow_always", "deny"]),
-  reason: z.string().max(4096).optional(),
-}).strict();
-export const ResolveSessionPermissionOutputSchema = z.object({
-  requestId: z.string().min(1),
-  status: z.enum(["resolved", "already_resolved"]),
-  decision: z.enum(["allow_once", "allow_always", "deny"]),
-}).strict();
-export const ResolveSessionPermissionInputJsonSchema = toToolJsonSchema(ResolveSessionPermissionInputSchema);
-export const ResolveSessionPermissionOutputJsonSchema = toToolJsonSchema(ResolveSessionPermissionOutputSchema);
-export const RESOLVE_SESSION_PERMISSION_DESCRIPTION = "Resolve one exact pending permission for a session you created with delegated approval. Only allow_once and deny are supported; use ReadSession to obtain the requestId.";
+export const ResolveSessionPermissionInputSchema = z
+  .object({
+    sessionId: z.string().min(1),
+    requestId: z.string().min(1),
+    decision: z.enum(["allow_once", "allow_always", "deny"]),
+    reason: z.string().max(4096).optional(),
+  })
+  .strict();
+export const ResolveSessionPermissionOutputSchema = z
+  .object({
+    requestId: z.string().min(1),
+    status: z.enum(["resolved", "already_resolved"]),
+    decision: z.enum(["allow_once", "allow_always", "deny"]),
+  })
+  .strict();
+export const ResolveSessionPermissionInputJsonSchema = toToolJsonSchema(
+  ResolveSessionPermissionInputSchema,
+);
+export const ResolveSessionPermissionOutputJsonSchema = toToolJsonSchema(
+  ResolveSessionPermissionOutputSchema,
+);
+export const RESOLVE_SESSION_PERMISSION_DESCRIPTION =
+  "Resolve one exact pending permission for a session you created with delegated approval. Only allow_once and deny are supported; use ReadSession to obtain the requestId.";
 
 // ============================================================
 // CreateSession
@@ -203,8 +217,12 @@ export const StopSessionGenerationOutputSchema = z.object({}).strict();
 export type StopSessionGenerationInput = z.infer<typeof StopSessionGenerationInputSchema>;
 export type StopSessionGenerationOutput = z.infer<typeof StopSessionGenerationOutputSchema>;
 
-export const StopSessionGenerationInputJsonSchema = toToolJsonSchema(StopSessionGenerationInputSchema);
-export const StopSessionGenerationOutputJsonSchema = toToolJsonSchema(StopSessionGenerationOutputSchema);
+export const StopSessionGenerationInputJsonSchema = toToolJsonSchema(
+  StopSessionGenerationInputSchema,
+);
+export const StopSessionGenerationOutputJsonSchema = toToolJsonSchema(
+  StopSessionGenerationOutputSchema,
+);
 
 export const STOP_SESSION_GENERATION_DESCRIPTION = [
   "Stop the currently running generation in a WeCode session/task.",
@@ -228,20 +246,19 @@ export const SetSessionModelInputSchema = z
   })
   .strict();
 
-export const SetSessionModelOutputSchema = z
-  .array(
-    z
-      .object({
-        id: z.string(),
-        name: z.string(),
-        description: z.string().optional(),
-        category: z.string().optional(),
-        type: z.enum(["select", "boolean"]),
-        currentValue: z.union([z.string(), z.boolean()]),
-        options: z.array(z.object({ value: z.string(), name: z.string() })).optional(),
-      })
-      .strict(),
-  );
+export const SetSessionModelOutputSchema = z.array(
+  z
+    .object({
+      id: z.string(),
+      name: z.string(),
+      description: z.string().optional(),
+      category: z.string().optional(),
+      type: z.enum(["select", "boolean"]),
+      currentValue: z.union([z.string(), z.boolean()]),
+      options: z.array(z.object({ value: z.string(), name: z.string() })).optional(),
+    })
+    .strict(),
+);
 
 export type SetSessionModelInput = z.infer<typeof SetSessionModelInputSchema>;
 export type SetSessionModelOutput = z.infer<typeof SetSessionModelOutputSchema>;
@@ -313,4 +330,97 @@ export const COMPACT_SESSION_DESCRIPTION = [
   "",
   "Resolve pending permissions first — compacting while pendingPermissions is non-empty queues",
   "behind the blocked turn. Returns the compact response and the updated session snapshot.",
+].join("\n");
+
+// ============================================================
+// WorkspaceList
+// ============================================================
+export const WorkspaceListInputSchema = z.object({}).strict();
+
+export interface WorkspaceInfo {
+  workspaceIdentity: string;
+  workspacePath: string;
+  label: string;
+  kind: "local" | "remote";
+  projectType: "node" | "python" | "go" | "rust" | "unknown";
+  lastActiveAt: number;
+  activeSessionCount: number;
+}
+
+export const WorkspaceListOutputSchema = z
+  .object({
+    workspaces: z.array(
+      z.object({
+        workspaceIdentity: z.string(),
+        workspacePath: z.string(),
+        label: z.string(),
+        kind: z.enum(["local", "remote"]),
+        projectType: z.enum(["node", "python", "go", "rust", "unknown"]),
+        lastActiveAt: z.number(),
+        activeSessionCount: z.number(),
+      }),
+    ),
+  })
+  .strict();
+
+export type WorkspaceListInput = z.infer<typeof WorkspaceListInputSchema>;
+export type WorkspaceListOutput = z.infer<typeof WorkspaceListOutputSchema>;
+
+export const WorkspaceListInputJsonSchema = toToolJsonSchema(WorkspaceListInputSchema);
+export const WorkspaceListOutputJsonSchema = toToolJsonSchema(WorkspaceListOutputSchema);
+
+export const WORKSPACE_LIST_DESCRIPTION = [
+  "List all known workspaces (local and remote) for AI session orchestration.",
+  "",
+  "Returns an array of workspaces with: workspaceIdentity (unique key for routing),",
+  "workspacePath (display path), label (display name), kind (local/remote),",
+  "projectType, lastActiveAt (timestamp), activeSessionCount.",
+  "",
+  "Use workspaceIdentity from the result as the workspaceIdentity parameter",
+  "for create_session, list_sessions, and other session tools.",
+].join("\n");
+
+// ============================================================
+// ListSessions
+// ============================================================
+export const ListSessionsInputSchema = z
+  .object({
+    workspaceIdentity: z.string().min(1),
+    workspacePath: z.string().optional(),
+    includeArchived: z.boolean().optional().default(false),
+    limit: z.number().int().positive().max(200).optional().default(50),
+  })
+  .strict();
+
+// 复用现有的 ZCodeSessionInfo 结构（来自 @zcode/shared）
+export const ListSessionsOutputSchema = z
+  .object({
+    sessions: z.array(
+      z
+        .object({
+          sessionId: z.string(),
+          workspacePath: z.string(),
+          title: z.string(),
+          status: z.enum(["idle", "running", "waiting", "paused", "completed", "error"]),
+          mode: z.string(),
+          updatedAt: z.number(),
+          createdAt: z.number(),
+        })
+        .catchall(z.unknown()),
+    ),
+  })
+  .strict();
+
+export type ListSessionsToolInput = z.infer<typeof ListSessionsInputSchema>;
+export type ListSessionsToolOutput = z.infer<typeof ListSessionsOutputSchema>;
+
+export const ListSessionsInputJsonSchema = toToolJsonSchema(ListSessionsInputSchema);
+export const ListSessionsOutputJsonSchema = toToolJsonSchema(ListSessionsOutputSchema);
+
+export const LIST_SESSIONS_DESCRIPTION = [
+  "List all sessions in a workspace. Requires workspaceIdentity from workspace_list.",
+  "",
+  "Optional: workspacePath (display only), includeArchived (default false), limit (default 50, max 200).",
+  "",
+  "Returns sessions with: sessionId, workspacePath, title, status, mode, updatedAt, createdAt.",
 ].join("\n");

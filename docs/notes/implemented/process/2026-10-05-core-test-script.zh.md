@@ -41,11 +41,13 @@ Status: implemented
 ## Consequences
 
 **正面**：
+
 - 15 个测试现在能跑了，包括 `tool-port-wiring.test.ts`——它走完整 executor 链路（deps → call-runner context → handler），本来会在下一次 `pnpm test` 时抓住 `466ec43` 的拆分破坏，而不是等到 `pnpm build` 才暴露。
 - 无新依赖、无配置文件、无需重写现有测试。
 - 确立了仓库其余部分可复制的约定：`node --test --import tsx "test/**/*.test.ts"`。
 
 **负面**：
+
 - 测试经 `tsx` 跑源码，不是跑 build 出来的 `dist/`。可能出现测试通过但 build 挂了的情况（比如某非测试文件的 `tsc` 类型错误）。缓解：`pnpm build`（tsc）仍是类型门禁，`pnpm test` 是行为门禁，两者互补而非互替。
 - 只接了 `@zcode/core`。其余七个有测试文件的包还是没法跑，除非加同样的脚本。比如 `packages/services` 的回归仍会从根 `pnpm test` 漏过。
 - 还没进 CI 或 `verify:pre-push`，所以跳过本地 `pnpm test` 的开发者仍能推一个挂掉的测试。
