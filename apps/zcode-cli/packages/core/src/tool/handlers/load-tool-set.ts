@@ -4,15 +4,17 @@
 
 import {
   LOAD_TOOL_SET_TOOL_NAME,
+  LoadToolSetInputJsonSchema,
+  LoadToolSetOutputJsonSchema,
   LoadToolSetInputSchema,
+  LoadToolSetOutputSchema,
+  createCoreError,
+  CoreErrorType,
   type LoadToolSetInput,
   type LoadToolSetOutput,
   type ToolSetSpec,
 } from "@zcode/contracts";
-import type { ToolEntry } from "../types.js";
-import type { ToolExecutionContext } from "../types.js";
-import { createCoreError, CoreErrorType } from "../../error/index.js";
-import { getToolEntry } from "../tool-catalog.js";
+import type { ToolEntry, ToolExecutionContext } from "../types.js";
 
 /**
  * 内部工具集定义 - 运行时加载的完整工具集规范。
@@ -158,31 +160,66 @@ const TOOL_SETS: Record<string, { spec: ToolSetSpec; toolNames: string[] }> = {
   },
 };
 
+const MAX_LOAD_TOOL_SET_BYTES = 50_000;
+const LOAD_TOOL_SET_TIMEOUT_MS = 5_000;
+
+// LoadToolSet 只把 builtin 工具组注册进当前会话的 registry，不触达工作区/网络/Git，
+// 因此 sideEffectScope = "session"。被加载的工具自身各自声明权限与副作用。
 export const loadToolSetToolEntry: ToolEntry = {
+  capability: "Dynamically load a builtin tool group (plan, automation, workflow, session, etc.) into the current session's tool registry",
   metadata: {
     name: LOAD_TOOL_SET_TOOL_NAME,
     description: "Dynamically load a tool group at runtime",
     readOnly: true,
     destructive: false,
     concurrentSafe: true,
+    timeoutMs: LOAD_TOOL_SET_TIMEOUT_MS,
+    maxOutputBytes: MAX_LOAD_TOOL_SET_BYTES,
+    sideEffectScope: "session",
+    riskLevel: "low",
     needsApproval: false,
-    sideEffectScope: "runtime_state" as const,
   },
-  capability: {
-    destructive: false,
+  handler: loadToolSetHandler,
+  inputSchema: LoadToolSetInputJsonSchema,
+  outputSchema: LoadToolSetOutputJsonSchema,
+  runtimeInputSchema: LoadToolSetInputSchema,
+  runtimeOutputSchema: LoadToolSetOutputSchema,
+  executionMode: "client",
+  permission: {
+    permission: "zcode.tool.load",
+    reason: "LoadToolSet registers builtin tool groups into the session tool registry",
+    riskLevel: "low",
+    sideEffectScope: "session",
     needsApproval: false,
-    readOnly: true,
-    riskLevel: "low" as const,
-    sideEffectScope: "runtime_state" as const,
-    permission: {
-      needsApproval: false,
-      riskLevel: "low" as const,
-      sideEffectScope: "runtime_state" as const,
+    patternSources: ["toolName"],
+    alwaysAllowPatternSources: ["toolName"],
+    denyPriority: "beforeAsk",
+  },
+  resultBudget: {
+    maxInlineBytes: MAX_LOAD_TOOL_SET_BYTES,
+    maxModelBytes: MAX_LOAD_TOOL_SET_BYTES,
+    strategy: "truncate",
+    preview: {
+      maxBytes: MAX_LOAD_TOOL_SET_BYTES,
+      direction: "head",
     },
   },
-  inputSchema: LoadToolSetInputSchema,
-  executionMode: "normal" as const,
-  execute: loadToolSetHandler,
+  timeout: {
+    defaultMs: LOAD_TOOL_SET_TIMEOUT_MS,
+    maxMs: LOAD_TOOL_SET_TIMEOUT_MS,
+    allowCallOverride: false,
+  },
+  cancellation: {
+    supported: true,
+    cleanup: "none",
+    userVisibleMessage: "LoadToolSet was cancelled before the toolset finished loading",
+  },
+  trace: {
+    required: true,
+    propagateToAdapters: false,
+    recordInput: "summary",
+    recordOutput: "summary",
+  },
 };
 
 async function loadToolSetHandler(

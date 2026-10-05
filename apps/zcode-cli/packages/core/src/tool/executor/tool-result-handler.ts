@@ -25,7 +25,7 @@ import {
 } from "./events.js";
 import { resolveModelOutputEntry } from "./model-output-entry.js";
 import type { ExecutableToolCall } from "../types.js";
-import type { SkillTelemetryMetadata } from "@zcode/contracts";
+import type { SkillTelemetryMetadata, TurnId } from "@zcode/contracts";
 
 export interface ToolSuccessResultHandlerInput {
   deps: ToolExecutorDeps;
@@ -35,7 +35,7 @@ export interface ToolSuccessResultHandlerInput {
   executionInput: unknown;
   preToolHookResult: any;
   traceContext: any;
-  turnId?: string;
+  turnId?: TurnId;
   executionAbortController: AbortController;
   startTime: number;
   totalStartedAt: number;

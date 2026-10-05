@@ -5,7 +5,8 @@
 // 职责：管理工具注册、缓存失效等运行时操作。
 
 import type { ToolSetLoaderPort } from "@zcode/contracts";
-import type { ToolEntry } from "../../../tool/types.js";
+// src/runtime/helpers/ → src/tool/types.ts：两级 ../
+import type { ToolEntry } from "../../tool/types.js";
 import type { AgentRuntimeInternal } from "../internal.js";
 
 /**

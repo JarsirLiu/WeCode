@@ -322,7 +322,7 @@ async function executeToolCallImpl(
     return result;
   }
   executionInput = permissionResult.executionInput;
-  const permissionWaitMs = permissionResult.permissionWaitMs;
+  const permissionWaitMs = permissionResult.permissionWaitMs ?? 0;
 
   const startTime = Date.now();
   // 按**执行入参**解析一次副作用旗标（Bash 的只读命令判定就在这里落定），随 ToolCallStarted 发出：
@@ -372,6 +372,7 @@ async function executeToolCallImpl(
       telemetry,
       automationTurn: options?.automationTurn,
       offPeakTurn: options?.offPeakTurn,
+      subagentModelOverride: options?.subagentModelOverride,
       traceContext,
       traceId,
       spanId: traceContext.spanId,
@@ -433,8 +434,8 @@ async function executeToolCallImpl(
       toolName: canonicalToolCall.name,
     });
 
-    telemetry?.setOutputBytes(result.serialization?.returnedBytes);
-    telemetry?.setOutputTruncated(result.serialization?.truncated);
+    telemetry?.setOutputBytes(result.serialization?.returnedBytes ?? 0);
+    telemetry?.setOutputTruncated(result.serialization?.truncated ?? false);
     telemetry?.finishCompleted();
     return result;
   } catch (error) {
@@ -516,30 +517,6 @@ async function executeToolCallImpl(
   } finally {
     unlinkParentAbort();
   }
-}
-
-function resolveModelOutputEntry(entry: ToolEntry, output: unknown): ToolEntry {
-  const isSharedNodeRepl =
-    entry.metadata.name === "mcp__node_repl__js" ||
-    entry.metadata.mcpPresentation?.serverName === "node_repl";
-  if (
-    entry.modelContentProtection === OFFICIAL_CUA_FRAME_MODEL_CONTENT_PROTECTION ||
-    !isSharedNodeRepl ||
-    !hasOfficialCuaFrameAuthority(output)
-  ) {
-    return entry;
-  }
-  return {
-    ...entry,
-    modelContentProtection: OFFICIAL_CUA_FRAME_MODEL_CONTENT_PROTECTION,
-    resultBudget: {
-      ...entry.resultBudget,
-      maxInlineBytes: Math.max(entry.resultBudget.maxInlineBytes, 256 * 1024),
-      maxModelBytes: Math.max(entry.resultBudget.maxModelBytes, 256 * 1024),
-      strategy: "truncate",
-      preview: { direction: "head" },
-    },
-  };
 }
 
 function isEmptyToolName(toolName: string): boolean {

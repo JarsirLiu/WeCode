@@ -3,15 +3,18 @@
  * 这是一个纯构建函数，无副作用，便于测试和独立维护。
  */
 
-import type {
-  SessionEvent,
-  ToolExecutionContext,
-} from "../types.js";
+import type { ToolExecutionContext } from "../types.js";
 import type { ToolExecutorDeps } from "./types.js";
 import { resolveEmbeddedSearchBranchCapability } from "../../embedded-search/capability.js";
 import { createToolModelStatusSink, withDefaultToolModelStatusSink } from "./model-status-sink.js";
-import type { ToolExecutionSpanWriter } from "@zcode/contracts";
-import type { SkillTelemetryMetadata } from "@zcode/contracts";
+import type {
+  SessionEvent,
+  SkillTelemetryMetadata,
+  SubagentRunOptions,
+  ToolExecutionSpanWriter,
+  TraceId,
+  TurnId,
+} from "@zcode/contracts";
 import type { ExecutableToolCall } from "../types.js";
 
 export interface ExecutionContextBuilderInput {
@@ -21,12 +24,13 @@ export interface ExecutionContextBuilderInput {
   automationTurn?: boolean;
   offPeakTurn?: boolean;
   traceContext: any; // TraceContext
-  traceId: string;
+  traceId: TraceId;
   spanId?: string;
   parentSpanId?: string;
   executionAbortController: AbortController;
   startTime: number;
-  turnId?: string;
+  turnId?: TurnId;
+  subagentModelOverride?: SubagentRunOptions["modelOverride"];
   emitEvent?: (event: SessionEvent) => Promise<void>;
   deps: ToolExecutorDeps;
   // 状态回调，用于更新 call-runner.ts 中的本地变量
@@ -37,7 +41,7 @@ export interface ExecutionContextBuilderInput {
 export function buildExecutionContext(input: ExecutionContextBuilderInput): ToolExecutionContext {
   const { deps, canonicalToolCall, toolCallId, traceContext, traceId, spanId, parentSpanId,
     executionAbortController, telemetry, automationTurn, offPeakTurn, emitEvent, startTime, turnId,
-    onReadFileStateMetadata, onSkillTelemetryMetadata } = input;
+    subagentModelOverride, onReadFileStateMetadata, onSkillTelemetryMetadata } = input;
 
   const model = deps.model;
   const bashShellSelection = deps.getBashShellSelection?.() ?? deps.bashShellSelection;
@@ -72,7 +76,7 @@ export function buildExecutionContext(input: ExecutionContextBuilderInput): Tool
       model,
       createToolModelStatusSink({ emitEvent, sessionId: deps.sessionId, turnId, traceId }),
     ),
-    subagentModelOverride: deps.subagentModelOverride,
+    subagentModelOverride,
     embeddedSearch: {
       ...(deps.embeddedSearchBackend ? { backend: deps.embeddedSearchBackend } : {}),
       enabled: embeddedSearchDecision?.useEmbeddedSearchBranch ?? false,
