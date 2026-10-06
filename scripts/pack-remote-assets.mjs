@@ -38,6 +38,10 @@ const PLATFORM_MAP = {
 };
 
 const REMOTE_PLATFORMS = Object.keys(PLATFORM_MAP);
+const selectedPlatformKeys = (process.env.ZCODE_REMOTE_ASSET_PLATFORMS?.trim() || "")
+  .split(",")
+  .map((value) => value.trim())
+  .filter(Boolean);
 
 // Output directory for GitHub Release assets
 const OUTPUT_DIR = join(desktopDir, "dist", "remote-assets");
@@ -107,8 +111,9 @@ async function packPlatformAssets(platformKey) {
       );
     }
 
-    // Copy to output dir with simpler name: {id}-{version}.tar.gz
-    const outputFileName = `${id}-${compVersion}.tar.gz`;
+    // GitHub Release assets are a flat namespace; keep the platform in every
+    // filename so same-named components from different platforms cannot overwrite each other.
+    const outputFileName = `remote-${electronPlatformArch}-${id}-${compVersion}.tar.gz`;
     const outputPath = join(platformOutputDir, outputFileName);
     copyFileSync(sourceArtifactPath, outputPath);
     console.log(`  [ok] ${outputFileName} (${(statSync(sourceArtifactPath).size / 1024 / 1024).toFixed(2)} MB)`);
@@ -159,7 +164,11 @@ async function main() {
   mkdirSync(OUTPUT_DIR, { recursive: true });
 
   const results = [];
-  for (const platformKey of REMOTE_PLATFORMS) {
+  const platformsToPack = selectedPlatformKeys.length > 0 ? selectedPlatformKeys : REMOTE_PLATFORMS;
+  for (const platformKey of platformsToPack) {
+    if (!REMOTE_PLATFORMS.includes(platformKey)) {
+      throw new Error(`Unsupported remote asset platform: ${platformKey}`);
+    }
     try {
       const result = await packPlatformAssets(platformKey);
       results.push(result);

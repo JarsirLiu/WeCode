@@ -5,6 +5,7 @@
 - Pushing a valid `v<package version>` tag builds production desktop installers on native GitHub-hosted runners.
 - The supported release set is Linux x64/arm64 (AppImage, deb, rpm, and pacman), macOS x64/arm64 (dmg and zip), and Windows x64 (NSIS exe).
 - The workflow publishes installer files only as assets on the matching GitHub Release. It does not publish through electron-builder or upload to other release services.
+- Remote connection assets are published as flat, uniquely named GitHub Release assets and are downloaded from the exact `v<version>` release URL. They do not use the zcode CDN in production releases.
 - Manual workflow dispatch is for building selected platform targets and uploading temporary workflow artifacts; it never creates a GitHub Release.
 - A release is created only after every required build and installer validation succeeds.
 
@@ -14,6 +15,7 @@
 - Each native runner owns building its platform/architecture artifact. The publish job is the sole owner of release asset publication.
 - Release tags must exactly match the root package version (`v` + `package.json` version).
 - Release builds explicitly use `ZCODE_ENV=production` and `ZCODE_PREVIEW_IDENTITY=0`.
+- The release download base includes the triggering tag (`.../releases/download/vX.Y.Z`); manifests reference the final flat asset filenames.
 - electron-builder publishing is disabled in build jobs; only the publish job uses `gh release create` or `gh release upload` to publish assets.
 - Build jobs need read-only repository access. Only the publish job receives `contents: write`; checkout credentials are not persisted.
 

@@ -31,7 +31,7 @@ on:
         type: boolean
         default: true
       build_remote_assets:
-        description: "构建远程连接资源（6 平台并行：linux-x64/arm64, darwin-x64/arm64, win32-x64）"
+        description: "构建远程连接资源（5 平台并行：linux-x64/arm64, darwin-x64/arm64, win32-x64）"
         required: false
         type: boolean
         default: true
@@ -48,9 +48,10 @@ env:
   # 与 publish 阶段要求的 WeCode-${version}-... 文件名不一致。
   ZCODE_ENV: production
   ZCODE_PREVIEW_IDENTITY: "0"
-  # 远程资源 CDN 基址，发布时指向 GitHub Releases
-  ZCODE_CDN_BASE_URL: https://github.com/${{ github.repository }}/releases/download
-  ZCODE_REMOTE_ASSET_CDN_BASE_URL: https://github.com/${{ github.repository }}/releases/download
+  # 远程资源直接从当前 tag 的 GitHub Release 下载，不再走 zcode CDN。
+  # URL 已包含 tag；desktop runtime 会识别该形式并直接拼接资产名。
+  ZCODE_CDN_BASE_URL: ${{ startsWith(github.ref, 'refs/tags/v') && format('https://github.com/{0}/releases/download/{1}', github.repository, github.ref_name) || '' }}
+  ZCODE_REMOTE_ASSET_CDN_BASE_URL: ${{ startsWith(github.ref, 'refs/tags/v') && format('https://github.com/{0}/releases/download/{1}', github.repository, github.ref_name) || '' }}
 
 # ============================================================
 # 1) 安装包构建：每平台一个独立 job，互不依赖
@@ -269,7 +270,7 @@ jobs:
           retention-days: 30
 
 # ============================================================
-# 2) 远程连接资源构建：独立 matrix，6 平台并行
+# 2) 远程连接资源构建：独立 matrix，5 平台并行
 # ============================================================
 
   build-remote-assets:
@@ -325,7 +326,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: remote-assets-${{ matrix.platform }}
-          path: packages/desktop/dist/remote-assets/${{ matrix.platform }}/*
+          path: packages/desktop/dist/remote-assets/**/*
           if-no-files-found: error
           retention-days: 30
 
@@ -379,22 +380,23 @@ jobs:
             test -s "$asset" || { echo "Missing release installer: $asset" >&2; exit 1; }
           done
 
-          # --- 收集远程连接资源（6 平台 × 约 7 组件 + manifest）---
-          remote_platforms=(linux-x64 linux-arm64 darwin-x64 darwin-arm64 win32-x64)
+          # --- 收集远程连接资源（5 平台 × 组件 + manifest）---
+          remote_platforms=(linux-x86_64 linux-aarch64 darwin-x64 darwin-arm64 win32-x64)
           found_remote=0
           for platform in "${remote_platforms[@]}"; do
-            if [[ -d "release-assets/remote-assets-${platform}" ]]; then
-              for file in release-assets/remote-assets-${platform}/*; do
-                [[ -f "$file" ]] && assets+=("$file")
-              done
-              ((found_remote++))
-            fi
+            manifest="$(find release-assets -type f -name "manifest-${platform}.json" -print -quit)"
+            test -s "$manifest" || { echo "Missing remote manifest: ${platform}" >&2; exit 1; }
+            assets+=("$manifest")
+            while IFS= read -r file; do
+              [[ -n "$file" ]] && assets+=("$file")
+            done < <(find release-assets -type f -name "remote-${platform}-*.tar.gz" -print)
+            found_remote=$((found_remote + 1))
           done
           echo "Found remote assets for ${found_remote} platforms"
 
           # 校验：tag push 时要求远程资源全平台齐全
-          if [[ $found_remote -ne 6 ]]; then
-            echo "ERROR: Expected 6 remote asset platforms, got ${found_remote}" >&2
+          if [[ $found_remote -ne 5 ]]; then
+            echo "ERROR: Expected 5 remote asset platforms, got ${found_remote}" >&2
             exit 1
           fi
 

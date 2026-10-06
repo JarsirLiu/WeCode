@@ -19,6 +19,15 @@ function normalizeBaseUrl(value: string): string {
   return value.replace(/\/+$/, "");
 }
 
+function isGitHubReleaseDownloadBase(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.hostname === "github.com" && /\/releases\/download\/[^/]+$/u.test(url.pathname);
+  } catch {
+    return false;
+  }
+}
+
 export function resolveRemoteCdnBaseUrls(options: ResolveRemoteCdnOptions = {}): string[] {
   const override = options.overrideBaseUrl?.trim();
   if (override) return [normalizeBaseUrl(override)];
@@ -26,7 +35,11 @@ export function resolveRemoteCdnBaseUrls(options: ResolveRemoteCdnOptions = {}):
     process.env.ZCODE_CDN_BASE_URL?.trim() ||
     (typeof __ZCODE_CDN_BASE_URL__ === "undefined" ? "" : __ZCODE_CDN_BASE_URL__) ||
     DEFAULT_CDN_BASE_URL;
+  const normalizedBaseUrl = normalizeBaseUrl(baseUrl);
+  if (isGitHubReleaseDownloadBase(normalizedBaseUrl)) {
+    return [normalizedBaseUrl];
+  }
   return [
-    `${normalizeBaseUrl(baseUrl)}/zcode/electron/releases/${options.version ?? ZCODE_VERSION}`,
+    `${normalizedBaseUrl}/zcode/electron/releases/${options.version ?? ZCODE_VERSION}`,
   ];
 }
