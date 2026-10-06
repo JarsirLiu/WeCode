@@ -5,6 +5,8 @@
 - A tag-triggered desktop release builds production installers for Linux x64/arm64, macOS x64/arm64, and Windows x64.
 - Production installers use the `ZCode` identity and omit the `_TEST` suffix. Their filenames use the normalized, explicitly selected target architecture (`x64` or `arm64`), not Electron Builder's target-specific `${arch}` expansion, which differs between Linux package formats.
 - Each Linux architecture validates the complete AppImage, deb, rpm, and pacman installer set before uploading its artifact. The build log lists generated filenames to make packaging mismatches visible at their source.
+- Installer artifact upload paths use one `@actions/glob` pattern per extension; shell brace expansion (`*.{dmg,zip}`) is not supported by `actions/upload-artifact` and must not be used.
+- Installer jobs set `ZCODE_SKIP_REMOTE_ASSETS=1`; remote connection assets are built only by the dedicated four-platform matrix job and are never rebuilt during desktop installer packaging.
 - The publish job downloads platform artifacts, selects only the 13 expected installer files (8 Linux, 4 macOS, 1 Windows), and ignores auxiliary directories such as unpacked Linux targets. It creates the GitHub Release against the exact triggering `v`-prefixed tag, or uploads/replaces assets on that tag's existing Release to recover a partial publish. The unprefixed version is only the release title and installer version.
 
 ## Ownership and invariants

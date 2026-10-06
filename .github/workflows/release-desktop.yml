@@ -62,6 +62,8 @@ jobs:
     if: github.event_name != 'workflow_dispatch' || inputs.build_installer_linux == true
     name: Installer Linux x64
     runs-on: ubuntu-24.04
+    env:
+      ZCODE_SKIP_REMOTE_ASSETS: "1"
     timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
@@ -110,7 +112,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: desktop-linux-x64
-          path: packages/desktop/dist/*.{AppImage,deb,rpm,pkg.tar.zst}
+          # actions/upload-artifact 使用 @actions/glob，不执行 shell brace expansion。
+          # 每个扩展名必须单独列出，否则构建成功后会在上传阶段报找不到文件。
+          path: |
+            packages/desktop/dist/*.AppImage
+            packages/desktop/dist/*.deb
+            packages/desktop/dist/*.rpm
+            packages/desktop/dist/*.pkg.tar.zst
           if-no-files-found: error
           retention-days: 30
 
@@ -118,6 +126,8 @@ jobs:
     if: github.event_name != 'workflow_dispatch' || inputs.build_installer_linux == true
     name: Installer Linux arm64
     runs-on: ubuntu-24.04
+    env:
+      ZCODE_SKIP_REMOTE_ASSETS: "1"
     timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
@@ -166,7 +176,11 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: desktop-linux-arm64
-          path: packages/desktop/dist/*.{AppImage,deb,rpm,pkg.tar.zst}
+          path: |
+            packages/desktop/dist/*.AppImage
+            packages/desktop/dist/*.deb
+            packages/desktop/dist/*.rpm
+            packages/desktop/dist/*.pkg.tar.zst
           if-no-files-found: error
           retention-days: 30
 
@@ -174,6 +188,8 @@ jobs:
     if: github.event_name != 'workflow_dispatch' || inputs.build_installer_mac == true
     name: Installer macOS arm64
     runs-on: macos-15
+    env:
+      ZCODE_SKIP_REMOTE_ASSETS: "1"
     timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
@@ -199,7 +215,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: desktop-mac-arm64
-          path: packages/desktop/dist/*.{dmg,zip}
+          path: |
+            packages/desktop/dist/*.dmg
+            packages/desktop/dist/*.zip
           if-no-files-found: error
           retention-days: 30
 
@@ -207,6 +225,8 @@ jobs:
     if: github.event_name != 'workflow_dispatch' || inputs.build_installer_mac == true
     name: Installer macOS x64
     runs-on: macos-14
+    env:
+      ZCODE_SKIP_REMOTE_ASSETS: "1"
     timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
@@ -232,7 +252,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: desktop-mac-x64
-          path: packages/desktop/dist/*.{dmg,zip}
+          path: |
+            packages/desktop/dist/*.dmg
+            packages/desktop/dist/*.zip
           if-no-files-found: error
           retention-days: 30
 
@@ -240,6 +262,8 @@ jobs:
     if: github.event_name != 'workflow_dispatch' || inputs.build_installer_win == true
     name: Installer Windows x64
     runs-on: windows-2022
+    env:
+      ZCODE_SKIP_REMOTE_ASSETS: "1"
     timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
