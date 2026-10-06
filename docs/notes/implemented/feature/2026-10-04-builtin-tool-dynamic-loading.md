@@ -8,6 +8,8 @@ Status: implemented
 
 Current state: all 48 built-in tools are registered at startup, consuming 20k+ tokens in the first turn's context. This overhead is paid regardless of which tools the model will actually use. Models often need only a small subset (e.g., file I/O + Bash), making the full toolset wasteful. When new tool groups are added, the startup cost grows unbounded.
 
+**Follow-up correction (2026-10-06):** The original wiring registered the full builtin catalog at runtime, so the handler existed but the model still received every optional schema. AgentRuntime now opts into deferred registration: only the core/task-control tools and `LoadToolSet` are visible initially. `LoadToolSet` remains the single session registry mutation path and invalidates the model tool cache after registration. The eager registration path remains available to explicit legacy embedders.
+
 ## Affected surfaces
 
 **Runtime surfaces**:

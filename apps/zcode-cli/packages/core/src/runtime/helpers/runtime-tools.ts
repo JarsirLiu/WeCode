@@ -49,6 +49,9 @@ function registerRuntimeBuiltInTools(runtime: AgentRuntimeInternal, deps: AgentR
   const nodeReplEnabled = runtime.config.runtimeFeatures?.nodeRepl === true;
   const browserUseEnabled = resolveRuntimeBrowserUseEnabled(runtime, deps);
   registerBuiltInTools(runtime.registry, {
+    // Keep the first provider request small. Optional capabilities are loaded
+    // by LoadToolSet into this session registry and invalidate the runtime cache.
+    deferOptionalToolSets: true,
     bashTimeoutPolicy: runtime.config.bashTimeoutPolicy,
     includeSkill: Boolean(runtime.skillPort),
     includeAgent: Boolean(runtime.subagentPort),

@@ -48,10 +48,10 @@ const TOOL_SETS: Record<string, { spec: ToolSetSpec; toolNames: string[] }> = {
       id: "plan",
       description: "Planning & reasoning mode (EnterPlanMode, ExitPlanMode)",
       keywords: ["plan", "mode", "enter", "exit", "reasoning"],
-      tools: ["EnterPlanMode", "ExitPlanMode"],
+      tools: ["EnterPlanMode", "ExitPlanMode", "AskUserQuestion"],
       defaultEnabled: false,
     },
-    toolNames: ["EnterPlanMode", "ExitPlanMode"],
+    toolNames: ["EnterPlanMode", "ExitPlanMode", "AskUserQuestion"],
   },
 
   automation: {
@@ -78,6 +78,7 @@ const TOOL_SETS: Record<string, { spec: ToolSetSpec; toolNames: string[] }> = {
         "SetSessionModel",
         "CompactSession",
         "ResolveSessionPermission",
+        "ListSessions",
       ],
       defaultEnabled: false,
     },
@@ -89,6 +90,7 @@ const TOOL_SETS: Record<string, { spec: ToolSetSpec; toolNames: string[] }> = {
       "SetSessionModel",
       "CompactSession",
       "ResolveSessionPermission",
+      "ListSessions",
     ],
   },
 
@@ -323,4 +325,3 @@ async function loadToolSetHandler(
     total_tools: totalTools,
   };
 }
-

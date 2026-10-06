@@ -19,6 +19,7 @@ import {
   STOP_SESSION_GENERATION_TOOL_NAME,
   type ZCodeSessionPort,
   type ZCodeTaskPort,
+  LOAD_TOOL_SET_TOOL_NAME,
 } from "@zcode/contracts";
 import {
   buildBuiltInToolRegistrationPlan,
@@ -102,6 +103,65 @@ test("内置工具注册从同一 plan 生成，注册结果不漂移", () => {
   for (const name of ZCODE_TASK_TOOL_NAMES) {
     assert.equal(planned.includes(name), true, `${name} 应由 registration plan 暴露`);
   }
+});
+
+test("运行时默认工具面只暴露核心工具和 LoadToolSet", () => {
+  const registry = createToolRegistry();
+  registerBuiltInTools(registry, {
+    deferOptionalToolSets: true,
+    includeZCodeTask: true,
+    includeWorkspaceIndex: true,
+  });
+
+  assert.deepEqual(registry.list(), [
+    "Read",
+    "Write",
+    "Edit",
+    "Bash",
+    "Glob",
+    "Grep",
+    "WebFetch",
+    "WebSearch",
+    "TodoRead",
+    "TodoWrite",
+    "TaskOutput",
+    "TaskStop",
+    "LoadToolSet",
+  ]);
+  assert.equal(registry.has("CreateSession"), false);
+  assert.equal(registry.has("CronCreate"), false);
+});
+
+test("LoadToolSet 执行后才把可选工具注册进当前会话", async () => {
+  const registry = createToolRegistry();
+  registerBuiltInTools(registry, { deferOptionalToolSets: true });
+  let invalidated = 0;
+  const executor = createToolExecutor({
+    registry,
+    permissionService: new PermissionService(),
+    emitEvent: async () => {},
+    sessionId: "sess_dynamic_tools",
+    getMode: () => "yolo",
+    toolSetLoaderPort: {
+      isToolRegistered: (name) => registry.has(name),
+      registerTool: (entry) => registry.register(entry as never),
+      registerTools: (entries) => entries.forEach((entry) => registry.register(entry as never)),
+      invalidateToolCache: () => {
+        invalidated += 1;
+      },
+    },
+  });
+
+  assert.equal(registry.has("CronCreate"), false);
+  const result = await executor.execute({
+    id: "call_dynamic_tools",
+    name: LOAD_TOOL_SET_TOOL_NAME,
+    input: { toolset_id: "automation" },
+  });
+
+  assert.equal(result.success, true, `动态加载失败：${JSON.stringify(result.error ?? {})}`);
+  assert.equal(registry.has("CronCreate"), true);
+  assert.equal(invalidated, 1);
 });
 
 test("CreateSession 执行把 zcodeTaskPort 送达 handler 并命中 stub", async () => {

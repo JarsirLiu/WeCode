@@ -4,7 +4,7 @@
 
 解决现状：48 个内置工具全量注册，首轮上下文占用 20k+ token。引入 **ToolSearch + LoadToolSet** 双工具协作，实现：
 
-- **首轮仅暴露 2 个元工具 + core 8 个工具**（~5k token）
+- **首轮仅暴露 LoadToolSet + core/task-control 工具**（目标约 5k token）
 - **模型按需加载工具集**，加载后永久驻留当前会话 ToolRegistry
 - **未加载的工具集，模型完全不可见、不可调用**
 
@@ -66,6 +66,8 @@
 ## 设计方案
 
 ### 1. 契约层：工具集规格（纯数据）
+
+> **当前实现状态（2026-10-06）**：AgentRuntime 已启用延迟工具面。首轮仅注册 core、task-control 与 LoadToolSet；可选工具仍由现有 `LoadToolSet` handler 按会话注册并使缓存失效。调用方若显式不启用延迟模式，保留 eager registration 作为兼容行为。
 
 **`apps/zcode-cli/packages/contracts/src/tool-sets.ts`**
 

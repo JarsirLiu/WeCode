@@ -23,6 +23,7 @@ import { askUserQuestionToolEntry } from "./handlers/ask-user-question.js";
 import { botCommandToolEntry } from "./handlers/bot-command.js";
 import { compactSessionToolEntry } from "./handlers/compact-session.js";
 import { createSessionToolEntry } from "./handlers/create-session.js";
+import { listSessionsToolEntry } from "./handlers/list-sessions.js";
 import { readSessionToolEntry } from "./handlers/read-session.js";
 import { resolveSessionPermissionToolEntry } from "./handlers/resolve-session-permission.js";
 import { sendMessageToolEntry } from "./handlers/send-message.js";
@@ -104,6 +105,7 @@ const TOOL_CATALOG: Readonly<Record<string, ToolEntry>> = {
   SetSessionModel: setSessionModelToolEntry,
   CompactSession: compactSessionToolEntry,
   ResolveSessionPermission: resolveSessionPermissionToolEntry,
+  ListSessions: listSessionsToolEntry,
 
   // Subagent communication
   SendMessage: sendMessageToolEntry,

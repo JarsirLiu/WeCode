@@ -208,6 +208,12 @@ const ZCODE_TASK_TOOL_NAMES: ReadonlySet<string> = new Set([
 ]);
 
 interface RegisterBuiltInToolsOptions {
+  /**
+   * Runtime sessions use deferred tool loading so the initial provider request
+   * does not carry every optional builtin schema. Tests and legacy embedders
+   * keep the historical eager surface unless this is explicitly enabled.
+   */
+  deferOptionalToolSets?: boolean;
   bashTimeoutPolicy?: BashTimeoutPolicy;
   includeSkill?: boolean;
   includeAgent?: boolean;
@@ -256,6 +262,9 @@ export function buildBuiltInToolRegistrationPlan(
   const plan: ToolEntry[] = [];
 
   for (const entry of builtInTools) {
+    if (options.deferOptionalToolSets === true && !DEFAULT_RUNTIME_TOOL_NAMES.has(entry.metadata.name)) {
+      continue;
+    }
     if (
       options.embeddedSearchEnabled === true &&
       (entry.metadata.name === "Glob" || entry.metadata.name === "Grep")
@@ -333,6 +342,23 @@ export function buildBuiltInToolRegistrationPlan(
   }
   return plan;
 }
+
+/** Tools required before the model has decided which optional capability set it needs. */
+const DEFAULT_RUNTIME_TOOL_NAMES = new Set([
+  "Read",
+  "Write",
+  "Edit",
+  "Bash",
+  "WebFetch",
+  "WebSearch",
+  "TodoRead",
+  "TodoWrite",
+  "Glob",
+  "Grep",
+  "TaskOutput",
+  "TaskStop",
+  "LoadToolSet",
+]);
 
 /** 初次装配与 runtime 刷新都经同一 registration plan，避免能力门控漂移。 */
 export function registerBuiltInTools(
