@@ -19,7 +19,7 @@ import { createRequire } from "node:module";
 import { createGzip } from "node:zlib";
 import { createWriteStream, createReadStream } from "node:fs";
 import { pipeline } from "node:stream/promises";
-import tar from "tar";
+import * as tar from "tar";
 
 const require = createRequire(import.meta.url);
 const scriptDir = dirname(fileURLToPath(import.meta.url));
@@ -34,7 +34,6 @@ const PLATFORM_MAP = {
   "linux-arm64": "linux-aarch64",
   "darwin-x64": "darwin-x64",
   "darwin-arm64": "darwin-arm64",
-  "win32-x64": "win32-x64",
 };
 
 const REMOTE_PLATFORMS = Object.keys(PLATFORM_MAP);
@@ -185,8 +184,8 @@ async function main() {
   console.log(`\nOutput directory: ${OUTPUT_DIR}`);
 }
 
-const entryHref = process.argv[1] ? fileURLToPath(process.argv[1]) : null;
-if (entryHref === fileURLToPath(import.meta.url)) {
+const entryPath = process.argv[1] ? resolve(process.argv[1]) : null;
+if (entryPath === fileURLToPath(import.meta.url)) {
   await main().catch((error) => {
     console.error(`\n[FATAL] ${error.message}`);
     process.exit(1);

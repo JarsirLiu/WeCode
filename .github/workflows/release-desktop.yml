@@ -31,7 +31,7 @@ on:
         type: boolean
         default: true
       build_remote_assets:
-        description: "构建远程连接资源（5 平台并行：linux-x64/arm64, darwin-x64/arm64, win32-x64）"
+        description: "构建远程连接资源（4 平台并行：linux-x64/arm64, darwin-x64/arm64）"
         required: false
         type: boolean
         default: true
@@ -270,7 +270,7 @@ jobs:
           retention-days: 30
 
 # ============================================================
-# 2) 远程连接资源构建：独立 matrix，5 平台并行
+# 2) 远程连接资源构建：独立 matrix，4 平台并行
 # ============================================================
 
   build-remote-assets:
@@ -294,9 +294,6 @@ jobs:
           - platform: darwin-arm64
             runner: macos-15
             mock_platform: darwin-arm64
-          - platform: win32-x64
-            runner: windows-2022
-            mock_platform: win32-x64
     steps:
       - uses: actions/checkout@v4
         with:
@@ -380,8 +377,8 @@ jobs:
             test -s "$asset" || { echo "Missing release installer: $asset" >&2; exit 1; }
           done
 
-          # --- 收集远程连接资源（5 平台 × 组件 + manifest）---
-          remote_platforms=(linux-x86_64 linux-aarch64 darwin-x64 darwin-arm64 win32-x64)
+          # --- 收集远程连接资源（4 平台 × 组件 + manifest）---
+          remote_platforms=(linux-x86_64 linux-aarch64 darwin-x64 darwin-arm64)
           found_remote=0
           for platform in "${remote_platforms[@]}"; do
             manifest="$(find release-assets -type f -name "manifest-${platform}.json" -print -quit)"
@@ -395,8 +392,8 @@ jobs:
           echo "Found remote assets for ${found_remote} platforms"
 
           # 校验：tag push 时要求远程资源全平台齐全
-          if [[ $found_remote -ne 5 ]]; then
-            echo "ERROR: Expected 5 remote asset platforms, got ${found_remote}" >&2
+          if [[ $found_remote -ne 4 ]]; then
+            echo "ERROR: Expected 4 remote asset platforms, got ${found_remote}" >&2
             exit 1
           fi
 
