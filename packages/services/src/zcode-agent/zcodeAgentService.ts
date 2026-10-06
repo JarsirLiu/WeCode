@@ -118,6 +118,7 @@ import {
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 import { createOfficialMcpIssuanceAudit } from "#src/official-mcp/officialMcpIssuanceAudit.js";
 import type { ZCodeTaskServiceExecutor } from "./zcodeTaskCommandExecutor.js";
+import type { WorkspaceIndexServiceExecutor } from "./workspaceIndexServiceExecutor.js";
 import { handleBotsCommandReverseRequest } from "./zcodeBotsCommandRelay.js";
 import { handleTaskSessionReverseRequest } from "./zcodeTaskSessionRelay.js";
 import type {
@@ -918,6 +919,7 @@ interface CreateZCodeAgentServiceOptions extends Omit<
    * 缺省返回结构化失败，AI 编排工具在纯 CLI 不注册，注入缺失也不能伪装成功。
    */
   zcodeTaskExecutor?: ZCodeTaskServiceExecutor;
+  workspaceIndexExecutor?: WorkspaceIndexServiceExecutor;
   /**
    * 官方 Server MCP 身份头解析器。Agent 进程不持有用户身份权威，
    * 经 interaction/requestOfficialMcpAuthHeaders 向 host 索取本次请求的身份头。
@@ -2534,6 +2536,7 @@ export function createZCodeAgentService(
             request,
             client,
             taskExecutor: options?.zcodeTaskExecutor,
+            workspaceIndexExecutor: options?.workspaceIndexExecutor,
           })
         ) {
           return;

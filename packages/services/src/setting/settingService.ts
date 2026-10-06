@@ -12,7 +12,8 @@ import {
   formatLogPrefix,
   formatZodError,
 } from "@zcode/shared";
-import type { ISettingService } from "./setting.js";
+import type { ISettingService, WorkspaceSummary } from "./setting.js";
+import { buildWorkspaceSummaries } from "./workspaceIndex.js";
 import { normalizeSettingsPatch } from "#src/setting/normalizeSettingsPatch.js";
 import { copyDataDirectory, getDataBaseDir, validateDataBaseDirTarget } from "../paths.js";
 import { isEffectiveDevelopmentNodeEnv } from "../runtime-tools/nodeEnv.js";
@@ -294,6 +295,10 @@ export function createSettingServiceWithMigrations(): {
       });
 
       return readSettings();
+    },
+
+    async listWorkspaces(): Promise<WorkspaceSummary[]> {
+      return buildWorkspaceSummaries(await service.get());
     },
 
     async update(patch: Partial<AppSettings>, expectedAccountSettings): Promise<void> {

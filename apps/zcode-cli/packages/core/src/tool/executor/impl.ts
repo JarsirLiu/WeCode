@@ -40,6 +40,7 @@ export class ToolExecutorImpl implements ToolExecutor {
       // 漏字段不会有编译错误，只在调用时报 service not available（曾导致
       // CreateSession 注册可见但永远执行失败）。
       zcodeTaskPort: options.zcodeTaskPort,
+      workspaceIndexPort: options.workspaceIndexPort,
       zcodeSessionPort: options.zcodeSessionPort,
       zcodePermissionPort: options.zcodePermissionPort,
       browserDocumentationRoot: options.browserDocumentationRoot,

@@ -170,7 +170,7 @@ import {
 } from "./zcodeConfigOptions.js";
 import type { CuaProductMcpServerResolver } from "#src/cua-permission-broker/index.js";
 import { runPermissionResolutionWithClaim } from "./permissionResolutionClaim.js";
-import { registerMemoryDiagnosticsProvider } from "#src/memoryDiagnostics.js";
+import { registerMemoryDiagnosticsProvider } from "#src/memoryDiagnostics.js"; import { resolveTaskTargetFromHost } from "./taskTargetResolver.js";
 
 interface TaskOverlay {
   archived?: boolean;
@@ -1752,10 +1752,10 @@ export function createZCodeTaskServiceAdapter(
     },
 
     async releaseWorkspacePreparation(params): Promise<void> {
-      // 关闭 workspace UI 只会释放 RPC 使用方，不会自动终止已预热的 Agent。
-      // WSL Host 共享后 Host 会继续存活，因此必须按 workspaceKey 显式回收对应 runtime。
       await options.zcodeAgentService.disposeWorkspace(normalizeWorkspaceParams(params));
     },
+
+    async resolveTaskTarget(params) { return resolveTaskTargetFromHost(params.taskId, taskTargets, taskIndexRepo, rememberIndexedTaskMeta); },
 
     async createTask(params): Promise<ZCodeTaskCreateResult> {
       const target = normalizeWorkspaceParams(params);

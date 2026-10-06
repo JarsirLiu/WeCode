@@ -7,6 +7,7 @@ import {
   zcodeTaskCreateTaskParamsSchema,
   zcodeTaskGetTaskSnapshotParamsSchema,
   zcodeTaskListTasksParamsSchema,
+  zcodeWorkspaceListParamsSchema,
   zcodeTaskResumeTaskParamsSchema,
   zcodeTaskSendPromptParamsSchema,
   zcodeTaskSetModelParamsSchema,
@@ -17,18 +18,16 @@ import {
 import type { ZCodeProtocolClient } from "./zcodeProtocolClient.js";
 import type { ZCodeTaskServiceExecutor } from "./zcodeTaskCommandExecutor.js";
 import { PermissionResolutionError } from "./permissionResolutionError.js";
+import type { WorkspaceIndexServiceExecutor } from "./workspaceIndexServiceExecutor.js";
 
 type RelayClient = Pick<ZCodeProtocolClient, "respond" | "respondError">;
 
-/**
- * AI Session Orchestration：agent 的 task/* / session/* 反向请求转发给
- * IZCodeTaskService / IZCodeSessionService 执行桥（spec: docs/specs/features/ai-session-orchestration.md）。
- * executor 注入方式同 botsCommandExecutor；缺省通过 JSON-RPC error 失败，不伪造成功。
- */
+/** AI task/session reverse requests; missing executors fail through JSON-RPC. */
 export function handleTaskSessionReverseRequest(args: {
   request: ZCodeProtocolRequest;
   client: RelayClient;
   taskExecutor: ZCodeTaskServiceExecutor | undefined;
+  workspaceIndexExecutor?: WorkspaceIndexServiceExecutor;
 }): boolean {
   const { request, client, taskExecutor } = args;
   const respondFailure = (error: unknown): void => {
@@ -43,6 +42,20 @@ export function handleTaskSessionReverseRequest(args: {
       message: error instanceof Error ? error.message : String(error),
     });
   };
+
+  if (request.method === zcodeProtocolMethods.workspaceList) {
+    const parsed = zcodeWorkspaceListParamsSchema.safeParse(request.params);
+    if (!parsed.success) {
+      void client.respondError(request.id, { code: -32602, message: "Invalid workspace/list params", data: parsed.error.flatten() });
+      return true;
+    }
+    if (!args.workspaceIndexExecutor) {
+      respondFailure("Host workspace index service not available");
+      return true;
+    }
+    void args.workspaceIndexExecutor.listWorkspaces().then((result) => client.respond(request.id, result)).catch(respondFailure);
+    return true;
+  }
 
   if (request.method === zcodeProtocolMethods.taskCreateTask) {
     const parsed = zcodeTaskCreateTaskParamsSchema.safeParse(request.params);

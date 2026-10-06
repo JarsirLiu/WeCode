@@ -58,6 +58,7 @@ export * from "./performance.js";
 // 名字常量被 core 的注册门读走。
 export * from "./bot-command.js";
 export * from "./ai-session-orchestration.js";
+export * from "./mcp-session-orchestration.js";
 // 动态工具加载：在运行时按需加载工具集（plan/automation/workflow/等）。
 // 名字常量被 core 的工具注册与 allowlist 补回逻辑读走；漏掉这行会让
 // child 禁用列表补全失效。

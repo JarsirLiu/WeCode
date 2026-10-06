@@ -22,6 +22,22 @@
 - 复用现有 `IZCodeTaskService` / `IZCodeSessionService` RPC 服务
 - **核心原则**：子会话完全自主跑完（`mode: "yolo"`），不卡在审批上；当前会话通过轮询收集结果
 
+## WorkspaceList 工作区目录
+
+`WorkspaceList` 只用于发现 Host 已知的本地与远程工作区，不能用 task/session 历史推导工作区集合。Host 设置服务持有工作区索引，来源为 `lastWorkspaceSession` 与 `recentProjects`；Host 通过 `ISettingService.listWorkspaces()` 汇总、去重并剥离远程连接敏感细节。没有 task 的工作区和远程工作区也必须可见。
+
+AI 的读取链路独立于 task/session 命令：`WorkspaceIndexPort → workspace/list 反向协议 → Host WorkspaceIndex executor → ISettingService.listWorkspaces()`。调用方 session 仅作为 Host 反向请求的受信身份和路由上下文；它不是被列出的工作区过滤条件。协议未装配、调用方 session 无效或 Host 索引服务不可用时，工具必须返回结构化失败，不得改用 `process.cwd()`、`listTasks()`、本地缓存或 MCP HTTP endpoint。
+
+工具仅返回索引所拥有的摘要字段：`workspaceIdentity`（本地工作区为空时使用 `workspacePath` 作为稳定身份键）、`workspacePath`、`label`、`kind`，以及可选的 `workspacePurpose` / `lastConnectionStatus`。不得推测 `projectType`、`lastActiveAt` 或 `activeSessionCount`；这些字段既不属于工作区索引，也无法由现有 authoritative source 证明。MCP 可以复用同一个 Host 设置索引服务，但 MCP ACL、外部目标 session 和 transport 适配仍由 MCP 自己负责，不反向依赖 AI 工具 handler。
+
+```text
+AI ToolEntry
+  → WorkspaceIndexPort (caller session + trace + cancellation)
+  → workspace/list protocol request (受信 session record)
+  → Host WorkspaceIndex executor
+  → ISettingService.listWorkspaces() (唯一索引事实源)
+```
+
 ## 消息投递准入（Phase 1.5）
 
 `SendSessionMessage` 的成功返回不是“请求已写入 stdio”，而是目标 Host 已将该输入交给 CLI/runtime `CommandInbox` 后的 **admission**。唯一可变的 admission/队列事实仍属于目标 session runtime；broker、主会话和 UI 都不得维护第二份已接受输入队列。

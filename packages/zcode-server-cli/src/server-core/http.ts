@@ -26,10 +26,13 @@ import {
   type ServerRemoteInfo,
 } from "@zcode/shared";
 import { createHostCapabilityStore, type HostCapabilityStore } from "./hostCapability.js";
+import { createMcpHttpHandler, DEFAULT_MCP_HTTP_PORT, MCP_HTTP_PATH } from "@zcode/server";
+import { createHostMcpToolHandler } from "@zcode/server";
 
 interface CoreHttpServer {
   host: string;
   port: number;
+  mcpPort: number;
   close: () => Promise<void>;
 }
 
@@ -145,6 +148,10 @@ export async function createCoreHttpServer(
   // 裸 Set 无法落实 expiresAt，未消费的 capability 会一直有效并持续累积。
   // 使用与 packages/server 兼容的 TTL 一次性 store，使有效期和消费语义与返回信息一致。
   const capabilities = options.hostCapabilityStore ?? createHostCapabilityStore();
+  const mcpHandler = createMcpHttpHandler({
+    services,
+    toolHandler: createHostMcpToolHandler(services),
+  });
   app.get("/api/server-info", (context) => context.json(info));
   app.get(
     "/ws",
@@ -170,25 +177,55 @@ export async function createCoreHttpServer(
     })),
   );
   app.post("/api/rpc-host-capability", (context) => context.json(capabilities.issue()));
+  // MCP gets a stable dedicated loopback listener. The RPC listener remains dynamic.
+  const mcpPort = Number(process.env.WECODE_MCP_PORT) || DEFAULT_MCP_HTTP_PORT;
+  let mcpServer: ReturnType<typeof serve> | undefined;
+  const mcpListening = new Promise<void>((resolve, reject) => {
+    mcpServer = serve(
+      {
+        fetch: (request) =>
+          new URL(request.url).pathname === MCP_HTTP_PATH
+            ? mcpHandler(request)
+            : Promise.resolve(new Response("Not found", { status: 404 })),
+        hostname: "127.0.0.1",
+        port: mcpPort,
+      },
+      () => resolve(),
+    );
+    mcpServer.on("error", reject);
+  });
   let resolveListening: (value: { port: number }) => void = () => undefined;
   const listening = new Promise<{ port: number }>((resolve) => {
     resolveListening = resolve;
   });
-  const server = serve({ fetch: app.fetch, hostname: host, port: options.port ?? 0 }, () => {
-    const address = server.address();
-    resolveListening({
-      port: typeof address === "object" && address ? address.port : (options.port ?? 0),
+  const server = serve(
+    { fetch: app.fetch, hostname: host, port: options.port ?? 0 },
+    () => {
+      const address = server.address();
+      resolveListening({
+        port: typeof address === "object" && address ? address.port : (options.port ?? 0),
+      });
+    },
+  );
+  injectWebSocket(server);
+  const [{ port }] = await Promise.all([listening, mcpListening]).catch(async (error) => {
+    server.close();
+    mcpServer?.close();
+    throw new Error(`MCP listener failed on 127.0.0.1:${mcpPort}: ${String(error)}`, {
+      cause: error,
     });
   });
-  injectWebSocket(server);
-  const { port } = await listening;
   return {
     host,
     port,
+    mcpPort,
     close: async () => {
       await closeWebSocketServer(wss);
       await new Promise<void>((resolve, reject) =>
         server.close((error?: Error) => (error ? reject(error) : resolve())),
+      );
+      await new Promise<void>((resolve, reject) =>
+        mcpServer?.close((error?: Error) => (error ? reject(error) : resolve())),
       );
     },
   };

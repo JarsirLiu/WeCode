@@ -19,7 +19,7 @@ import type {
   StableForkTargetMetadata,
   WorkspaceHookBundleSnapshot,
   WorkspaceId,
-  ZCodeTaskPort, ZCodeSessionPort, ZCodePermissionPort,
+  ZCodeTaskPort, ZCodeSessionPort, ZCodePermissionPort, WorkspaceIndexPort,
 } from "@zcode/contracts";
 import type { ZCodeProviderAccountAccess } from "@zcode/shared";
 import type { EffectiveModelSelectionResult } from "@zcode/shared/model-selection";
@@ -334,6 +334,8 @@ export interface AgentRuntimeDeps {
    * 缺席则不注册。spec: docs/specs/ai-session-orchestration.md。
    */
   zcodeTaskPort?: ZCodeTaskPort;
+  /** Host-owned workspace directory; independent of task/session orchestration. */
+  workspaceIndexPort?: WorkspaceIndexPort;
   /**
    * ZCode Session 端口；配合 zcodeTaskPort 提供会话级读取能力（readSession 全量历史等）。
    * 缺席则 read_session 仅能用 snapshot 模式。

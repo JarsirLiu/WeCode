@@ -83,6 +83,7 @@ export interface AgentRuntimeInternal
   browserControlPort?: AgentRuntimeDeps["browserControlPort"];
   botsServicePort?: AgentRuntimeDeps["botsServicePort"];
   zcodeTaskPort?: AgentRuntimeDeps["zcodeTaskPort"];
+  workspaceIndexPort?: AgentRuntimeDeps["workspaceIndexPort"];
   zcodeSessionPort?: AgentRuntimeDeps["zcodeSessionPort"];
   modelRequestAdmission?: AgentRuntimeDeps["modelRequestAdmission"];
   sessionModelSelection: ModelSelection | undefined;

@@ -149,7 +149,7 @@ export interface ZCodeAppOptions {
   /** ZCode Task 端口；注入后 AI Session Orchestration 工具集注册 (create_session, send_session_message, read_session, stop_session_generation, set_session_model, compact_session)。缺省则不注册。 */
   zcodeTaskPort?: import("@zcode/contracts").ZCodeTaskPort; zcodePermissionPort?: import("@zcode/contracts").ZCodePermissionPort;
   /** ZCode Session 端口；配合 zcodeTaskPort 提供会话级读取能力 (read_session 全量历史等)。缺省则 read_session 仅能用 snapshot 模式。 */
-  zcodeSessionPort?: import("@zcode/contracts").ZCodeSessionPort;
+  zcodeSessionPort?: import("@zcode/contracts").ZCodeSessionPort; workspaceIndexPort?: import("@zcode/contracts").WorkspaceIndexPort;
   /** 可由协议宿主注入的进程级 node_repl Browser broker；缺省时 app 自建并拥有。 */
   nodeReplBrowserBroker?: NodeReplBrowserBroker;
   fileSystemPort?: FileSystemPort;

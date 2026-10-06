@@ -71,6 +71,7 @@ export { ITerminalService } from "./terminal/terminal.js";
 
 // Setting service — ISettingService is both a type (interface) and value (descriptor)
 export { ISettingService } from "./setting/setting.js";
+export type { WorkspaceSummary } from "./setting/setting.js";
 
 // Credential service — ICredentialService is both a type (interface) and value (descriptor)
 export { ICredentialService } from "./credential/credential.js";

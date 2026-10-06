@@ -117,7 +117,7 @@ export const builtInTools: ToolEntry[] = [
   askUserQuestionToolEntry,
   // Bot 命令入口：端口在场即注册（includeBotCommand），纯 CLI 无 BotsServicePort 时不存在。
   botCommandToolEntry,
-  // AI Session Orchestration：6 个会话编排工具 + workspace_list + list_sessions，受 includeZCodeTask 开关控制。
+  // Workspace discovery is independently gated by the Host workspace-index port.
   createSessionToolEntry,
   sendSessionMessageToolEntry,
   readSessionToolEntry,
@@ -194,8 +194,7 @@ const DYNAMIC_WORKFLOW_TOOL_NAMES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * AI Session Orchestration 工具集（spec: docs/specs/ai-session-orchestration.md + mcp-server-support.md）。
- * includeZCodeTask 开关控制注册；纯 CLI 无 zcodeTaskPort 时不注册。
+ * AI Session Orchestration tools are gated by their owning Host ports.
  */
 const ZCODE_TASK_TOOL_NAMES: ReadonlySet<string> = new Set([
   CREATE_SESSION_TOOL_NAME,
@@ -205,7 +204,6 @@ const ZCODE_TASK_TOOL_NAMES: ReadonlySet<string> = new Set([
   SET_SESSION_MODEL_TOOL_NAME,
   COMPACT_SESSION_TOOL_NAME,
   RESOLVE_SESSION_PERMISSION_TOOL_NAME,
-  WORKSPACE_LIST_TOOL_NAME,
   LIST_SESSIONS_TOOL_NAME,
 ]);
 
@@ -231,6 +229,7 @@ interface RegisterBuiltInToolsOptions {
   includeBotCommand?: boolean;
   /** AI Session Orchestration 工具面；由 zcodeTaskPort/zcodeSessionPort 注入门驱动（spec: ai-session-orchestration）。 */
   includeZCodeTask?: boolean;
+  includeWorkspaceIndex?: boolean;
   /**
    * 动态工作流灰度门。**只有显式 false
    * 才下架** DYNAMIC_WORKFLOW_TOOL_NAMES：缺席代表调用方不参与灰度（TUI、headless、
@@ -322,6 +321,12 @@ export function buildBuiltInToolRegistrationPlan(
     }
     // AI Session Orchestration 工具集：zcodeTaskPort 注入且非 subagent_child 时注册。
     if (options.includeZCodeTask !== true && ZCODE_TASK_TOOL_NAMES.has(entry.metadata.name)) {
+      continue;
+    }
+    if (
+      entry.metadata.name === WORKSPACE_LIST_TOOL_NAME &&
+      options.includeWorkspaceIndex !== true
+    ) {
       continue;
     }
     plan.push(resolveBuiltInToolEntryForBranch(entry, options));

@@ -3752,8 +3752,7 @@ export const zcodeProtocolMethods = {
   interactionBrowserExecute: "interaction/browserExecute",
   // Bot 命令反向请求由 agent 的 BotCommand 工具发起，host 转给 IBotsService 执行。
   botsCommandExecute: "bots/commandExecute",
-  // AI Session Orchestration
-  // 任务分组、归档、置顶、Claude 导入、快照分片等 UI 管理操作不进协议链路，UI 直接走
+  // AI Session Orchestration; UI-only task management stays outside this protocol.
   taskCreateTask: "task/createTask",
   taskSendPrompt: "task/sendPrompt",
   taskGetTaskSnapshot: "task/getTaskSnapshot",
@@ -3762,7 +3761,7 @@ export const zcodeProtocolMethods = {
   taskCompactSession: "task/compactSession",
   taskResumeTask: "task/resumeTask",
   taskListTasks: "task/listTasks",
-  sessionReadSession: "session/readSession",
+  workspaceList: "workspace/list", sessionReadSession: "session/readSession",
   sessionListSessions: "session/listSessions", permissionResolveSessionPermission: "permission/resolveSessionPermission",
 } as const;
 

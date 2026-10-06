@@ -64,7 +64,10 @@ async function trackedSources() {
     "--exclude-standard",
   ]);
   return names.filter(
-    (file) => /\.tsx?$/.test(file) && !EXCLUDED.some((pattern) => pattern.test(file)),
+    (file) =>
+      existsSync(resolve(root, file)) &&
+      /\.tsx?$/.test(file) &&
+      !EXCLUDED.some((pattern) => pattern.test(file)),
   );
 }
 

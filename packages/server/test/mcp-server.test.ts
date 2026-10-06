@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createWeCodeMcpServer, type WeCodeToolHandler } from "../src/mcp/index.js";
+import {
+  createWeCodeMcpServer,
+  WECODE_MCP_SERVER_VERSION,
+  type WeCodeToolHandler,
+} from "../src/mcp/index.js";
 import { MCP_TOOLS } from "../src/mcp/tool-adapter.js";
 
 test("mcp-server: createWeCodeMcpServer creates a valid server instance", () => {
@@ -12,6 +16,10 @@ test("mcp-server: createWeCodeMcpServer creates a valid server instance", () => 
 
   assert.ok(server, "Server should be created");
   assert.ok(server.setRequestHandler, "Server should have setRequestHandler method");
+});
+
+test("mcp-server: advertises the first public HTTP contract version", () => {
+  assert.equal(WECODE_MCP_SERVER_VERSION, "0.1.0");
 });
 
 test("mcp-server: Server instance has required methods for MCP protocol", () => {
@@ -36,7 +44,7 @@ test("mcp-server: All MCP tools have required properties", () => {
 });
 
 test("mcp-server: CreateSession tool has description mentioning workspace", () => {
-  const createSessionTool = MCP_TOOLS.find(t => t.name === "CreateSession");
+  const createSessionTool = MCP_TOOLS.find(t => t.name === "create_session");
   assert.ok(createSessionTool, "CreateSession tool should exist");
   assert.ok(
     createSessionTool.description.toLowerCase().includes("workspace") ||
@@ -46,7 +54,7 @@ test("mcp-server: CreateSession tool has description mentioning workspace", () =
 });
 
 test("mcp-server: SendSessionMessage tool has description mentioning message", () => {
-  const sendMessageTool = MCP_TOOLS.find(t => t.name === "SendSessionMessage");
+  const sendMessageTool = MCP_TOOLS.find(t => t.name === "send_session_message");
   assert.ok(sendMessageTool, "SendSessionMessage tool should exist");
   assert.ok(
     sendMessageTool.description.toLowerCase().includes("message"),
@@ -55,7 +63,7 @@ test("mcp-server: SendSessionMessage tool has description mentioning message", (
 });
 
 test("mcp-server: ResolveSessionPermission tool has description", () => {
-  const resolveTool = MCP_TOOLS.find(t => t.name === "ResolveSessionPermission");
+  const resolveTool = MCP_TOOLS.find(t => t.name === "resolve_session_permission");
   assert.ok(resolveTool, "ResolveSessionPermission tool should exist");
   assert.ok(resolveTool.description, "ResolveSessionPermission should have description");
 });
@@ -108,15 +116,15 @@ test("mcp-server: All 9 session orchestration tools are defined", () => {
   );
 
   const expectedNames = new Set([
-    "CreateSession",
-    "SendSessionMessage",
-    "ReadSession",
-    "StopSessionGeneration",
-    "SetSessionModel",
-    "CompactSession",
-    "ResolveSessionPermission",
-    "WorkspaceList",
-    "ListSessions",
+    "create_session",
+    "send_session_message",
+    "read_session",
+    "stop_session_generation",
+    "set_session_model",
+    "compact_session",
+    "resolve_session_permission",
+    "workspace_list",
+    "list_sessions",
   ]);
 
   const actualNames = new Set(MCP_TOOLS.map(t => t.name));
@@ -127,7 +135,7 @@ test("mcp-server: All 9 session orchestration tools are defined", () => {
 });
 
 test("mcp-server: CreateSession tool has workspacePath in properties", () => {
-  const createSessionTool = MCP_TOOLS.find(t => t.name === "CreateSession");
+  const createSessionTool = MCP_TOOLS.find(t => t.name === "create_session");
   assert.ok(createSessionTool, "CreateSession tool should exist");
 
   const properties = createSessionTool.inputSchema.properties as Record<string, unknown>;
@@ -135,7 +143,7 @@ test("mcp-server: CreateSession tool has workspacePath in properties", () => {
 });
 
 test("mcp-server: SendSessionMessage tool has sessionId and message in properties", () => {
-  const sendMessageTool = MCP_TOOLS.find(t => t.name === "SendSessionMessage");
+  const sendMessageTool = MCP_TOOLS.find(t => t.name === "send_session_message");
   assert.ok(sendMessageTool, "SendSessionMessage tool should exist");
 
   const properties = sendMessageTool.inputSchema.properties as Record<string, unknown>;
@@ -144,7 +152,7 @@ test("mcp-server: SendSessionMessage tool has sessionId and message in propertie
 });
 
 test("mcp-server: ResolveSessionPermission has sessionId, requestId, and decision", () => {
-  const resolveTool = MCP_TOOLS.find(t => t.name === "ResolveSessionPermission");
+  const resolveTool = MCP_TOOLS.find(t => t.name === "resolve_session_permission");
   assert.ok(resolveTool, "ResolveSessionPermission tool should exist");
 
   const properties = resolveTool.inputSchema.properties as Record<string, unknown>;
@@ -152,4 +160,3 @@ test("mcp-server: ResolveSessionPermission has sessionId, requestId, and decisio
   assert.ok(properties.requestId, "Should have requestId property");
   assert.ok(properties.decision, "Should have decision property");
 });
-

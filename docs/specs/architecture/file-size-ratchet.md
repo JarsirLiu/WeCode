@@ -20,7 +20,7 @@ lint 侧保留 `max-lines: warn@1000` 作为可见性信号（不阻断），硬
 
 关键差异：本棘轮**不识别** `eslint-disable` / `oxlint-disable` 的内联豁免。理由见上一节——豁免注释本身就是已被使用的逃逸口；棘轮要衡量的是真实体积，而不是 lint 是否报错。名单条目按同一口径记录，因此工具内部自洽，与 lint 报告的数字可能有小幅出入。
 
-扫描范围取 `git ls-files` 的 `*.ts` / `*.tsx`，排除 `*.d.ts`、`*.test.ts(x)`、`*.spec.ts(x)`、`dist/`、`i18n/locales/` 与 `bundled-skills/`：测试天然堆叠断言、语言包与打包进仓库的技能语料是数据不是职责，沿用 `.oxlintrc.json` 对它们的豁免结论。
+扫描范围取工作树中实际存在的 `git ls-files` `*.ts` / `*.tsx`，排除 `*.d.ts`、`*.test.ts(x)`、`*.spec.ts(x)`、`dist/`、`i18n/locales/` 与 `bundled-skills/`：测试天然堆叠断言、语言包与打包进仓库的技能语料是数据不是职责，沿用 `.oxlintrc.json` 对它们的豁免结论。已删除但仍存在于 Git index 的路径不参与读取；后续 `size:update` 会按 R4 清理对应旧条目。
 
 ## 规则
 

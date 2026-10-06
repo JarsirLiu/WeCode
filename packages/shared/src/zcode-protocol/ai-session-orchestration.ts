@@ -303,6 +303,23 @@ export type ZCodeAiTaskMetaListEntry = z.infer<typeof zcodeAiTaskMetaListEntrySc
 
 export const zcodeTaskListTasksResultSchema = z.array(zcodeAiTaskMetaListEntrySchema);
 
+// Workspace discovery reads the Host settings index, not task history.
+export const zcodeWorkspaceSummarySchema = z
+  .object({
+    kind: z.enum(["local", "remote"]),
+    workspacePath: nonEmptyStringSchema,
+    workspaceIdentity: nonEmptyStringSchema.optional(),
+    label: nonEmptyStringSchema,
+    workspacePurpose: z.string().optional(),
+    lastConnectionStatus: z.enum(["connected", "failed"]).optional(),
+  })
+  .strict();
+export type ZCodeWorkspaceSummary = z.infer<typeof zcodeWorkspaceSummarySchema>;
+
+export const zcodeWorkspaceListParamsSchema = zcodeAiOrchestrationRequestContextSchema.strict();
+export type ZCodeWorkspaceListParams = z.infer<typeof zcodeWorkspaceListParamsSchema>;
+export const zcodeWorkspaceListResultSchema = z.array(zcodeWorkspaceSummarySchema);
+
 // ============================================================
 // Session 反向请求：params / result
 // ============================================================

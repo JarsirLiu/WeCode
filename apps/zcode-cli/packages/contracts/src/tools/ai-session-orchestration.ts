@@ -342,9 +342,8 @@ export interface WorkspaceInfo {
   workspacePath: string;
   label: string;
   kind: "local" | "remote";
-  projectType: "node" | "python" | "go" | "rust" | "unknown";
-  lastActiveAt: number;
-  activeSessionCount: number;
+  workspacePurpose?: string;
+  lastConnectionStatus?: "connected" | "failed";
 }
 
 export const WorkspaceListOutputSchema = z
@@ -355,9 +354,8 @@ export const WorkspaceListOutputSchema = z
         workspacePath: z.string(),
         label: z.string(),
         kind: z.enum(["local", "remote"]),
-        projectType: z.enum(["node", "python", "go", "rust", "unknown"]),
-        lastActiveAt: z.number(),
-        activeSessionCount: z.number(),
+        workspacePurpose: z.string().optional(),
+        lastConnectionStatus: z.enum(["connected", "failed"]).optional(),
       }),
     ),
   })
@@ -372,9 +370,9 @@ export const WorkspaceListOutputJsonSchema = toToolJsonSchema(WorkspaceListOutpu
 export const WORKSPACE_LIST_DESCRIPTION = [
   "List all known workspaces (local and remote) for AI session orchestration.",
   "",
-  "Returns an array of workspaces with: workspaceIdentity (unique key for routing),",
-  "workspacePath (display path), label (display name), kind (local/remote),",
-  "projectType, lastActiveAt (timestamp), activeSessionCount.",
+  "Returns workspaces known to the Host settings index, including local and remote entries.",
+  "Each entry has workspaceIdentity (routing key), workspacePath, label and kind;",
+  "workspacePurpose and lastConnectionStatus are included when known.",
   "",
   "Use workspaceIdentity from the result as the workspaceIdentity parameter",
   "for create_session, list_sessions, and other session tools.",

@@ -151,10 +151,10 @@ import { createWindowHostControllerRuntime } from "./windowHostControllerService
 import { resolveAutomationSubmissionModelSelection } from "./automationModelSelection.js";
 import { createRemoteConnectionProgressContext } from "@zcode/server/remote/remoteConnectionProgressContext.js";
 import { startHostSelfResourceTelemetry } from "./hostSelfResourceTelemetry.js";
+import { createDesktopMcpHttpLifecycle } from "./mcpHttpLifecycle.js";
 type RemoteBackendHostConnection = RemoteConnection & {
   backend: IRemoteBackend;
 };
-type HostRemoteConnection = RemoteBackendHostConnection;
 interface HostRemoteConnectionCapabilities {
   browserRecordingUploader?: Pick<IRemoteBackend, "upload">;
   remoteMediaPreviewFactory?: (
@@ -340,11 +340,8 @@ function createFullFeedbackLogArchiveViaMain(
   });
 }
 
-const logger = {
-  info: (...args: unknown[]) => writeHostLog("info", ...args),
-  warn: (...args: unknown[]) => writeHostLog("warn", ...args),
-  error: (...args: unknown[]) => writeHostLog("error", ...args),
-};
+const logger = { info: (...args: unknown[]) => writeHostLog("info", ...args), warn: (...args: unknown[]) => writeHostLog("warn", ...args), error: (...args: unknown[]) => writeHostLog("error", ...args) };
+const desktopMcpHttpLifecycle = createDesktopMcpHttpLifecycle(logger);
 
 const cronAutomationRepo = new AutomationRepo();
 const cronRunSubscriptions = new Map<string, { dispose(): void }>();
@@ -1585,8 +1582,7 @@ console.error = (...args: unknown[]) => {
 /** 当前 host 已注册的服务集合，进程退出时用于统一回收本地资源 */
 let databaseStartup: ReturnType<typeof createHostDatabaseStartup> | undefined;
 const pendingStartupAttachments = new Map<string, () => void>();
-let activeServices: ServiceCollection | null = null;
-let activeHostApiNetworkTransport: HostApiNetworkTransport | null = null;
+let activeServices: ServiceCollection | null = null; let activeHostApiNetworkTransport: HostApiNetworkTransport | null = null;
 /** 本地 host services 的资源遥测订阅；远端连接的订阅由各自的 connection handle 持有。 */
 let activeLocalResourceTelemetry: IDisposable | null = null;
 // 资源管理器采样只在 main 请求时执行一次，Host 不维护任何周期定时器。
@@ -1629,7 +1625,7 @@ async function resolveDesktopRemoteRuntimeNetwork(
   }
 }
 
-async function disposeHostRemoteConnection(connection: HostRemoteConnection): Promise<void> {
+async function disposeHostRemoteConnection(connection: RemoteBackendHostConnection): Promise<void> {
   await connection.disposeAndWait({ timeoutMs: 5_000 });
 }
 
@@ -2163,6 +2159,7 @@ async function disposeHostResources(reason: string): Promise<HostShutdownResult>
 
     const servicesToDispose = activeServices;
     activeServices = null;
+    await desktopMcpHttpLifecycle.close();
     // Registry 是全部远端 connection 的唯一 owner；释放失败不能阻塞本地服务继续收口。
     const shutdownResult = await runHostShutdownPhases(
       [
@@ -2211,6 +2208,7 @@ function disposeHostResourcesBestEffort(reason: string): void {
   hasDisposedHostResources = true;
 
   logger.info(`disposing host resources, reason=${reason}`);
+  void desktopMcpHttpLifecycle.close();
   stopHostNetworkTelemetry();
   disposeLocalResourceTelemetry();
   disposeAttachedServicePorts();
@@ -2881,6 +2879,7 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
             });
             activeServices = initializedServices;
             activeHostApiNetworkTransport = hostApiNetworkTransport;
+            desktopMcpHttpLifecycle.start(initializedServices);
             return initializedServices;
           },
         });
@@ -2942,7 +2941,7 @@ async function setupRemoteConnection(
   onDidRemoteClose: (exitCode: number) => void,
   deployLockMode: DeployLockMode = "remote",
   signal?: AbortSignal,
-): Promise<HostRemoteConnection> {
+): Promise<RemoteBackendHostConnection> {
   // 延迟加载 remote backend，避免 local 模式下因 ssh2 依赖链进入 asar 后崩溃
   const { createRemoteBackend, connectRemote, pickRemoteRuntimeEnv } =
     await import("@zcode/server/remote");

@@ -111,6 +111,7 @@ import { createProtocolOffPeakPort } from "./offpeak-port.js";
 import { createProtocolBrowserControlBroker } from "./browser-control-broker.js";
 import { createProtocolBotsCommandBroker } from "./bots-command-broker.js";
 import { createProtocolZCodeTaskBroker } from "./zcode-task-broker.js";
+import { createProtocolWorkspaceIndexBroker } from "./workspace-index-broker.js";
 import { createProtocolZCodePermissionBroker } from "./zcode-permission-broker.js";
 import { createProtocolZCodeSessionBroker } from "./zcode-session-broker.js";
 import { mapComputerUseOperationEvent } from "./computer-use-operation-event.js";
@@ -3078,6 +3079,7 @@ async function createRecord(
     // AI Session Orchestration：ZCode Task/Session 端口，供 create_session / send_session_message / read_session 等工具调用。
     // 与 BotCommand 同构：本地 Host 直连 IZCodeTaskService/IZCodeSessionService；远程经 Protocol 反向请求路由。
     zcodeTaskPort: createProtocolZCodeTaskBroker(context),
+    workspaceIndexPort: createProtocolWorkspaceIndexBroker(context),
     zcodeSessionPort: createProtocolZCodeSessionBroker(context),
     zcodePermissionPort: createProtocolZCodePermissionBroker(context),
     // Protocol server 是受信任的 Desktop/Web/Mobile Host；灰度开关由这里显式注入，

@@ -91,7 +91,7 @@
 - 不能把 relay 塞进 `RemoteTarget` 新增 kind：`RemoteTarget` 是「本机 SSH 出去」范式，relay 是「接入他人已有会话」范式，硬塞会污染 `stripRemoteTargetSecrets` 与 workspace identity 格式契约。
 - 不能让 `zcode-server-cli` Core 模式监听非 loopback 地址；fail-closed 是刻意的。
 - 不能靠 `relay_bridge` 枚举直接扩出手机投递：`taskRealtimeBus` 只按 `workspaceKeys` 过滤，`deliveryKind` 不参与路由，且该链路**没有活着的消费端**（`task_stream_mirror_batch`、`deliveryPurpose` 全部零消费者）。
-- 没有 MCP server 端实现，**不能把本机 agent 暴露为可被其他 agent 调用的服务**。MCP 只有消费侧（`apps/zcode-cli/packages/adapters/src/mcp/`），全部是 client、pool、oauth、stdio-transport。
+- 本机 Agent 通过 `packages/server` 的 Streamable HTTP endpoint 暴露 MCP；外部客户端仍由 `apps/zcode-cli/packages/adapters/src/mcp/` 消费。MCP server 不提供 stdio 产品入口，普通 Desktop/Host stdio 仅属于内部 RPC。
 
 **做 agent 调 agent 的可行路径**
 

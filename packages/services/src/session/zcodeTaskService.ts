@@ -213,6 +213,11 @@ export interface IZCodeTaskService {
   /** 创建 ZCode session 并同步 task 索引。 */
   createTask(params: ZCodeTaskCreateParams): Promise<ZCodeTaskCreateResult>;
 
+  /** 由 Host task index 解析 session 的权威 workspace 归属。 */
+  resolveTaskTarget(params: {
+    taskId: string;
+  }): Promise<{ taskId: string; workspacePath: string; workspaceIdentity?: string }>;
+
   /** 发送 prompt 到指定 task */
   sendPrompt(
     params: {

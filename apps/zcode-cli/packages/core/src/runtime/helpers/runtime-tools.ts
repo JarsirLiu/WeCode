@@ -71,9 +71,10 @@ function registerRuntimeBuiltInTools(runtime: AgentRuntimeInternal, deps: AgentR
     includeOffPeak: Boolean(deps.offPeakPort) && runtime.config.taskType !== "subagent_child",
     // BotCommand 只服务主会话的用户级 Bot 操作；subagent 子会话不暴露（与 offPeak 同规则）。
     includeBotCommand: Boolean(deps.botsServicePort) && runtime.config.taskType !== "subagent_child",
-    // AI Session Orchestration：zcodeTaskPort 注入且非 subagent_child 时注册。
+    // Session tools use the task/session ports; workspace discovery has its own Host index port.
     // subagent 不应再编排子会话（递归编排无审批窗）。
     includeZCodeTask: Boolean(deps.zcodeTaskPort) && runtime.config.taskType !== "subagent_child",
+    includeWorkspaceIndex: Boolean(deps.workspaceIndexPort) && runtime.config.taskType !== "subagent_child",
     // 动态工作流灰度门：与 off-peak 相反，
     // 这里不能用端口在场做判据——十个工具的端口在任何 CLI 里都装配齐全，灰度是 Host 的决定。
     // 取值收在 tool-allowlist.ts，与分支刷新那个入口共用同一个推导。
@@ -182,6 +183,7 @@ function createRuntimeToolExecutor(
     // AI 会话编排端口必须进 executor deps，否则即使工具注册成功，handler 的
     // execution context 拿不到 zcodeTaskPort，调用时仍会报 service not available。
     zcodeTaskPort: deps.zcodeTaskPort,
+    workspaceIndexPort: deps.workspaceIndexPort,
     zcodeSessionPort: deps.zcodeSessionPort,
     zcodePermissionPort: deps.zcodePermissionPort,
     browserDocumentationRoot: browserUseEnabled

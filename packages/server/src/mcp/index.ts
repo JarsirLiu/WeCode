@@ -1,16 +1,6 @@
-/**
- * WeCode MCP Server (stdio transport)
- *
- * Provides 9 AI Session Orchestration tools via the official MCP SDK.
- * Phase 1: local stdio transport only.
- *
- * Usage (from CLI):
- *   const server = createWeCodeMcpServer(toolHandler);
- *   await server.connect(process.stdin, process.stdout);
- */
+/** WeCode MCP tool server used by the Streamable HTTP adapter. */
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
@@ -19,25 +9,21 @@ import {
 import { MCP_TOOLS } from "./tool-adapter.js";
 import { isWeCodeSessionTool } from "./tool-registry.js";
 
+/** First externally supported WeCode MCP HTTP contract version. */
+export const WECODE_MCP_SERVER_VERSION = "0.1.0";
+
 export {
   buildWeCodeMcpClientConfig,
   createWeCodeMcpClientConfigJson,
-  DEFAULT_SERVER_CLI_LAYOUT_CANDIDATES,
-  findWeCodeMcpServerCliPath,
-  resolveWeCodeMcpEntrypoint,
-  WECODE_MCP_RUN_AS_NODE_ENV,
   WECODE_MCP_SERVER_KEY,
-  WECODE_MCP_STDIO_SUBCOMMAND,
   type WeCodeMcpClientConfig,
-  type WeCodeMcpEntrypoint,
-  type WeCodeMcpEntrypointResult,
-  type WeCodeMcpServerClientEntry,
 } from "./client-config.js";
+export { DEFAULT_MCP_HTTP_PORT } from "./http.js";
 
 /**
  * Tool handler function signature.
  * Receives tool name and arguments, returns result or throws error.
- * Injected at startup by CLI layer (packages/zcode-server-cli).
+ * Injected at startup by the HTTP Host assembly layer.
  */
 export type WeCodeToolHandler = (
   toolName: string,
@@ -54,7 +40,7 @@ export function createWeCodeMcpServer(toolHandler: WeCodeToolHandler): Server {
   const server = new Server(
     {
       name: "wecode-session-orchestration",
-      version: "1.0.0",
+      version: WECODE_MCP_SERVER_VERSION,
     },
     {
       // 声明服务器支持 tools 能力
@@ -121,24 +107,4 @@ export function createWeCodeMcpServer(toolHandler: WeCodeToolHandler): Server {
   return server;
 }
 
-/**
- * Connect MCP server to stdio and start listening.
- *
- * @param server - The MCP server instance
- */
-export async function connectMcpServerStdio(server: Server): Promise<void> {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  // Server runs indefinitely, handling incoming MCP requests
-}
-
-/**
- * Create and start a WeCode MCP server on stdio.
- * This is the main entry point for the mcp stdio CLI subcommand.
- *
- * @param toolHandler - Function to dispatch tool calls
- */
-export async function startMcpServer(toolHandler: WeCodeToolHandler): Promise<void> {
-  const server = createWeCodeMcpServer(toolHandler);
-  await connectMcpServerStdio(server);
-}
+export { createHostMcpToolHandler } from "./host-tool-handler.js";

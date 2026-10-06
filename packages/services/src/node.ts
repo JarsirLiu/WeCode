@@ -293,6 +293,7 @@ import { IGitCheckpointService } from "./git/gitCheckpoint.js";
 import { ISystemService } from "./system/system.js";
 import { ITerminalService } from "./terminal/terminal.js";
 import { ISettingService } from "./setting/setting.js";
+import { createWorkspaceIndexServiceExecutor } from "./zcode-agent/workspaceIndexServiceExecutorFactory.js";
 import { IOnboardingRecordService } from "./onboarding/onboardingRecord.js";
 import { ICredentialService } from "./credential/credential.js";
 import { IBroadcastService } from "./broadcast/broadcast.js";
@@ -2070,6 +2071,9 @@ export function createLocalServices(options: {
     zcodeTaskExecutor: createZCodeTaskServiceExecutor({
       readZCodeTaskService: () => services.getOptional(IZCodeTaskService),
       readZCodeSessionService: () => services.getOptional(IZCodeSessionService),
+    }),
+    workspaceIndexExecutor: createWorkspaceIndexServiceExecutor({
+      readSettingService: () => services.getOptional(ISettingService),
     }),
     // 官方 Server MCP 身份头：host 是唯一身份权威，Agent 经反向请求索取。
     // Provider 存在性读取正式 Model Selection View；不恢复旧 Provider Snapshot。

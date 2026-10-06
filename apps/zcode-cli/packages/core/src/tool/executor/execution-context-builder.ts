@@ -65,6 +65,7 @@ export function buildExecutionContext(input: ExecutionContextBuilderInput): Tool
     browserControlPort: deps.browserControlPort,
     botsServicePort: deps.botsServicePort,
     zcodeTaskPort: deps.zcodeTaskPort,
+    workspaceIndexPort: deps.workspaceIndexPort,
     zcodeSessionPort: deps.zcodeSessionPort,
     zcodePermissionPort: deps.zcodePermissionPort,
     browserDocumentationRoot: deps.browserDocumentationRoot,
@@ -122,4 +123,3 @@ export function buildExecutionContext(input: ExecutionContextBuilderInput): Tool
     turnId,
   };
 }
-

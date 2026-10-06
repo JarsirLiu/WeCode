@@ -10,6 +10,7 @@ import type {
   ExecutionPort,
   BrowserControlPort,
   BotsServicePort,
+  WorkspaceIndexPort,
   FileSystemPort,
   HttpClientPort,
   ImageProcessorPort,
@@ -157,6 +158,8 @@ export interface ToolExecutionContext {
   botsServicePort?: BotsServicePort;
   /** ZCode Task 端口；AI Session Orchestration 工具集经此调用。缺省则工具不注册。 */
   zcodeTaskPort?: ZCodeTaskPort;
+  /** Host-owned workspace directory; independent of task/session orchestration. */
+  workspaceIndexPort?: WorkspaceIndexPort;
   /** ZCode Session 端口；read_session 全量历史模式经此调用。缺省则仅支持 snapshot 模式。 */
   zcodeSessionPort?: ZCodeSessionPort;
   zcodePermissionPort?: ZCodePermissionPort;

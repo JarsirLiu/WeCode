@@ -690,7 +690,7 @@ export function SettingsPage({
     return [...names];
   }, [sharedSettings?.recentProjects, workspaceTabs]);
   const memoryEnabled = sharedSettings?.memoryEnabled === true;
-  const nativeSearchEnhancementsEnabled = sharedSettings?.nativeSearchEnhancementsEnabled !== false;
+  const mcpEnabled = sharedSettings?.mcpEnabled !== false; const nativeSearchEnhancementsEnabled = sharedSettings?.nativeSearchEnhancementsEnabled !== false;
   const askUserQuestionAutoResolutionEnabled =
     sharedSettings?.askUserQuestionAutoResolutionEnabled !== false;
   const modelIoFullRetentionEnabled = sharedSettings?.modelIoFullRetentionEnabled === true;
@@ -955,6 +955,20 @@ export function SettingsPage({
           resultSource: "shared_settings",
           stateAfter: enabled ? "enabled" : "disabled",
         },
+      });
+    },
+    [updateSharedSettings],
+  );
+  const handleMcpEnabledChange = useCallback(
+    async (enabled: boolean) => {
+      await runUserAction({
+        input: { featureId: "extension.mcp", action: "toggle", trigger: "switch" },
+        operation: () => updateSharedSettings({ mcpEnabled: enabled }),
+        completed: {
+          resultSource: "shared_settings",
+          stateAfter: enabled ? "enabled" : "disabled",
+        },
+        failureStage: "mcp_toggle",
       });
     },
     [updateSharedSettings],
@@ -1892,6 +1906,8 @@ export function SettingsPage({
                             workspaceIdentity={activeWorkspaceIdentity}
                             showMarketplaceBreadcrumb={pluginNavigationOrigin === "plugin-store"}
                             onCreateTask={onCreateTask}
+                            mcpEnabled={mcpEnabled}
+                            onMcpEnabledChange={handleMcpEnabledChange}
                             onOpenPluginStore={(_returnScopeKey, intent) => {
                               // 添加市场与浏览插件都先离开设置层，再显示商店。
                               requestPluginStoreOpen({ returnScopeKey: "user", intent });
@@ -1902,6 +1918,8 @@ export function SettingsPage({
                           <PluginsSection
                             key={`mcp:${settingsSectionNavigationVersion}`}
                             mode="mcp"
+                            mcpEnabled={mcpEnabled}
+                            onMcpEnabledChange={handleMcpEnabledChange}
                             workspacePath={activeWorkspacePath}
                             workspaceIdentity={activeWorkspaceIdentity}
                             onCreateTask={onCreateTask}

@@ -1,9 +1,4 @@
-// ============================================================
-// WorkspaceList Tool Handler
-// ============================================================
-//
-// 列出已知工作区（本地 + 远程），供用户选择后传给 create_session。
-// spec: docs/specs/features/mcp-server-support.md
+// Lists the Host-owned workspace index for AI session orchestration.
 
 import {
   WORKSPACE_LIST_TOOL_NAME,
@@ -19,22 +14,6 @@ import type { ToolEntry, ToolHandler } from "../types.js";
 
 const MAX_WORKSPACE_LIST_BYTES = 50_000;
 const WORKSPACE_LIST_TIMEOUT_MS = 10_000;
-
-function hashWorkspacePath(path: string): string {
-  // 与 broker 保持一致的简单哈希
-  let hash = 0;
-  for (let i = 0; i < path.length; i++) {
-    const char = path.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash |= 0;
-  }
-  return Math.abs(hash).toString(36);
-}
-
-function detectProjectType(workspacePath: string): "node" | "python" | "go" | "rust" | "unknown" {
-  // 简单的项目类型检测，后续可复用现有逻辑
-  return "unknown";
-}
 
 const workspaceListHandler: ToolHandler = async (input, context) => {
   const parsed = WorkspaceListInputSchema.safeParse(input);
@@ -54,11 +33,10 @@ const workspaceListHandler: ToolHandler = async (input, context) => {
     });
   }
 
-  // 需要通过 zcodeTaskPort 访问 task service
-  if (!context.zcodeTaskPort) {
+  if (!context.workspaceIndexPort) {
     throw createCoreError(
       CoreErrorType.ToolExecutionFailed,
-      "ZCode Task service is not available in this session",
+      "Host workspace index is not available in this session",
       {
         context: { toolCallId: context.toolCallId, toolName: WORKSPACE_LIST_TOOL_NAME },
         recoverable: true,
@@ -66,56 +44,16 @@ const workspaceListHandler: ToolHandler = async (input, context) => {
     );
   }
 
-  // 1. 获取本地工作区：通过 listTasks 聚合
-  const localTasks = await context.zcodeTaskPort.listTasks({
-    workspacePath: process.cwd(),
+  const hostWorkspaces = await context.workspaceIndexPort.listWorkspaces({
     sessionId: context.sessionId,
+    traceContext: context.traceContext,
+    signal: context.abortSignal,
   });
-
-  // 按 workspacePath 聚合
-  const localWorkspaceMap = new Map<string, typeof localTasks>();
-  for (const task of localTasks) {
-    const key = task.workspacePath;
-    if (!localWorkspaceMap.has(key)) {
-      localWorkspaceMap.set(key, []);
-    }
-    localWorkspaceMap.get(key)!.push(task);
-  }
-
-  const workspaces: Array<{
-    workspaceIdentity: string;
-    workspacePath: string;
-    label: string;
-    kind: "local" | "remote";
-    projectType: "node" | "python" | "go" | "rust" | "unknown";
-    lastActiveAt: number;
-    activeSessionCount: number;
-  }> = [];
-
-  for (const [workspacePath, tasks] of localWorkspaceMap) {
-    const workspaceIdentity = hashWorkspacePath(workspacePath);
-    const lastActiveAt = Math.max(...tasks.map((t) => t.updatedAt));
-    const activeSessionCount = tasks.filter((t) => t.status === "running").length;
-
-    workspaces.push({
-      workspaceIdentity,
-      workspacePath,
-      label: workspacePath.split(/[/\\]/).pop() || workspacePath,
-      kind: "local",
-      projectType: detectProjectType(workspacePath),
-      lastActiveAt,
-      activeSessionCount,
-    });
-  }
-
-  // 2. 远程工作区：当前只有在 Desktop Host 运行时才有 windowRemoteConnectionRegistry
-  // 暂时留空，后续通过 broker 注入
-
-  // 按 lastActiveAt 降序排序
-  workspaces.sort((a, b) => b.lastActiveAt - a.lastActiveAt);
-
   return {
-    workspaces,
+    workspaces: hostWorkspaces.map((workspace) => ({
+      ...workspace,
+      workspaceIdentity: workspace.workspaceIdentity?.trim() || workspace.workspacePath,
+    })),
   };
 };
 

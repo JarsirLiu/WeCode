@@ -13,15 +13,15 @@
  * Maps 1:1 to handler files in apps/zcode-cli/packages/core/src/tool/handlers/
  */
 export const TOOL_HANDLER_NAMES: Record<string, string> = {
-  CreateSession: "create-session",
-  SendSessionMessage: "send-session-message",
-  ReadSession: "read-session",
-  StopSessionGeneration: "stop-session-generation",
-  SetSessionModel: "set-session-model",
-  CompactSession: "compact-session",
-  ResolveSessionPermission: "resolve-session-permission",
-  WorkspaceList: "workspace-list",
-  ListSessions: "list-sessions",
+  create_session: "create-session",
+  send_session_message: "send-session-message",
+  read_session: "read-session",
+  stop_session_generation: "stop-session-generation",
+  set_session_model: "set-session-model",
+  compact_session: "compact-session",
+  resolve_session_permission: "resolve-session-permission",
+  workspace_list: "workspace-list",
+  list_sessions: "list-sessions",
 };
 
 /**

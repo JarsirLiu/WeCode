@@ -70,6 +70,10 @@
       "types": "./dist/tools/index.d.ts",
       "import": "./dist/tools/index.js"
     },
+    "./tools/mcp-session-orchestration": {
+      "types": "./dist/tools/mcp-session-orchestration.d.ts",
+      "import": "./dist/tools/mcp-session-orchestration.js"
+    },
     "./tools/node-repl": {
       "types": "./dist/tools/node-repl.d.ts",
       "import": "./dist/tools/node-repl.js"

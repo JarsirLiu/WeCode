@@ -40,6 +40,7 @@ import {
 } from "@zcode/shared";
 import { connectRemote, createRemoteBackend, type RemoteConnection } from "./remote/index.js";
 import { createHostCapabilityStore } from "./hostCapability.js";
+import { createMcpHttpHandler, MCP_HTTP_PATH } from "./mcp/http.js";
 
 function wrapWebSocket(ws: WebSocket): ISocket {
   const onData = new Emitter<VSBuffer>();
@@ -124,7 +125,6 @@ function setupChannelServer(
   });
 }
 
-/** 存储 web 模式下的远程连接，key 为随机 ID */
 const remoteConnections = new Map<string, RemoteConnection>();
 
 function generateId(): string {
@@ -140,13 +140,11 @@ interface HttpServerOptions {
   spaFallback?: boolean;
   staticRoot?: string;
   workspaces?: ServerRemoteWorkspaceInfo[];
-}
-
-function readTrimmedEnv(name: string): string | undefined {
+  mcpToolHandler?: import("./mcp/index.js").WeCodeToolHandler;
+} function readTrimmedEnv(name: string): string | undefined {
   const value = process.env[name]?.trim();
   return value ? value : undefined;
 }
-
 function resolveServerId(options: HttpServerOptions): string {
   return (
     options.serverId?.trim() || readTrimmedEnv("ZCODE_SERVER_ID") || hostname() || "zcode-server"
@@ -303,8 +301,7 @@ export function createHttpServer(
   const app = new Hono();
   const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
   const hostCapabilities = createHostCapabilityStore();
-
-  const authToken = options.authToken?.trim();
+  const authToken = options.authToken?.trim(); const mcpHandler = createMcpHttpHandler({ services, ...(options.mcpToolHandler ? { toolHandler: options.mcpToolHandler } : {}), ...(authToken ? { authToken } : {}) });
   if (authToken) {
     app.use("*", async (c, next) => {
       const pathname = new URL(c.req.url).pathname;
@@ -316,12 +313,8 @@ export function createHttpServer(
       return c.json({ error: "Unauthorized" }, 401);
     });
   }
+  app.get("/api/server-info", (c) => c.json(createServerInfo(options))); app.post("/api/rpc-host-capability", (c) => c.json(hostCapabilities.issue())); app.all(MCP_HTTP_PATH, async (c) => mcpHandler(c.req.raw));
 
-  app.get("/api/server-info", (c) => c.json(createServerInfo(options)));
-  app.post("/api/rpc-host-capability", (c) => c.json(hostCapabilities.issue()));
-
-  // 普通 `/ws` 永远是 terminal-client；浏览器/任意客户端设置旧 mode header
-  // 都不能再把自己提升为 trusted host。
   app.get(
     "/ws",
     upgradeWebSocket(() => ({
@@ -345,7 +338,6 @@ export function createHttpServer(
   });
   app.get("/ws/host", upgradeTrustedHostWebSocket);
 
-  // Web 模式下发起远程连接
   app.post("/api/connect-remote", async (c) => {
     const rawBody = await c.req.json();
     const parsedBody = remoteTargetSchema.safeParse(rawBody);

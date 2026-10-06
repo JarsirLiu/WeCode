@@ -189,10 +189,10 @@ export function registerPlatformIpcHandlers(options: {
     PlatformChannels.LoadMcpFromUserDirectory,
     async (_event, payload?: LoadCliMcpFromUserDirectoryRequest) => {
       const result = await loadCliMcpFromUserDirectory(payload);
-      // 内置 MCP 配置只读生成、不落盘：它描述的是本产品对外提供的 stdio 入口，
+      // 内置 MCP 配置只读生成、不落盘：它描述的是本产品对外提供的 HTTP 入口，
       // 不是用户配置的 server，写进用户 MCP 目录会让 agent 把自己当外部 MCP 拉起来。
       // 生成失败不能影响既有的用户 MCP 列表读取，因此独立捕获。
-      return { ...result, ...resolveWeCodeBuiltinMcpClientConfig(options.logger) };
+      return { ...result, ...(await resolveWeCodeBuiltinMcpClientConfig(options.logger)) };
     },
   );
 

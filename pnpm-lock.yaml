@@ -880,6 +880,9 @@ importers:
       '@zcode/client':
         specifier: workspace:*
         version: link:../client
+      '@zcode/contracts':
+        specifier: workspace:*
+        version: link:../../apps/zcode-cli/packages/contracts
       '@zcode/rpc':
         specifier: workspace:*
         version: link:../rpc

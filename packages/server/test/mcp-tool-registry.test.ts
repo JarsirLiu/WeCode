@@ -8,10 +8,10 @@ import {
 } from "../src/mcp/tool-registry.js";
 
 test("tool-registry: isWeCodeSessionTool validates tool names correctly", () => {
-  assert.ok(isWeCodeSessionTool("CreateSession"), 'Should recognize "CreateSession"');
-  assert.ok(isWeCodeSessionTool("SendSessionMessage"), 'Should recognize "SendSessionMessage"');
-  assert.ok(isWeCodeSessionTool("ResolveSessionPermission"), 'Should recognize "ResolveSessionPermission"');
-  assert.ok(isWeCodeSessionTool("ListSessions"), 'Should recognize "ListSessions"');
+  assert.ok(isWeCodeSessionTool("create_session"), 'Should recognize "create_session"');
+  assert.ok(isWeCodeSessionTool("send_session_message"), 'Should recognize "send_session_message"');
+  assert.ok(isWeCodeSessionTool("resolve_session_permission"), 'Should recognize "resolve_session_permission"');
+  assert.ok(isWeCodeSessionTool("list_sessions"), 'Should recognize "list_sessions"');
 
   assert.ok(!isWeCodeSessionTool("InvalidTool"), 'Should reject "InvalidTool"');
   assert.ok(!isWeCodeSessionTool(""), 'Should reject empty string');
@@ -20,20 +20,20 @@ test("tool-registry: isWeCodeSessionTool validates tool names correctly", () => 
 
 test("tool-registry: getHandlerNameForTool returns correct handler names", () => {
   assert.equal(
-    getHandlerNameForTool("CreateSession"),
-    TOOL_HANDLER_NAMES.CreateSession,
+    getHandlerNameForTool("create_session"),
+    TOOL_HANDLER_NAMES.create_session,
     "CreateSession should map to create_session handler"
   );
 
   assert.equal(
-    getHandlerNameForTool("SendSessionMessage"),
-    TOOL_HANDLER_NAMES.SendSessionMessage,
+    getHandlerNameForTool("send_session_message"),
+    TOOL_HANDLER_NAMES.send_session_message,
     "SendSessionMessage should map to send_session_message handler"
   );
 
   assert.equal(
-    getHandlerNameForTool("ResolveSessionPermission"),
-    TOOL_HANDLER_NAMES.ResolveSessionPermission,
+    getHandlerNameForTool("resolve_session_permission"),
+    TOOL_HANDLER_NAMES.resolve_session_permission,
     "ResolveSessionPermission should map to resolve_session_permission handler"
   );
 });
@@ -55,15 +55,15 @@ test("tool-registry: getAllWeCodeToolNames returns all 9 tools", () => {
   assert.equal(allTools.length, 9, "Should return exactly 9 tools");
 
   const expectedTools = [
-    "CreateSession",
-    "SendSessionMessage",
-    "ReadSession",
-    "StopSessionGeneration",
-    "SetSessionModel",
-    "CompactSession",
-    "ResolveSessionPermission",
-    "WorkspaceList",
-    "ListSessions",
+    "create_session",
+    "send_session_message",
+    "read_session",
+    "stop_session_generation",
+    "set_session_model",
+    "compact_session",
+    "resolve_session_permission",
+    "workspace_list",
+    "list_sessions",
   ];
 
   for (const tool of expectedTools) {
