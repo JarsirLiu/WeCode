@@ -19,6 +19,21 @@ import {
 import { MCP_TOOLS } from "./tool-adapter.js";
 import { isWeCodeSessionTool } from "./tool-registry.js";
 
+export {
+  buildWeCodeMcpClientConfig,
+  createWeCodeMcpClientConfigJson,
+  DEFAULT_SERVER_CLI_LAYOUT_CANDIDATES,
+  findWeCodeMcpServerCliPath,
+  resolveWeCodeMcpEntrypoint,
+  WECODE_MCP_RUN_AS_NODE_ENV,
+  WECODE_MCP_SERVER_KEY,
+  WECODE_MCP_STDIO_SUBCOMMAND,
+  type WeCodeMcpClientConfig,
+  type WeCodeMcpEntrypoint,
+  type WeCodeMcpEntrypointResult,
+  type WeCodeMcpServerClientEntry,
+} from "./client-config.js";
+
 /**
  * Tool handler function signature.
  * Receives tool name and arguments, returns result or throws error.

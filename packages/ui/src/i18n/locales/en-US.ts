@@ -2155,6 +2155,9 @@ const enUS: Record<string, string> = {
   "settings.mcp.toggleFailed": "Failed to toggle MCP server. Please try again.",
   "settings.mcp.config.title": "MCP Configuration",
   "settings.mcp.config.description": "Copy this configuration JSON and paste it into your Agent app to connect:",
+  "settings.mcp.config.loading": "Generating configuration…",
+  "settings.mcp.config.unavailable":
+    "Unable to generate the MCP configuration. Make sure the app is fully installed, then try again.",
   "settings.mcp.config.copy": "Copy configuration",
   "settings.mcp.config.copied": "Configuration copied to clipboard",
   "settings.memory.workspaceMemory": "Workspace Memory",

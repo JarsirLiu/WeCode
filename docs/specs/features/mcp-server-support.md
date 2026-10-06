@@ -31,11 +31,7 @@
 
 ### Out of Scope（明确延后）
 
-- ❌ `workspace_ensure` / `workspace_discover` / `workspace_connect_remote` —— 工作区管理由用户 UI 完成
-- ❌ 远程 HTTP+SSE 传输 —— Phase 2 单独特性（涉及鉴权、网络安全）
-- ❌ MCP Resources / Notifications / Prompts —— 资源访问走 `read_session`，通知走现有 `session/changed`
-- ❌ 多用户/多租户认证 —— Phase 2 企业级方案
-- ❌ Legacy 协议路径 —— MCP 仅走 V4 命令面
+- ❌ `workspace_ensure` / `workspace_discover` / `workspace_connect_remote` —— 工作区管理由用户 UI 完成 - ❌ 远程 HTTP+SSE 传输 —— Phase 2 单独特性（涉及鉴权、网络安全） - ❌ MCP Resources / Notifications / Prompts —— 资源访问走 `read_session`，通知走现有 `session/changed` - ❌ 多用户/多租户认证 —— Phase 2 企业级方案 - ❌ Legacy 协议路径 —— MCP 仅走 V4 命令面
 
 ---
 
@@ -306,34 +302,45 @@ async function main() {
 
 ## 使用说明
 
-### Claude Desktop 配置
+### 外部客户端连接配置（后端生成）
 
-编辑 `~/Library/Application Support/Claude/claude_desktop_config.json`：
+MCP 的 stdio 形态是：外部客户端（Cherry Studio、Claude Desktop 等）**spawn** 本产品的 MCP server 作为子进程，通过该进程的 stdin/stdout 收发 JSON-RPC。因此配置文件里的 `command`/`args` 就是客户端 实际执行的启动命令——命令无法解析时进程不存在，客户端永远收不到 `initialize` 响应， 表现是"已连接但工具列表为空"。
+
+**配置必须由宿主在运行时生成，UI 不得硬编码。** 原因：CLI 包未发布（`packages/zcode-server-cli` `private: true`），`npx zcode` 会命中 npm 上无关的占位包且该包没有 `bin` 入口， `npx --yes zcode mcp stdio` 实测 `exit 1`、stdout 0 字节。
+
+实现：
+
+- `packages/server/src/mcp/client-config.ts` — 纯函数生成器。 - `WECODE_MCP_SERVER_KEY = "wecode"`（server key / 模型侧可见标识） - `buildWeCodeMcpClientConfig({ node, serverCli })` → `{ mcpServers: { wecode: { command, args, env } } }` - `createWeCodeMcpClientConfigJson(...)` → 缩进 2、换行结尾的 JSON 文本 - `resolveWeCodeMcpEntrypoint()` → 从锚点向上查找 server-cli 入口，全部候选落空时返回 `ok: false`
+    而不产出无效配置
+- env 值一律字符串；仅注入 `ELECTRON_RUN_AS_NODE: "1"`（与 `official-plugin-runtime.ts` 同一约定，
+    桌面打包态 `process.execPath` 是 Electron Helper，缺该 env 会误进 Electron main）
+- 桌面宿主通过**既有通道** `PlatformChannels.LoadMcpFromUserDirectory` 下发，不新增 IPC： `LoadCliMcpFromUserDirectoryResult` 增加只读字段 `builtinServers` / `builtinMcpClientConfigJson`。 生成失败返回空对象，不影响既有的用户 MCP 列表读取。 - `packages/ui/src/settings/McpConfigDisplay.tsx` 只读取并展示，缺失时显示不可用提示。
+
+生成物形态（示例，路径由本机解析）：
 
 ```json
 {
   "mcpServers": {
     "wecode": {
-      "command": "node",
-      "args": [
-        "/path/to/packages/zcode-server-cli/dist/cli.js",
-        "mcp",
-        "stdio"
-      ]
+      "command": "/path/to/node",
+      "args": ["/path/to/server-cli.js", "mcp", "stdio"],
+      "env": { "ELECTRON_RUN_AS_NODE": "1" }
     }
   }
 }
 ```
 
+**不变量**：内置配置只读生成、不落盘。写进用户 MCP 目录（`~/.zcode/cli/config.json`）会让 agent 把本产品自己当外部 MCP server 拉起来，属于自引用，因此必须只走展示路径。
+
 ### 工作流
 
-1. Claude Desktop 启动，加载 MCP Server
-2. Claude 发送 `initialize` 请求，获得工具列表（9 个）
-3. 用户问："请帮我在 ~/my-project 创建一个会话"
-4. Claude 调用 `workspace_list` → 获得工作区
-5. Claude 调用 `create_session` → 返回 `taskId`
-6. Claude 调用 `send_session_message` → 发送初始指令
-7. Claude 轮询 `read_session` → 获取结果
+1. 用户在设置页开启 MCP，复制后端生成的配置 JSON，粘贴到外部客户端
+2. 外部客户端 spawn `node <server-cli> mcp stdio`
+3. 客户端发送 `initialize`，获得 `capabilities.tools` 与 9 个工具
+4. 客户端调用 `workspace_list` → 获得工作区
+5. 客户端调用 `create_session` → 返回 `taskId`
+6. 客户端调用 `send_session_message` → 发送初始指令
+7. 客户端轮询 `read_session` → 获取结果
 8. 完成
 
 ---
@@ -344,11 +351,7 @@ async function main() {
 
 ### 关键字段
 
-- **`workspace_list`**：无参数，返回本地 + 远程工作区列表
-- **`list_sessions`**：`workspaceIdentity` + `workspacePath` (可选) + `includeArchived` + `limit`
-- **`create_session`**：`workspacePath` (必填) + `mode` + `modelSelection` 等
-- **`send_session_message`**：`sessionId` + `traceId` (必填，用于幂等) + `text`
-- **其他 6 个**：透传现有 schema，无变更
+- **`workspace_list`**：无参数，返回本地 + 远程工作区列表 - **`list_sessions`**：`workspaceIdentity` + `workspacePath` (可选) + `includeArchived` + `limit` - **`create_session`**：`workspacePath` (必填) + `mode` + `modelSelection` 等 - **`send_session_message`**：`sessionId` + `traceId` (必填，用于幂等) + `text` - **其他 6 个**：透传现有 schema，无变更
 
 ---
 
@@ -366,20 +369,11 @@ async function main() {
 
 ### Phase 1（本地 stdio）
 
-- [ ] 添加 `@modelcontextprotocol/sdk@^1.32.0` 到 packages/server
-- [ ] 实现 `packages/server/src/mcp/index.ts` — 服务器入口
-- [ ] 实现 `packages/server/src/mcp/tool-adapter.ts` — 工具适配器
-- [ ] 实现 `packages/server/src/mcp/tool-registry.ts` — 工具注册
-- [ ] 实现 `packages/zcode-server-cli/src/mcp-stdio.ts` — stdio 启动逻辑
-- [ ] 更新 `packages/zcode-server-cli/src/cli.ts` — 新增 `mcp stdio` 子命令
-- [ ] 编译验证：`pnpm build`
-- [ ] 手工验证：Claude Desktop 配置 + 调用完整流程
+- [ ] 添加 `@modelcontextprotocol/sdk@^1.32.0` 到 packages/server - [ ] 实现 `packages/server/src/mcp/index.ts` — 服务器入口 - [ ] 实现 `packages/server/src/mcp/tool-adapter.ts` — 工具适配器 - [ ] 实现 `packages/server/src/mcp/tool-registry.ts` — 工具注册 - [ ] 实现 `packages/zcode-server-cli/src/mcp-stdio.ts` — stdio 启动逻辑 - [ ] 更新 `packages/zcode-server-cli/src/cli.ts` — 新增 `mcp stdio` 子命令 - [ ] 编译验证：`pnpm build` - [ ] 手工验证：Claude Desktop 配置 + 调用完整流程
 
 ### Phase 2（延后）
 
-- [ ] 远程 HTTP+SSE 传输（涉及网络安全、鉴权）
-- [ ] MCP Resources / Notifications
-- [ ] 多工作区会话隔离验证
+- [ ] 远程 HTTP+SSE 传输（涉及网络安全、鉴权） - [ ] MCP Resources / Notifications - [ ] 多工作区会话隔离验证
 
 ---
 
@@ -387,17 +381,11 @@ async function main() {
 
 ### 无新增风险
 
-- ✅ 官方 @modelcontextprotocol/sdk 成熟稳定（Anthropic 维护）
-- ✅ 现有 handler 零修改，stdio 只是传输层
-- ✅ 本地进程隔离，无网络暴露
-- ✅ 错误处理已由 SDK 标准化
+- ✅ 官方 @modelcontextprotocol/sdk 成熟稳定（Anthropic 维护） - ✅ 现有 handler 零修改，stdio 只是传输层 - ✅ 本地进程隔离，无网络暴露 - ✅ 错误处理已由 SDK 标准化
 
 ### 依赖检查
 
-- ✅ `WeCodeTaskPort` / `WeCodeSessionPort` 端口已稳定
-- ✅ 9 个 handler 已实现并通过测试
-- ✅ 现有契约 schema 无需变更
-- ✅ packages/server 已能构建
+- ✅ `WeCodeTaskPort` / `WeCodeSessionPort` 端口已稳定 - ✅ 9 个 handler 已实现并通过测试 - ✅ 现有契约 schema 无需变更 - ✅ packages/server 已能构建
 
 ---
 
@@ -405,11 +393,7 @@ async function main() {
 
 本文档正式切换为 **WeCode** 命名体系：
 
-- `ZCode` → `WeCode`
-- `ZCodeTaskService` → `WeCodeTaskService`
-- `ZCodeSessionService` → `WeCodeSessionService`
-- `ZCodeTaskPort` → `WeCodeTaskPort`
-- 等等...
+- `ZCode` → `WeCode` - `ZCodeTaskService` → `WeCodeTaskService` - `ZCodeSessionService` → `WeCodeSessionService` - `ZCodeTaskPort` → `WeCodeTaskPort` - 等等...
 
 后续 PR 会同步更新源代码中的命名。
 
@@ -417,8 +401,4 @@ async function main() {
 
 ## 备注
 
-- **不修改** `apps/zcode-cli/packages/core/src/tool/handlers/` 任何现有文件
-- **不修改** `packages/services` 任何业务逻辑
-- **不新增** `packages/shared` 协议类型
-- **所有新代码** 集中在 `packages/server/src/mcp/` 与 `packages/zcode-server-cli/src/` 的 MCP 相关文件
-- **官方 SDK 即真理**：所有 JSON-RPC 2.0 细节由 `@modelcontextprotocol/sdk` 自动处理，我们只适配工具
+- **不修改** `apps/zcode-cli/packages/core/src/tool/handlers/` 任何现有文件 - **不修改** `packages/services` 任何业务逻辑 - **不新增** `packages/shared` 协议类型 - **所有新代码** 集中在 `packages/server/src/mcp/` 与 `packages/zcode-server-cli/src/` 的 MCP 相关文件 - **官方 SDK 即真理**：所有 JSON-RPC 2.0 细节由 `@modelcontextprotocol/sdk` 自动处理，我们只适配工具

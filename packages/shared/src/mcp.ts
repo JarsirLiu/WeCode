@@ -86,6 +86,13 @@ export interface LoadCliMcpFromUserDirectoryRequest {
 
 export interface LoadCliMcpFromUserDirectoryResult {
   servers: NativeMcpServerRecord[];
+  /**
+   * 宿主生成的内置 MCP server 连接配置：本产品自己作为 MCP server 对外提供的 stdio 入口。
+   * 仅用于设置页展示给用户复制到外部客户端，不是用户配置的 server，不参与 MCP 列表与状态同步。
+   */
+  builtinServers?: NativeMcpServerRecord[];
+  /** 标准 MCP 客户端配置 JSON 文本（`mcpServers` 包裹），可直接粘贴到 Cherry Studio 等外部客户端 */
+  builtinMcpClientConfigJson?: string;
 }
 
 export interface MigrateLegacyCommonMcpRequest {

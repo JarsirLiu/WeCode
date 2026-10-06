@@ -15,11 +15,11 @@ Navigation map from capability to code. For a deep dive into one module, run `pn
 | session | conversation | 40 | packages/services/src/session | ./src/storage-startup.ts (+4) | — |
 | storage | desktop-settings | 13 | packages/services/src/storage | packages/services/src/storage/contract.ts | — |
 | client | — | 6 | packages/client/src | ./src/index.ts (+1) | — |
-| server | — | 57 | packages/server/src | ./src/index.ts (+4) | — |
+| server | — | 52 | packages/server/src | ./src/index.ts (+4) | — |
 | zcode-server-cli | — | 43 | packages/zcode-server-cli/src | ./src/index.ts (+1) | — |
-| ui | — | 1501 | packages/ui/src | ./src/index.ts (+8) | [card](../packages/ui/README.md) |
+| ui | — | 1500 | packages/ui/src | ./src/index.ts (+8) | [card](../packages/ui/README.md) |
 | web | — | 16 | packages/web/src | — | — |
-| desktop | — | 267 | packages/desktop/src | out/main/index.js | [card](../packages/desktop/README.md) |
+| desktop | — | 268 | packages/desktop/src | out/main/index.js | [card](../packages/desktop/README.md) |
 | formal-proof | — | 2 | packages/formal-proof/src | ./src/model.ts | [card](../packages/formal-proof/README.md) |
 | zcode-cli | — | 1449 | apps/zcode-cli | — | [card](../apps/zcode-cli/README.md) |
 

@@ -27,7 +27,7 @@ export default defineConfig({
   banner: {
     js: 'import { fileURLToPath as __zcodeFileURLToPath } from "node:url"; import { dirname as __zcodeDirname } from "node:path"; const __filename = __zcodeFileURLToPath(import.meta.url); const __dirname = __zcodeDirname(__filename);',
   },
-  noExternal: ["@zcode/shared", "@zcode/rpc", "@zcode/services"],
+  noExternal: ["@zcode/shared", "@zcode/rpc", "@zcode/services", "@zcode/server"],
   define: SERVER_CLI_DEFINES,
   external: [
     "node-pty",
@@ -40,6 +40,8 @@ export default defineConfig({
     "combined-stream",
     "proxy-from-env",
     "follow-redirects",
+    "yazl",
+    "yauzl",
     "@lydell/node-pty-darwin-arm64",
     "@lydell/node-pty-darwin-x64",
     "@lydell/node-pty-linux-arm64",

@@ -2023,6 +2023,8 @@ const zhCN: Record<string, string> = {
   "settings.mcp.toggleFailed": "启用/禁用 MCP 服务器失败，请重试。",
   "settings.mcp.config.title": "MCP 配置",
   "settings.mcp.config.description": "复制此配置 JSON 并粘贴到你的 Agent 应用中以连接：",
+  "settings.mcp.config.loading": "正在生成配置…",
+  "settings.mcp.config.unavailable": "无法生成 MCP 配置，请确认应用已完整安装后重试。",
   "settings.mcp.config.copy": "复制配置",
   "settings.mcp.config.copied": "配置已复制到剪贴板",
   "settings.memory.workspaceMemory": "工作区记忆",
