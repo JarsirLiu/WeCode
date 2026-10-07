@@ -11,7 +11,7 @@ The Release Assets list contains installer packages alongside dozens of remote c
 
 ## Decision
 
-The publish job now builds a stable Markdown `Download installers` section in the Release description. It links all expected Linux, macOS, and Windows installer filenames to the tag's GitHub release-download URLs and groups them by platform. The section is applied after both new-release creation and existing-release retries, while the generated changelog body is preserved below it. Remote resource manifests and archives remain available as Assets but are intentionally excluded from the download section.
+The publish job now builds a stable Markdown `Download installers` section in the Release description. It links all expected Linux, macOS DMG, and Windows installer filenames to the tag's GitHub release-download URLs and groups them by platform. macOS ZIP archives are not uploaded as release assets. The section is applied after both new-release creation and existing-release retries, while the generated changelog body is preserved below it. Remote resource manifests and archives remain available as Assets but are intentionally excluded from the download section.
 
 ## Workflow change
 

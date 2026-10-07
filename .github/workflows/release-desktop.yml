@@ -217,7 +217,6 @@ jobs:
           name: desktop-mac-arm64
           path: |
             packages/desktop/dist/*.dmg
-            packages/desktop/dist/*.zip
           if-no-files-found: error
           retention-days: 30
 
@@ -254,7 +253,6 @@ jobs:
           name: desktop-mac-x64
           path: |
             packages/desktop/dist/*.dmg
-            packages/desktop/dist/*.zip
           if-no-files-found: error
           retention-days: 30
 
@@ -391,7 +389,7 @@ jobs:
             for ext in AppImage deb rpm pkg.tar.zst; do
               assets+=("release-assets/WeCode-${VERSION}-linux-${arch}.${ext}")
             done
-            for ext in dmg zip; do
+            for ext in dmg; do
               assets+=("release-assets/WeCode-${VERSION}-mac-${arch}.${ext}")
             done
           done
@@ -440,7 +438,7 @@ jobs:
             echo ''
             echo '### macOS'
             for arch in x64 arm64; do
-              for ext in dmg zip; do
+              for ext in dmg; do
                 file="WeCode-${VERSION}-mac-${arch}.${ext}"
                 echo "- [macOS ${arch} ${ext}](${release_download_base}/${file})"
               done

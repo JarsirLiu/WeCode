@@ -10,7 +10,7 @@ test("release workflow uses explicit artifact globs", async () => {
   const workflow = await readFile(workflowPath, "utf8");
 
   assert.doesNotMatch(workflow, /dist\/\*\.\{[^}\n]+\}/);
-  for (const extension of ["AppImage", "deb", "rpm", "pkg.tar.zst", "dmg", "zip", "exe"]) {
+  for (const extension of ["AppImage", "deb", "rpm", "pkg.tar.zst", "dmg", "exe"]) {
     assert.match(workflow, new RegExp(`packages/desktop/dist/\\*\\.${extension.replaceAll(".", "\\.")}`));
   }
 
@@ -48,7 +48,9 @@ test("release description exposes installers above the asset list", async () => 
   assert.match(workflow, /file="WeCode-\$\{VERSION\}-mac-\$\{arch\}\.\$\{ext\}"/g);
   assert.match(workflow, /WeCode-\$\{VERSION\}-win-x64\.exe/);
   assert.match(workflow, /for ext in AppImage deb rpm pkg\.tar\.zst/);
-  assert.match(workflow, /for ext in dmg zip/);
+  assert.match(workflow, /for ext in dmg/);
+  assert.doesNotMatch(workflow, /for ext in dmg zip/);
+  assert.doesNotMatch(workflow, /dist\/\*\.zip/);
   assert.match(workflow, /gh release edit .*--notes-file/);
   assert.match(workflow, /--generate-notes/);
 });
