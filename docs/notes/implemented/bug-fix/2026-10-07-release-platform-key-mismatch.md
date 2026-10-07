@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-10-07-release-platform-key-mismatch.zh.md)
+
 ## Problem
 
 The remote asset packer renamed Linux platform keys to electron-builder names (`linux-x86_64` and `linux-aarch64`) when creating GitHub Release assets. The runtime requests and validates the canonical keys (`linux-x64` and `linux-arm64`), so Linux remote deployment failed before downloading any component.

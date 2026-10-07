@@ -39,3 +39,16 @@ test("remote release assets use the runtime canonical platform keys", async () =
   assert.doesNotMatch(packer, /linux-x86_64|linux-aarch64|PLATFORM_MAP/);
   assert.match(workflow, /gh release delete-asset/);
 });
+
+test("release description exposes installers above the asset list", async () => {
+  const workflow = await readFile(workflowPath, "utf8");
+
+  assert.match(workflow, /Download installers/);
+  assert.match(workflow, /file="WeCode-\$\{VERSION\}-linux-\$\{arch\}\.\$\{ext\}"/g);
+  assert.match(workflow, /file="WeCode-\$\{VERSION\}-mac-\$\{arch\}\.\$\{ext\}"/g);
+  assert.match(workflow, /WeCode-\$\{VERSION\}-win-x64\.exe/);
+  assert.match(workflow, /for ext in AppImage deb rpm pkg\.tar\.zst/);
+  assert.match(workflow, /for ext in dmg zip/);
+  assert.match(workflow, /gh release edit .*--notes-file/);
+  assert.match(workflow, /--generate-notes/);
+});

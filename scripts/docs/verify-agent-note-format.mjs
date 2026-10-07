@@ -45,7 +45,9 @@ const { notes, errors } = walkAgentNoteTree();
 for (const note of notes) {
   const fail = (msg) => errors.push(`format: ${note.rel} — ${msg}`);
   const raw = readFileSync(resolve(noteRoot, note.rel), "utf8");
-  const lines = raw.split("\n");
+  // Agent Notes are authored by multiple platform tools; accept either LF or
+  // CRLF so line endings do not change the document contract.
+  const lines = raw.split(/\r?\n/);
 
   // Strip fenced code blocks so format tokens inside examples are not document structure.
   let inFence = false;

@@ -2,6 +2,8 @@
 
 Status: implemented
 
+[English](2026-10-06-installer-skip-remote-assets.md) | 中文
+
 ## Problem
 
 桌面安装包 job 在打包前重复准备四个平台的远程连接资源。Windows job 因此会下载 Linux arm64 Node 资源，尽管远程资源已经由独立矩阵 job 构建发布。

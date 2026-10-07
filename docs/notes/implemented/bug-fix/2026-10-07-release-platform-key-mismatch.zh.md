@@ -2,6 +2,8 @@
 
 Status: implemented
 
+[English](2026-10-07-release-platform-key-mismatch.md) | 中文
+
 ## Problem
 
 远程资源打包器在生成 GitHub Release 制品时把 Linux 平台改名为 electron-builder 的 `linux-x86_64` 和 `linux-aarch64`。运行时请求并校验的是 canonical key `linux-x64` 和 `linux-arm64`，导致 Linux 远程部署在下载组件前就失败。

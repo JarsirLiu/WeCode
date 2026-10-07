@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-10-06-installer-skip-remote-assets.zh.md)
+
 ## Problem
 
 Desktop installer jobs redundantly prepared all four remote connection asset platforms before packaging. The Windows job therefore spent its installer budget downloading Linux arm64 Node resources even though remote assets are published by a separate matrix job.

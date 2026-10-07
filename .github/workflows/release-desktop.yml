@@ -421,6 +421,37 @@ jobs:
             exit 1
           fi
 
+          # GitHub does not support pinning or reordering Assets. Keep installers
+          # discoverable in the release description, above the long resource list.
+          release_download_base="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/download/${TAG}"
+          {
+            echo '<!-- wecode-installer-downloads -->'
+            echo '## Download installers'
+            echo ''
+            echo 'Choose the installer for your operating system and architecture:'
+            echo ''
+            echo '### Linux'
+            for arch in x64 arm64; do
+              for ext in AppImage deb rpm pkg.tar.zst; do
+                file="WeCode-${VERSION}-linux-${arch}.${ext}"
+                echo "- [Linux ${arch} ${ext}](${release_download_base}/${file})"
+              done
+            done
+            echo ''
+            echo '### macOS'
+            for arch in x64 arm64; do
+              for ext in dmg zip; do
+                file="WeCode-${VERSION}-mac-${arch}.${ext}"
+                echo "- [macOS ${arch} ${ext}](${release_download_base}/${file})"
+              done
+            done
+            echo ''
+            echo '### Windows'
+            echo "- [Windows x64 exe](${release_download_base}/WeCode-${VERSION}-win-x64.exe)"
+            echo '<!-- end-wecode-installer-downloads -->'
+            echo ''
+          } > installer-downloads.md
+
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             # Remove the Linux aliases emitted by releases before the canonical-key fix.
             while IFS= read -r asset_name; do
@@ -438,3 +469,14 @@ jobs:
               --verify-tag \
               --repo "$GITHUB_REPOSITORY"
           fi
+
+          # Replace a previous generated section on retries, preserving the
+          # changelog and any manually-authored release notes below it.
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body --jq '.body' > release-body.md
+          awk '
+            /<!-- wecode-installer-downloads -->/ { skip=1; next }
+            /<!-- end-wecode-installer-downloads -->/ { skip=0; next }
+            !skip { print }
+          ' release-body.md > release-body-without-installers.md
+          cat installer-downloads.md release-body-without-installers.md > release-notes.md
+          gh release edit "$TAG" --notes-file release-notes.md --repo "$GITHUB_REPOSITORY"
