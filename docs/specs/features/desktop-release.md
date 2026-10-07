@@ -9,6 +9,7 @@
 - Installer jobs set `ZCODE_SKIP_REMOTE_ASSETS=1`; remote connection assets are built only by the dedicated four-platform matrix job and are never rebuilt during desktop installer packaging.
 - The publish job downloads platform artifacts, selects only the 13 expected installer files (8 Linux, 4 macOS, 1 Windows), and ignores auxiliary directories such as unpacked Linux targets. It creates the GitHub Release against the exact triggering `v`-prefixed tag, or uploads/replaces assets on that tag's existing Release to recover a partial publish. The unprefixed version is only the release title and installer version.
 - The Release description places a `Download installers` section above the Assets list. It links directly to all 13 installer files by their stable release-download URLs, grouped by operating system and architecture. Remote connection manifests and archives remain Assets-only and are not listed in this section.
+- Runtime Release URL resolution treats both the unprefixed application version (`3.14.3`) and GitHub's `v`-prefixed tag (`v3.14.3`) as the same pinned version, and never constructs a duplicate path such as `/v3.14.3/3.14.3/`.
 
 ## Ownership and invariants
 

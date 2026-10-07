@@ -15,15 +15,21 @@ export function resolveRemoteCdnBaseUrls(options: RemoteCdnBaseOptions): string[
 export function buildReleaseBaseCandidates(remoteCdnBaseUrls: string[], version: string): string[] {
   const candidates = remoteCdnBaseUrls.flatMap((remoteCdnBaseUrl) => {
     const normalizedBase = remoteCdnBaseUrl.replace(/\/+$/, "");
-    // 当调用方已经传入带版本的 CDN 基址时，继续盲目拼 `${base}/${version}`
-    // 会先走一次必然失败的双版本路径（例如 .../0.2.10/0.2.10），产生无意义 404 噪音。
-    // 这里识别“已固定到当前版本”的场景，直接使用原基址即可。
-    if (normalizedBase.endsWith(`/${version}`)) {
+    // GitHub Release 使用 v 前缀，而应用版本通常不带前缀；两者都表示同一个固定版本。
+    // 识别已固定到当前版本的基址，避免先请求必然失败的双版本路径。
+    if (isPinnedToVersion(normalizedBase, version)) {
       return [normalizedBase];
     }
     return [`${normalizedBase}/${version}`, normalizedBase];
   });
   return Array.from(new Set(candidates));
+}
+
+function isPinnedToVersion(baseUrl: string, version: string): boolean {
+  const normalizedVersion = version.replace(/^v/u, "");
+  const pathname = tryParseUrlPathname(baseUrl) ?? baseUrl;
+  const lastSegment = pathname.replace(/\/+$/, "").split("/").filter(Boolean).at(-1);
+  return lastSegment?.replace(/^v/u, "") === normalizedVersion;
 }
 
 export function buildReleaseAssetUrlCandidates(
