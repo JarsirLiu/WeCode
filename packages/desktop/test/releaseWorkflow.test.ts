@@ -4,6 +4,7 @@ import { test } from "node:test";
 import { resolve } from "node:path";
 
 const workflowPath = resolve(import.meta.dirname, "../../../.github/workflows/release-desktop.yml");
+const packerPath = resolve(import.meta.dirname, "../../../scripts/pack-remote-assets.mjs");
 
 test("release workflow uses explicit artifact globs", async () => {
   const workflow = await readFile(workflowPath, "utf8");
@@ -21,4 +22,20 @@ test("release workflow uses explicit artifact globs", async () => {
 
   const remoteAssetsJob = workflow.match(/  build-remote-assets:\n[\s\S]*?(?=\n  publish:|\n#|$)/)?.[0] ?? "";
   assert.doesNotMatch(remoteAssetsJob, /ZCODE_SKIP_REMOTE_ASSETS/);
+});
+
+test("remote release assets use the runtime canonical platform keys", async () => {
+  const [workflow, packer] = await Promise.all([
+    readFile(workflowPath, "utf8"),
+    readFile(packerPath, "utf8"),
+  ]);
+  for (const platform of ["linux-x64", "linux-arm64", "darwin-x64", "darwin-arm64"]) {
+    assert.match(workflow, new RegExp(`remote_platforms=.*${platform}`));
+    assert.match(packer, new RegExp(`\\"${platform}\\"`));
+  }
+  assert.match(packer, /manifest-\$\{platformKey\}\.json/);
+  assert.match(packer, /remote-\$\{platformKey\}-/);
+  assert.doesNotMatch(workflow.match(/remote_platforms=.*$/m)?.[0] ?? "", /linux-x86_64|linux-aarch64/);
+  assert.doesNotMatch(packer, /linux-x86_64|linux-aarch64|PLATFORM_MAP/);
+  assert.match(workflow, /gh release delete-asset/);
 });

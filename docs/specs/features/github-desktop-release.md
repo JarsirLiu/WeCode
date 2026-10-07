@@ -6,6 +6,7 @@
 - The supported release set is Linux x64/arm64 (AppImage, deb, rpm, and pacman), macOS x64/arm64 (dmg and zip), and Windows x64 (NSIS exe).
 - The workflow publishes installer files only as assets on the matching GitHub Release. It does not publish through electron-builder or upload to other release services.
 - Remote connection assets are published as flat, uniquely named GitHub Release assets and are downloaded from the exact `v<version>` release URL. They do not use the zcode CDN in production releases.
+- Remote asset platform keys are canonical across the producer and consumer: `linux-x64`, `linux-arm64`, `darwin-x64`, and `darwin-arm64`. The manifest filename, `platformArch` field, and archive filename prefix must use the same key.
 - Manual workflow dispatch is for building selected platform targets and uploading temporary workflow artifacts; it never creates a GitHub Release.
 - A release is created only after every required build and installer validation succeeds.
 
@@ -16,6 +17,7 @@
 - Release tags must exactly match the root package version (`v` + `package.json` version).
 - Release builds explicitly use `ZCODE_ENV=production` and `ZCODE_PREVIEW_IDENTITY=0`.
 - The release download base includes the triggering tag (`.../releases/download/vX.Y.Z`); manifests reference the final flat asset filenames.
+- Release publishing must validate the canonical manifest set and must not introduce electron-builder aliases such as `linux-x86_64` or `linux-aarch64`.
 - electron-builder publishing is disabled in build jobs; only the publish job uses `gh release create` or `gh release upload` to publish assets.
 - Build jobs need read-only repository access. Only the publish job receives `contents: write`; checkout credentials are not persisted.
 
@@ -41,6 +43,7 @@ The three build jobs run independently after preflight. The publish job is the o
 - Any missing target installer or failed build blocks GitHub Release creation; incomplete builds are not published.
 - Build artifacts remain available on the workflow run for diagnosis and retry. If a Release already exists for the tag, a rerun uploads the validated installers and replaces same-named assets so an interrupted upload can be completed.
 - Re-running a workflow for an existing tag executes the workflow definition at that tag's commit; workflow fixes must be included in the commit referenced by the release tag.
+- Re-running an existing release removes the obsolete Linux alias assets (`linux-x86_64` and `linux-aarch64`) before uploading the canonical-key assets, so stale files cannot remain discoverable.
 
 ## Acceptance Scenarios
 

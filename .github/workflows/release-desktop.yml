@@ -402,7 +402,7 @@ jobs:
           done
 
           # --- 收集远程连接资源（4 平台 × 组件 + manifest）---
-          remote_platforms=(linux-x86_64 linux-aarch64 darwin-x64 darwin-arm64)
+          remote_platforms=(linux-x64 linux-arm64 darwin-x64 darwin-arm64)
           found_remote=0
           for platform in "${remote_platforms[@]}"; do
             manifest="$(find release-assets -type f -name "manifest-${platform}.json" -print -quit)"
@@ -422,6 +422,14 @@ jobs:
           fi
 
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            # Remove the Linux aliases emitted by releases before the canonical-key fix.
+            while IFS= read -r asset_name; do
+              case "$asset_name" in
+                manifest-linux-x86_64.json|manifest-linux-aarch64.json|remote-linux-x86_64-*.tar.gz|remote-linux-aarch64-*.tar.gz)
+                  gh release delete-asset "$TAG" "$asset_name" --yes --repo "$GITHUB_REPOSITORY"
+                  ;;
+              esac
+            done < <(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')
             gh release upload "$TAG" "${assets[@]}" --clobber --repo "$GITHUB_REPOSITORY"
           else
             gh release create "$TAG" "${assets[@]}" \

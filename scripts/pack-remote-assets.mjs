@@ -4,22 +4,16 @@
 import { createHash } from "node:crypto";
 import {
   copyFileSync,
-  cpSync,
   existsSync,
   mkdirSync,
   readFileSync,
-  readdirSync,
   rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
-import { join, resolve, dirname, basename } from "node:path";
+import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
-import { createGzip } from "node:zlib";
-import { createWriteStream, createReadStream } from "node:fs";
-import { pipeline } from "node:stream/promises";
-import * as tar from "tar";
 
 const require = createRequire(import.meta.url);
 const scriptDir = dirname(fileURLToPath(import.meta.url));
@@ -28,15 +22,9 @@ const desktopDir = join(rootDir, "packages/desktop");
 const mockCdnDir = join(desktopDir, "mock-cdn");
 const version = require(join(rootDir, "package.json")).version;
 
-// Platform mapping: mock-cdn platform key -> electron-builder platform-arch
-const PLATFORM_MAP = {
-  "linux-x64": "linux-x86_64",
-  "linux-arm64": "linux-aarch64",
-  "darwin-x64": "darwin-x64",
-  "darwin-arm64": "darwin-arm64",
-};
+// The platform key is a public contract shared with the runtime manifest loader.
+const REMOTE_PLATFORMS = ["linux-x64", "linux-arm64", "darwin-x64", "darwin-arm64"];
 
-const REMOTE_PLATFORMS = Object.keys(PLATFORM_MAP);
 const selectedPlatformKeys = (process.env.ZCODE_REMOTE_ASSET_PLATFORMS?.trim() || "")
   .split(",")
   .map((value) => value.trim())
@@ -51,27 +39,9 @@ function sha256File(filePath) {
   return hash.digest("hex");
 }
 
-function createTarGz(sourceDir, outputPath) {
-  return new Promise((resolve, reject) => {
-    mkdirSync(dirname(outputPath), { recursive: true });
-    const gzip = createGzip({ level: 6 });
-    const dest = createWriteStream(outputPath);
-    tar.c({ gzip: false, cwd: sourceDir }, ["."])
-      .pipe(gzip)
-      .pipe(dest)
-      .on("finish", () => resolve(outputPath))
-      .on("error", reject);
-  });
-}
-
-function normalizePlatformArch(platformKey) {
-  return PLATFORM_MAP[platformKey] || platformKey;
-}
-
 async function packPlatformAssets(platformKey) {
-  const electronPlatformArch = normalizePlatformArch(platformKey);
   const releaseDir = join(mockCdnDir, "releases", version);
-  const platformOutputDir = join(OUTPUT_DIR, electronPlatformArch);
+  const platformOutputDir = join(OUTPUT_DIR, platformKey);
   const manifestPath = join(releaseDir, `manifest-${platformKey}.json`);
 
   if (!existsSync(manifestPath)) {
@@ -81,7 +51,7 @@ async function packPlatformAssets(platformKey) {
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   const components = manifest.components || [];
 
-  console.log(`\n==> Packaging remote assets for ${electronPlatformArch} (from mock-cdn ${platformKey})`);
+  console.log(`\n==> Packaging remote assets for ${platformKey}`);
 
   // Clean output dir
   if (existsSync(platformOutputDir)) {
@@ -112,7 +82,7 @@ async function packPlatformAssets(platformKey) {
 
     // GitHub Release assets are a flat namespace; keep the platform in every
     // filename so same-named components from different platforms cannot overwrite each other.
-    const outputFileName = `remote-${electronPlatformArch}-${id}-${compVersion}.tar.gz`;
+    const outputFileName = `remote-${platformKey}-${id}-${compVersion}.tar.gz`;
     const outputPath = join(platformOutputDir, outputFileName);
     copyFileSync(sourceArtifactPath, outputPath);
     console.log(`  [ok] ${outputFileName} (${(statSync(sourceArtifactPath).size / 1024 / 1024).toFixed(2)} MB)`);
@@ -130,15 +100,15 @@ async function packPlatformAssets(platformKey) {
   const releaseManifest = {
     schemaVersion: manifest.schemaVersion,
     appVersion: manifest.appVersion,
-    platformArch: electronPlatformArch,
+    platformArch: platformKey,
     components: releaseComponents,
   };
 
-  const releaseManifestPath = join(platformOutputDir, `manifest-${electronPlatformArch}.json`);
+  const releaseManifestPath = join(platformOutputDir, `manifest-${platformKey}.json`);
   writeFileSync(releaseManifestPath, `${JSON.stringify(releaseManifest, null, 2)}\n`, "utf8");
-  console.log(`  [ok] manifest-${electronPlatformArch}.json`);
+  console.log(`  [ok] manifest-${platformKey}.json`);
 
-  return { platform: electronPlatformArch, componentCount: releaseComponents.length };
+  return { platform: platformKey, componentCount: releaseComponents.length };
 }
 
 async function main() {
@@ -192,4 +162,4 @@ if (entryPath === fileURLToPath(import.meta.url)) {
   });
 }
 
-export { packPlatformAssets, PLATFORM_MAP, REMOTE_PLATFORMS };
+export { packPlatformAssets, REMOTE_PLATFORMS };
