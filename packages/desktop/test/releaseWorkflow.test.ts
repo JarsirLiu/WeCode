@@ -51,6 +51,7 @@ test("release description exposes installers above the asset list", async () => 
   assert.match(workflow, /for ext in dmg/);
   assert.doesNotMatch(workflow, /for ext in dmg zip/);
   assert.doesNotMatch(workflow, /dist\/\*\.zip/);
+  assert.match(workflow, /WeCode-\*-mac-x64\.zip\|WeCode-\*-mac-arm64\.zip/);
   assert.match(workflow, /gh release edit .*--notes-file/);
   assert.match(workflow, /--generate-notes/);
 });

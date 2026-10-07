@@ -457,6 +457,9 @@ jobs:
                 manifest-linux-x86_64.json|manifest-linux-aarch64.json|remote-linux-x86_64-*.tar.gz|remote-linux-aarch64-*.tar.gz)
                   gh release delete-asset "$TAG" "$asset_name" --yes --repo "$GITHUB_REPOSITORY"
                   ;;
+                WeCode-*-mac-x64.zip|WeCode-*-mac-arm64.zip)
+                  gh release delete-asset "$TAG" "$asset_name" --yes --repo "$GITHUB_REPOSITORY"
+                  ;;
               esac
             done < <(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')
             gh release upload "$TAG" "${assets[@]}" --clobber --repo "$GITHUB_REPOSITORY"
