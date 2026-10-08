@@ -431,7 +431,7 @@ export type ReadSessionInput = z.infer<typeof ReadSessionInputSchema>;
 
 **`sessionId` 碰撞说明（设计要点）**：`ZCodeSessionPortRequestContext.sessionId` 是**调用方**会话（broker 用它经 `buildWorkspaceRequestContext` 解析受信 workspace）。而 `readSession` 要读的是**目标**会话——也是 `sessionId`。两者在 intersected 类型里同名碰撞，导致 handler 传两个 `sessionId` 时后者覆盖前者（永远读调用方自己）。
 
-**修正**：port 的 `readSession` 业务参数用 `targetSessionId`（目标），request context 的 `sessionId` 保持为调用方。broker 把 `targetSessionId` 透传为业务字段，用 `context.sessionId`（调用方）调 `buildWorkspaceRequestContext`。host executor 读 `targetSessionId`，映射到 `IZCodeSessionService.readSession({ sessionId: targetSessionId, ... })`。Phase 1 目标会话必须在调用方同一 workspace 内（`context.sessions` Map 隔离）。
+**修正**：port 的 `readSession` 业务参数用 `targetSessionId`（目标），request context 的 `sessionId` 保持为调用方。broker 把 `targetSessionId` 透传为业务字段，用 `context.sessionId`（调用方）调 `buildWorkspaceRequestContext`。host executor 读 `targetSessionId`，映射到 `IZCodeSessionService.readSession({ sessionId: targetSessionId, ... })`。目标会话不要求正在运行：若不在 `context.sessions`，Host 必须按目标 ID 从持久化记录冷恢复后再读取；已完成、空闲和冷存储会话都可读。持久化记录不存在返回 `sessionUnavailable`/`Session not found`，恢复失败保留恢复错误，不得统一伪装为 `Session is not active`。
 
 ```typescript
 // 输出：优先走 ZCodeSessionPort.readSession（完整快照），回退 ZCodeTaskPort.getTaskSnapshot（紧凑快照|null）。

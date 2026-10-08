@@ -32,7 +32,7 @@ The first repair slice is implemented: a real, first-turn-visible `ToolSearch` i
 
 The second repair slice is implemented: `ListSessions` now projects shared `ZCodeSessionInfo` into its documented flat summary before runtime validation, with a no-secret handler/schema test. Runtime Zod validation diagnostics now include the failing field path (for example `$.sessions[0].workspacePath: Required`).
 
-The `ReadSession` lifecycle remains a separate follow-up investigation and was not changed in this slice.
+The third phase defines and implements `ReadSession` lifecycle semantics: the target session does not need to be running or resident. Reads reuse the formal `session/resume` activation path; completed, idle, and cold persisted sessions with a durable record are readable. Missing persistence returns `Session not found`, while activation failures retain the recovery error instead of collapsing into `Session is not active`.
 
 ## Affected surfaces
 
@@ -50,7 +50,7 @@ The proposed change affects the CLI runtime tool registry and handlers, `@zcode/
 - A model can discover the session tool set and its exact ID from the initial deferred tool surface without user hints or prior knowledge.
 - The load input description references a registered discovery capability; invalid IDs return actionable guidance.
 - The session-list handler returns data that passes both runtime and JSON Schema validation for empty and populated results.
-- ReadSession behavior is specified and tested for the lifecycle states established by investigation; errors identify whether the target is missing, inactive, or unrecoverable without claiming success.
+- `ReadSession` can read any known target session; cold reads reuse the existing session resume lifecycle, and errors distinguish missing targets from recovery failures without false success.
 - Tests run without credentials and exercise the real handler/port contract, not only isolated mock schema fixtures.
 
 ## Risks

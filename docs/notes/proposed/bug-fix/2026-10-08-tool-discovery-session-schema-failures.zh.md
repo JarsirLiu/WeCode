@@ -32,7 +32,7 @@ Status: proposed
 
 第二阶段已实现：`ListSessions` 在 runtime 校验前将共享的 `ZCodeSessionInfo` 投影为文档定义的扁平摘要，并增加无密钥 handler/schema 测试。runtime Zod 校验诊断现在包含失败字段路径（例如 `$.sessions[0].workspacePath: Required`）。
 
-`ReadSession` 生命周期仍是独立的后续调查项，本阶段未修改。
+第三阶段明确并实现 `ReadSession` 生命周期：目标会话不要求正在执行或驻留 runtime。读取时先复用正式 `session/resume` 的激活流程；已完成、空闲和冷存储但仍有持久化记录的会话均可读取。持久化记录不存在时返回 `Session not found`，恢复失败保留恢复错误，避免把“runtime 未驻留”误报为“会话不可读”。
 
 ## Affected surfaces
 
@@ -50,7 +50,7 @@ Status: proposed
 - 模型无需用户提示或预先知道 ID，即可从首轮延迟工具面发现 session 工具集及其准确 ID。
 - 加载参数描述指向已注册的发现能力；无效 ID 提供可操作的提示。
 - 空结果和非空结果均通过 session 列表 handler 的 runtime 与 JSON Schema 校验。
-- 调查明确并测试 `ReadSession` 各生命周期状态的行为；错误能区分目标不存在、未激活和不可恢复，不伪报成功。
+- `ReadSession` 对任意已知会话可读；冷恢复复用既有 session resume 生命周期，错误能区分目标不存在和恢复失败，不伪报成功。
 - 测试无需凭据，并实际走 handler/port 契约，而非仅使用彼此隔离的 mock schema fixture。
 
 ## Risks

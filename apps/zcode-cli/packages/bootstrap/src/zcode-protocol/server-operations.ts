@@ -1510,12 +1510,20 @@ export async function getUsageStats(context: ZCodeProtocolAgentServerContext, ra
 
 export async function readSession(context: ZCodeProtocolAgentServerContext, rawParams: unknown) {
   const params = parseParams(zcodeSessionReadParamsSchema, rawParams);
-  const record = requireSession(context, params.sessionId, {
-    deliveryKind: params.deliveryKind,
-    operation: "session_read",
-  });
+  let record = context.sessions.get(params.sessionId);
+  let knownSession: SessionInfo | undefined;
+  if (!record) {
+    // ReadSession 对任意已知会话都可用；冷会话先复用正式 resume 生命周期恢复，
+    // 不能把“runtime 未驻留”误报成“会话不可读”。持久化记录不存在时由 resume
+    // 返回结构化 sessionUnavailable，调用方才能区分 ID 不存在与 runtime 状态。
+    const activated = await activateSessionForResume(context, {
+      sessionId: params.sessionId,
+    });
+    record = activated.record;
+    knownSession = activated.knownSession;
+  }
   record.deliveryKind = params.deliveryKind ?? record.deliveryKind;
-  return await snapshot(context, record, undefined, {
+  return await snapshot(context, record, knownSession, {
     messageLimit: params.messageLimit,
     modelAvailability: "current",
   });
