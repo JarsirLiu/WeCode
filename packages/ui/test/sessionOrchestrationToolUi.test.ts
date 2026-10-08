@@ -12,6 +12,7 @@ import {
   readOutputFields,
   SessionOrchestrationToolCallBlock,
 } from "@/ToolCallBlocks/renderers/session-orchestration.js";
+import { readListSessionsInput } from "@/ToolCallBlocks/renderers/session-orchestration-list-sessions.js";
 import { SkillToolCallBlock } from "@/ToolCallBlocks/renderers/skill.js";
 import { ToolDiscoveryToolCallBlock } from "@/ToolCallBlocks/renderers/tool-discovery.js";
 import type { ToolCallBlockRenderContext } from "@/ToolCallBlocks/fileSummaryTypes.js";
@@ -116,6 +117,79 @@ test("session orchestration tool ui: projects ListSessions results into readable
     {
       labelId: "chat.toolCall.sessionOrchestration.field.sessionItem",
       value: "Investigate auth · sess_123 · completed",
+    },
+  ]);
+});
+
+test("session orchestration tool ui: projects ListSessions target and effective query defaults", () => {
+  assert.deepEqual(readListSessionsInput({ workspaceIdentity: "remote:project" }), {
+    primaryText: "remote:project",
+    secondaryText: undefined,
+    fields: [
+      {
+        labelId: "chat.toolCall.sessionOrchestration.field.workspaceIdentity",
+        value: "remote:project",
+      },
+      {
+        labelId: "chat.toolCall.sessionOrchestration.field.includeArchived",
+        valueLabelId: "chat.toolCall.sessionOrchestration.no",
+      },
+      { labelId: "chat.toolCall.sessionOrchestration.field.limit", value: "50" },
+    ],
+  });
+
+  assert.deepEqual(readListSessionsInput({
+    workspaceIdentity: "local:demo",
+    workspacePath: "D:/work/demo",
+    includeArchived: true,
+    limit: 12,
+  }), {
+    primaryText: "local:demo",
+    secondaryText: "D:/work/demo",
+    fields: [
+      {
+        labelId: "chat.toolCall.sessionOrchestration.field.workspaceIdentity",
+        value: "local:demo",
+      },
+      {
+        labelId: "chat.toolCall.sessionOrchestration.field.workspacePath",
+        value: "D:/work/demo",
+      },
+      {
+        labelId: "chat.toolCall.sessionOrchestration.field.includeArchived",
+        valueLabelId: "chat.toolCall.sessionOrchestration.yes",
+      },
+      { labelId: "chat.toolCall.sessionOrchestration.field.limit", value: "12" },
+    ],
+  });
+});
+
+test("session orchestration tool ui: projects WorkspaceList results into readable workspace rows", () => {
+  const fields = readOutputFields({
+    toolId: "workspace-list",
+    toolName: "WorkspaceList",
+    status: "completed",
+    input: {},
+    output: JSON.stringify({
+      workspaces: [
+        {
+          workspaceIdentity: "local:demo",
+          workspacePath: "D:/work/demo",
+          label: "Demo",
+          kind: "local",
+          workspacePurpose: "project",
+          lastConnectionStatus: "connected",
+        },
+      ],
+    }),
+    raw: {},
+  } as never);
+
+  assert.deepEqual(fields, [
+    { labelId: "chat.toolCall.sessionOrchestration.field.workspaces", value: "1" },
+    {
+      labelId: "chat.toolCall.sessionOrchestration.field.workspaceItem",
+      value: "Demo · local:demo · local · D:/work/demo · project · connected",
     },
   ]);
 });

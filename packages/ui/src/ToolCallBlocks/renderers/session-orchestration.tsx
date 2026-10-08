@@ -1,18 +1,11 @@
-// ============================================================
-// AI 会话编排工具专属卡片（CreateSession / ReadSession / SendSessionMessage /
-// StopSessionGeneration / SetSessionModel / CompactSession / ResolveSessionPermission）
-// ============================================================
-// 只服务 `session-orchestration` family（见 packages/shared/src/tool-identity.ts）。
-// 摘要行 = 机器人图标 + 具体工具动作（不显示"会话管理"类目词）；
-// 展开区 = 按工具提取的结构化输入与结果摘要，不渲染全量 JSON dump
-// （仅当输出不是合法 JSON 时才回退纯文本）。与其他工具 renderer 完全隔离，
-// 不修改任何 Bash/Read/MCP 等既有渲染路径；完整三连链路仍由 SessionBot 聚合块渲染。
 import { BotIcon } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { ToolSnapshotFieldNotice } from "@/ToolCallBlocks/ToolSnapshotFieldNotice.js";
 import { ToolLayout } from "../ToolLayout.js";
 import type { ToolCallBlockRenderContext } from "../shared.js";
+import { readListSessionsInput } from "./session-orchestration-list-sessions.js";
+import { readWorkspaceOutputFields } from "./session-orchestration-workspace.js";
 
 const SESSION_ORCHESTRATION_ICON = <BotIcon className="size-4 shrink-0 text-foreground-subtle" />;
 
@@ -20,8 +13,6 @@ type SessionToolCall = ToolCallBlockRenderContext["toolCallNode"]["toolCall"];
 
 const SNIPPET_MAX_LENGTH = 64;
 
-// 工具动作标签：三连三工具复用 SessionBot 步骤文案（同语义，不养第二份文案），
-// 其余四个工具用 sessionOrchestration.tool.* 命名空间。
 const ACTION_LABEL_ID_BY_TOOL: Record<string, string> = {
   CreateSession: "chat.toolCall.sessionBot.step.CreateSession",
   ReadSession: "chat.toolCall.sessionBot.step.ReadSession",
@@ -38,22 +29,16 @@ const ACTION_LABEL_ID_BY_TOOL: Record<string, string> = {
 
 interface DetailField {
   labelId: string;
-  /** 字面值（原样展示，多为 id/枚举/数字）。 */
   value?: string;
-  /** 需要本地化的值（如 是/否）；优先于 value。 */
   valueLabelId?: string;
-  /** inline 行：labelId 本身是完整文案（可含 ICU 插值），不再显示"标签: 值"结构。 */
   values?: Record<string, string | number>;
 }
 
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
+const isPlainRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 
-function readString(record: Record<string, unknown>, key: string): string | undefined {
-  const value = record[key];
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
-}
+const readString = (record: Record<string, unknown>, key: string): string | undefined => {
+  const value = record[key]; return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+};
 
 function toSnippet(value: string | undefined): string | undefined {
   if (!value) {
@@ -80,9 +65,7 @@ function readTargetSessionId(toolCall: SessionToolCall): string | undefined {
 
 function readModelSelectionLabel(toolCall: SessionToolCall): string | undefined {
   const input = readInputRecord(toolCall);
-  if (!input || !isPlainRecord(input.modelSelection)) {
-    return undefined;
-  }
+  if (!input || !isPlainRecord(input.modelSelection)) return undefined;
   const modelId = readString(input.modelSelection, "modelId");
   const thoughtLevel = readString(input.modelSelection, "thoughtLevel");
   if (modelId && thoughtLevel) {
@@ -91,7 +74,6 @@ function readModelSelectionLabel(toolCall: SessionToolCall): string | undefined 
   return modelId;
 }
 
-/** 摘要行主文案：按工具名选最有辨识度的输入字段，流式无输入时回退工具名。 */
 function readPrimaryText(toolCall: SessionToolCall): string | undefined {
   const input = readInputRecord(toolCall);
   switch (toolCall.toolName) {
@@ -103,13 +85,14 @@ function readPrimaryText(toolCall: SessionToolCall): string | undefined {
       return readModelSelectionLabel(toolCall);
     case "ResolveSessionPermission":
       return input ? readString(input, "requestId") : undefined;
+    case "ListSessions":
+    case "list_sessions":
+      return readListSessionsInput(input).primaryText;
     case "ReadSession":
     case "StopSessionGeneration":
     case "CompactSession":
     case "WorkspaceList":
-    case "ListSessions":
     case "workspace_list":
-    case "list_sessions":
     default:
       return readTargetSessionId(toolCall);
   }
@@ -133,22 +116,23 @@ function readSecondaryText(toolCall: SessionToolCall): string | undefined {
       return readString(input, "taskId");
     case "ResolveSessionPermission":
       return readString(input, "decision");
+    case "ListSessions":
+    case "list_sessions":
+      return readListSessionsInput(input).secondaryText;
     case "CompactSession":
     case "WorkspaceList":
-    case "ListSessions":
     case "workspace_list":
-    case "list_sessions":
     default:
       return undefined;
   }
 }
 
-/** 展开区输入字段：只挑每个工具人类可读的关键输入，不做全量 JSON。 */
 function readInputFields(toolCall: SessionToolCall): DetailField[] {
   const input = readInputRecord(toolCall);
   if (!input) {
     return [];
   }
+  if (toolCall.toolName === "ListSessions" || toolCall.toolName === "list_sessions") return readListSessionsInput(input).fields;
   const fields: DetailField[] = [];
   const push = (labelId: string, value: string | undefined) => {
     if (value) {
@@ -192,10 +176,6 @@ function parseJsonOutput(text: string | undefined): unknown {
   }
 }
 
-/**
- * 展开区结果摘要：按工具从 JSON 输出提取人类可读字段。
- * 只挑白名单字段；解析失败或没有可读字段时返回空数组，由调用方决定回退纯文本。
- */
 export function readOutputFields(toolCall: SessionToolCall): DetailField[] {
   const parsed = parseJsonOutput(readOutputText(toolCall));
   if (parsed === null || parsed === undefined) {
@@ -306,8 +286,10 @@ export function readOutputFields(toolCall: SessionToolCall): DetailField[] {
       break;
     }
     case "WorkspaceList":
-    case "workspace_list":
+    case "workspace_list": {
+      fields.push(...readWorkspaceOutputFields(parsed));
       break;
+    }
     default:
       break;
   }
@@ -321,7 +303,6 @@ export function SessionOrchestrationToolCallBlock(context: ToolCallBlockRenderCo
   const secondaryText = readSecondaryText(toolCall);
   const inputFields = useMemo(() => readInputFields(toolCall), [toolCall]);
   const outputFields = useMemo(() => readOutputFields(toolCall), [toolCall]);
-  // 输出不是合法 JSON 时才回退纯文本；合法 JSON 一律走结构化摘要，不摊原始 JSON。
   const fallbackOutputText = useMemo(() => {
     const text = readOutputText(toolCall);
     return text !== undefined && parseJsonOutput(text) === null ? text : undefined;
@@ -347,7 +328,6 @@ export function SessionOrchestrationToolCallBlock(context: ToolCallBlockRenderCo
               ? intl.formatMessage({ id: field.valueLabelId })
               : field.value;
             if (value === undefined || value === "") {
-              // 无值行（如"已请求停止生成"）整行就是摘要文案本身。
               return (
                 <p
                   key={`${field.labelId}-${index}`}
