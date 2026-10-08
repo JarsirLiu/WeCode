@@ -26,6 +26,10 @@ ReadSession(sessionId)
 
 反向协议必须把调用方 session ID 与 `targetSessionId` 分开传递。Host 使用定位器结果路由目标工作区，调用方 ID 只用于授权和审计。目标 runtime 返回现有 `readSession` 的持久化快照语义；尚未提交的模型输出不保证可见。
 
+## Implementation status
+
+第一阶段已经落地：Host task index 新增活跃 `task_id` 查询索引，目标解析改为直接按 ID 查询，不再把全部 task 读回内存后过滤。完整的 `ReadSession` 路由仍待实现；broker 和 session executor 目前还没有使用解析出的目标 workspace 完成跨工作区读取。
+
 ## Affected surfaces
 
 - Agent broker 和 `session/readSession` 反向协议请求结构。

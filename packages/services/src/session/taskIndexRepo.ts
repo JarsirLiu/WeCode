@@ -1666,16 +1666,13 @@ export class TaskIndexRepo {
   }
 
   async listTaskMetas(params: {
-    workspacePath?: string;
-    workspaceIdentity?: string;
-    provider?: ZCodeProvider;
+    workspacePath?: string; workspaceIdentity?: string;
+    taskId?: string; provider?: ZCodeProvider;
     pinned?: boolean;
     archived?: boolean;
     includeDeleted?: boolean;
   }): Promise<ZCodeTaskMeta[]> {
     await this.ensureReady();
-    // listTaskMetas 支持不传 workspacePath 查询全部任务，但 workspaceKey 只接受必填路径。
-    // 先把可选入参收窄成明确的 workspace target，避免类型层把全量查询和 workspace 查询混在一起。
     const targetWorkspaceKey = params.workspacePath
       ? workspaceKey({
           workspacePath: params.workspacePath,
@@ -1709,8 +1706,8 @@ export class TaskIndexRepo {
           meta_json
         FROM tasks
         WHERE (@workspace_key IS NULL OR workspace_key = @workspace_key)
+          AND (@task_id IS NULL OR task_id = @task_id)
           AND (@include_deleted = 1 OR deleted = 0)
-          -- 按请求指定的 runtime provider 过滤；迁移来源另存于 migration_source。
           AND (@provider IS NULL OR provider = @provider)
           AND (@pinned IS NULL OR pinned = @pinned)
           AND (@archived IS NULL OR archived = @archived)
@@ -1718,7 +1715,7 @@ export class TaskIndexRepo {
       )
       .all({
         workspace_key: targetWorkspaceKey,
-        include_deleted: params.includeDeleted ? 1 : 0,
+        task_id: params.taskId ?? null, include_deleted: params.includeDeleted ? 1 : 0,
         provider: params.provider ?? null,
         pinned: typeof params.pinned === "boolean" ? (params.pinned ? 1 : 0) : null,
         archived: typeof params.archived === "boolean" ? (params.archived ? 1 : 0) : null,
@@ -1727,8 +1724,6 @@ export class TaskIndexRepo {
   }
 
   /**
-   * 读取 workspace 下的删除 tombstone。
-   *
    * CLI session store 会继续保留会话内容；如果列表 join 只读取 active/pinned/archived，
    * deleted task 会因“不在 archived 集合”被误判成普通 task，并在冷启动后重新出现。
    */

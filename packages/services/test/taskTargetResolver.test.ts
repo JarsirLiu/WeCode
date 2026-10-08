@@ -9,7 +9,13 @@ test("task target resolution uses the indexed workspace when the session is not 
     workspaceIdentity: "remote:ssh:host:22:user:/work/project",
   };
   const remembered: unknown[] = [];
-  const repo = { listTaskMetas: async () => [meta] };
+  let query: Record<string, unknown> | undefined;
+  const repo = {
+    listTaskMetas: async (params: Record<string, unknown>) => {
+      query = params;
+      return [meta];
+    },
+  };
   const result = await resolveTaskTargetFromHost(
     "session-1",
     new Map(),
@@ -17,6 +23,7 @@ test("task target resolution uses the indexed workspace when the session is not 
     (entry) => remembered.push(entry),
   );
   assert.deepEqual(result, meta);
+  assert.deepEqual(query, { taskId: "session-1" });
   assert.deepEqual(remembered, [meta]);
 });
 

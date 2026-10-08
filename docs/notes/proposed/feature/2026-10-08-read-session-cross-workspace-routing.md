@@ -26,6 +26,10 @@ The locator is an indexed Host query, never a scan of every workspace. Its autho
 
 The reverse protocol should carry the caller session ID separately from `targetSessionId`. Host routing uses the locator result for the target workspace and the caller ID only for authorization and audit. The target runtime returns the same persisted snapshot semantics used by existing `readSession`; in-flight, uncommitted model output is not promised.
 
+## Implementation status
+
+The first implementation slice is shipped in the working tree: the Host task index now has an active `task_id` lookup index, and target resolution queries that index directly instead of loading every task and filtering in memory. Full `ReadSession` routing is still pending; the broker and session executor do not yet consume the resolved target workspace for cross-workspace reads.
+
 ## Affected surfaces
 
 - Agent broker and reverse protocol request shape for `session/readSession`.

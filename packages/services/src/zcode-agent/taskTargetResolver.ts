@@ -15,7 +15,13 @@ export async function resolveTaskTargetFromHost(
 ): Promise<ResolvedTaskTarget> {
   const cached = cachedTargets.get(taskId);
   if (cached) return { taskId: cached.taskId, workspacePath: cached.workspacePath, ...(cached.workspaceIdentity ? { workspaceIdentity: cached.workspaceIdentity } : {}) };
-  const meta = (await taskIndexRepo.listTaskMetas({})).find((entry) => entry.taskId === taskId);
+  const metas = await taskIndexRepo.listTaskMetas({ taskId });
+  if (metas.length > 1) {
+    throw Object.assign(new Error(`Multiple active task index rows found for session ${taskId}`), {
+      code: "ZCODE_SESSION_TARGET_AMBIGUOUS",
+    });
+  }
+  const meta = metas[0];
   if (!meta) throw Object.assign(new Error(`ZCode session target is not loaded: ${taskId}`), { code: "ZCODE_SESSION_TARGET_NOT_FOUND" });
   rememberIndexedTaskMeta(meta);
   return { taskId: meta.taskId, workspacePath: meta.workspacePath, ...(meta.workspaceIdentity ? { workspaceIdentity: meta.workspaceIdentity } : {}) };

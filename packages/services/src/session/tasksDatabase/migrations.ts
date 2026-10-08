@@ -39,6 +39,11 @@ const indexes = `
     WHERE off_peak_task_id IS NOT NULL AND deleted=0;
   CREATE INDEX IF NOT EXISTS idx_automations_target_task ON automations(target_task_id) WHERE target_task_id IS NOT NULL;
 `;
+const targetSessionLookupIndex = `
+  CREATE INDEX IF NOT EXISTS idx_tasks_task_id_active
+  ON tasks (task_id, updated_at DESC)
+  WHERE deleted = 0;
+`;
 const terminalStatuses = "'completed','failed','cancelled'";
 const activePredicate = `session_id IS NOT NULL AND status NOT IN (${terminalStatuses})`;
 const boundIndex = `CREATE UNIQUE INDEX IF NOT EXISTS idx_off_peak_bound_active ON off_peak_tasks(workspace_key,session_id) WHERE ${activePredicate}`;
@@ -73,6 +78,10 @@ const definitions = [
   {
     id: "0005_peer_session_permission_resolution",
     checksumInput: [PEER_SESSION_PERMISSION_SCHEMA],
+  },
+  {
+    id: "0006_target_session_lookup_index",
+    checksumInput: [targetSessionLookupIndex],
   },
 ] as const;
 
@@ -127,7 +136,9 @@ export function runTasksDatabaseMigrations(
         db.exec(OFFICIAL_GLM_SELECTION_MIGRATION_SQL);
       else if (migration.id === "0004_peer_session_relations")
         db.exec(PEER_SESSION_RELATION_SCHEMA);
-      else db.exec(PEER_SESSION_PERMISSION_SCHEMA);
+      else if (migration.id === "0005_peer_session_permission_resolution")
+        db.exec(PEER_SESSION_PERMISSION_SCHEMA);
+      else db.exec(targetSessionLookupIndex);
       migrationFacts.executedCount++;
       db.prepare("INSERT INTO tasks_schema_migration VALUES(?,?,?)").run(
         migration.id,
