@@ -39,7 +39,7 @@ export const LoadToolSetModelInputSchema = z
       .string()
       .min(1)
       .describe(
-        "The ID of the toolset to load (e.g., 'plan', 'automation', 'workflow'). Use ListToolSets to discover available toolsets.",
+        "The exact ID of the toolset to load. Call ToolSearch first when you do not already know the ID.",
       ),
   })
   .strict();

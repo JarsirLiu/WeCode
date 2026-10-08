@@ -67,7 +67,7 @@
 
 ### 1. 契约层：工具集规格（纯数据）
 
-> **当前实现状态（2026-10-06）**：AgentRuntime 已启用延迟工具面。首轮仅注册 core、task-control 与 LoadToolSet；可选工具仍由现有 `LoadToolSet` handler 按会话注册并使缓存失效。调用方若显式不启用延迟模式，保留 eager registration 作为兼容行为。
+> **当前实现状态（2026-10-08）**：AgentRuntime 已启用延迟工具面。首轮注册 `ToolSearch`、`LoadToolSet`、core 与 task-control；`ToolSearch` 与 `LoadToolSet` 共用同一静态工具集目录，搜索结果返回精确 ID、描述、关键词、工具名和当前加载状态。可选工具仍由 `LoadToolSet` 按会话注册并使缓存失效。调用方若显式不启用延迟模式，保留 eager registration 作为兼容行为。
 
 **`apps/zcode-cli/packages/contracts/src/tool-sets.ts`**
 

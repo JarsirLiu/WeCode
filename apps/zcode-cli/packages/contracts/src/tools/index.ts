@@ -63,6 +63,7 @@ export * from "./mcp-session-orchestration.js";
 // 名字常量被 core 的工具注册与 allowlist 补回逻辑读走；漏掉这行会让
 // child 禁用列表补全失效。
 export * from "./load-tool-set.js";
+export * from "./tool-search.js";
 
 // Shared types (only once to avoid duplicates)
 export type { DiffHunk, GitDiff } from "./write.js";

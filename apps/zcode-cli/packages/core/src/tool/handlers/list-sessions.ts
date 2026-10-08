@@ -17,6 +17,7 @@ import {
   createCoreError,
 } from "@zcode/contracts";
 import type { ToolEntry, ToolHandler } from "../types.js";
+import type { ZCodeSessionInfo } from "@zcode/shared";
 
 const MAX_LIST_SESSIONS_BYTES = 50_000;
 const LIST_SESSIONS_TIMEOUT_MS = 10_000;
@@ -59,7 +60,19 @@ const listSessionsHandler: ToolHandler = async (input, context) => {
     sessionId: context.sessionId,
   });
 
-  return { sessions };
+  // Port 返回共享协议的 ZCodeSessionInfo；工具契约只暴露稳定的扁平摘要，不能直接透传
+  // workspace/sessionKind 等协议字段，否则 runtimeOutputSchema 会在边界处拒绝结果。
+  return {
+    sessions: sessions.map((session: ZCodeSessionInfo) => ({
+      sessionId: session.sessionId,
+      workspacePath: session.workspace.workspacePath,
+      title: session.title,
+      status: session.status,
+      mode: session.mode,
+      updatedAt: session.updatedAt,
+      createdAt: session.createdAt,
+    })),
+  };
 };
 
 export const listSessionsToolEntry: ToolEntry = {

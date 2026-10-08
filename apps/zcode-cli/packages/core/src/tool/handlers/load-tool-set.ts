@@ -162,6 +162,11 @@ const TOOL_SETS: Record<string, { spec: ToolSetSpec; toolNames: string[] }> = {
   },
 };
 
+/** ToolSearch and LoadToolSet must read the same catalog to keep IDs discoverable. */
+export function listToolSetDefinitions(): readonly { spec: ToolSetSpec; toolNames: readonly string[] }[] {
+  return Object.values(TOOL_SETS);
+}
+
 const MAX_LOAD_TOOL_SET_BYTES = 50_000;
 const LOAD_TOOL_SET_TIMEOUT_MS = 5_000;
 

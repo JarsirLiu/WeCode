@@ -9,8 +9,10 @@ import {
   LIST_SESSIONS_TOOL_NAME,
   WorkspaceListInputSchema,
   ListSessionsInputSchema,
+  ListSessionsOutputSchema,
 } from "@zcode/contracts";
 import { workspaceListToolEntry } from "../src/tool/handlers/workspace-list.js";
+import { listSessionsToolEntry } from "../src/tool/handlers/list-sessions.js";
 import type { ToolExecutionContext } from "../src/tool/types.js";
 import {
   buildBuiltInToolRegistrationPlan,
@@ -118,4 +120,47 @@ test("ListSessions schema 验证", () => {
   const invalidInput = { workspaceIdentity: "" };
   const result2 = ListSessionsInputSchema.safeParse(invalidInput);
   assert.equal(result2.success, false, "空 workspaceIdentity 应被拒绝");
+});
+
+test("ListSessions projects ZCodeSessionInfo into its stable tool summary", async () => {
+  const context = {
+    toolCallId: "list_1",
+    sessionId: "caller_session",
+    traceId: "trace_1",
+    abortSignal: new AbortController().signal,
+    zcodeSessionPort: {
+      listSessions: async () => [
+        {
+          sessionId: "sess_1",
+          workspace: {
+            workspacePath: "D:/work/demo",
+            workspaceIdentity: "D:/work/demo",
+            workspaceKey: "D:/work/demo",
+          },
+          sessionKind: "interactive",
+          title: "Demo",
+          mode: "build",
+          status: "completed",
+          createdAt: 10,
+          updatedAt: 20,
+        },
+      ],
+    },
+  } as never;
+
+  const output = await listSessionsToolEntry.handler({ workspaceIdentity: "D:/work/demo" }, context);
+  assert.deepEqual(output, {
+    sessions: [
+      {
+        sessionId: "sess_1",
+        workspacePath: "D:/work/demo",
+        title: "Demo",
+        status: "completed",
+        mode: "build",
+        createdAt: 10,
+        updatedAt: 20,
+      },
+    ],
+  });
+  assert.equal(ListSessionsOutputSchema.safeParse(output).success, true);
 });

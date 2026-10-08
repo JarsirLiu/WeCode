@@ -43,7 +43,10 @@ function validateRuntimeSchema(output: unknown, schema: unknown): true | string[
   if (!isSafeParseSchema(schema)) return undefined;
   const parsed = schema.safeParse(output);
   if (parsed.success) return true;
-  return parsed.error.issues.map((issue) => issue.message);
+  return parsed.error.issues.map((issue) => {
+    const path = issue.path.length === 0 ? "$" : `$.${issue.path.join(".")}`;
+    return `${path}: ${issue.message}`;
+  });
 }
 
 function isSafeParseSchema(schema: unknown): schema is {
@@ -51,7 +54,7 @@ function isSafeParseSchema(schema: unknown): schema is {
     value: unknown,
   ) =>
     | { success: true; data: unknown }
-    | { success: false; error: { issues: Array<{ message: string }> } };
+    | { success: false; error: { issues: Array<{ message: string; path: (string | number)[] }> } };
 } {
   return (
     typeof schema === "object" &&

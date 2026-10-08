@@ -15,6 +15,8 @@
 
 ## 目标
 
+会话编排工具集通过动态工具面暴露。模型必须先能调用首轮可见的 `ToolSearch`，按关键词得到 `session` 的精确工具集 ID，再调用 `LoadToolSet({ toolset_id: "session" })`；不得依赖模型记忆或用户提示猜测工具集名称。
+
 让 AI 能在当前会话中**创建独立会话、向会话发消息、读取进度/结果**，实现多任务并行编排与后台长任务代管。
 
 - 会话是真正的持久化会话：用户可见、可进去打断、可接管、侧边栏列表可见
@@ -438,6 +440,7 @@ export type ReadSessionInput = z.infer<typeof ReadSessionInputSchema>;
 // 完整快照 = ZCodeSessionStateSnapshot（packages/shared），关键字段：
 //   protocol: { name: "ZCode Protocol", version: 1 }   ← 注意常量是 "ZCode Protocol" 不是 "ZCode"，version 是数字 1 不是 "1.0"
 //   session:    ZCodeSessionInfo    { sessionId, workspace, mode, status, model?, ... }
+// ListSessions 在工具边界投影为扁平稳定摘要，不直接透传该协议对象。
 //   settings:   { model, thoughtLevel, mode, permission? }
 //   projection: { status(6值,见§3.2.3), turnCount, totalTokenCount, contextUsed, contextWindow, pendingPermissions[], ... }
 //   runtime:    { eventSeq, stateRevision, deliveryKind?, activeTurnId?, ... }

@@ -127,9 +127,25 @@ test("运行时默认工具面只暴露核心工具和 LoadToolSet", () => {
     "TaskOutput",
     "TaskStop",
     "LoadToolSet",
+    "ToolSearch",
   ]);
   assert.equal(registry.has("CreateSession"), false);
   assert.equal(registry.has("CronCreate"), false);
+});
+
+test("ToolSearch exposes exact toolset IDs from the LoadToolSet catalog", async () => {
+  const registry = createToolRegistry();
+  registerBuiltInTools(registry, { deferOptionalToolSets: true });
+  const executor = createToolExecutor({
+    registry,
+    permissionService: new PermissionService(),
+    emitEvent: async () => {},
+    sessionId: "sess_tool_search",
+    getMode: () => "yolo",
+  });
+  const result = await executor.execute({ id: "search_1", name: "ToolSearch", input: { query: "orchestration" } });
+  assert.equal(result.success, true, `搜索失败：${JSON.stringify(result.error ?? {})}`);
+  assert.deepEqual((result.output as { results: Array<{ id: string }> }).results.map((entry) => entry.id), ["session"]);
 });
 
 test("LoadToolSet 执行后才把可选工具注册进当前会话", async () => {
