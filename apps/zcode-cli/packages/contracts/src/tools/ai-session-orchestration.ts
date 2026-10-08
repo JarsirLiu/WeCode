@@ -173,28 +173,67 @@ export const ReadSessionInputSchema = z
   })
   .strict();
 
-// 输出是完整 session 快照（ZCodeSessionStateSnapshot）或紧凑 task 快照或 null。
-// 用 z.unknown() 避免 contracts 侧手写一份与 shared schema 漂移的 bespoke 结构；
-// 真正的 wire 校验由 broker 用 shared 的 zcodeSessionReadSessionResultSchema 做。
-// 模型从 description 了解返回结构，不需要逐字段 JSON schema。
-export const ReadSessionOutputSchema = z.unknown();
+export const ReadSessionSummaryMessageSchema = z
+  .object({
+    role: z.enum(["user", "assistant"]),
+    content: z.string().max(1000),
+    timestamp: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+
+export const ReadSessionSummaryToolCallSchema = z
+  .object({
+    toolCallId: z.string().min(1),
+    toolName: z.string().min(1),
+    status: z.enum(["pending", "running", "completed", "failed", "denied"]),
+    startedAt: z.number().int().nonnegative().optional(),
+    completedAt: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+
+export const ReadSessionSummaryStatusSchema = z.enum([
+  "idle",
+  "running",
+  "waiting",
+  "paused",
+  "completed",
+  "error",
+]);
+
+export const ReadSessionOutputSchema = z
+  .object({
+    sessionId: z.string().min(1),
+    title: z.string().optional(),
+    status: ReadSessionSummaryStatusSchema,
+    turnCount: z.number().int().nonnegative().optional(),
+    totalTokenCount: z.number().int().nonnegative().optional(),
+    contextUsed: z.number().int().nonnegative().optional(),
+    contextWindow: z.number().int().nonnegative().optional(),
+    messages: z.array(ReadSessionSummaryMessageSchema).optional(),
+    toolCalls: z.array(ReadSessionSummaryToolCallSchema).optional(),
+    pendingPermissions: z.number().int().nonnegative().optional(),
+    lastError: z.string().max(1000).optional(),
+  })
+  .strict();
 
 export type ReadSessionInput = z.infer<typeof ReadSessionInputSchema>;
-export type ReadSessionOutput = unknown;
+export type ReadSessionSummaryMessage = z.infer<typeof ReadSessionSummaryMessageSchema>;
+export type ReadSessionSummaryToolCall = z.infer<typeof ReadSessionSummaryToolCallSchema>;
+export type ReadSessionOutput = z.infer<typeof ReadSessionOutputSchema>;
 
 export const ReadSessionInputJsonSchema = toToolJsonSchema(ReadSessionInputSchema);
 export const ReadSessionOutputJsonSchema = toToolJsonSchema(ReadSessionOutputSchema);
 
 export const READ_SESSION_DESCRIPTION = [
-  "Read the full state of a WeCode session (history, runtime status, todos, etc.).",
+  "Read a summary of any WeCode session (status, recent messages, and tool-call statuses).",
   "",
   "Required: sessionId (the taskId or session identifier).",
   "",
   "Optional: messageLimit (default 50), afterSeq (for incremental reads).",
   "",
-  "Returns a structured snapshot with: session info, settings, runtime status, messages,",
-  "todos, goals, and available slash commands. Primary usage: read the authoritative state",
-  "after a session/changed wake-up notification (afterSeq gives incremental reads).",
+  "Returns a compact summary. Tool inputs and full tool outputs are intentionally omitted;",
+  "toolCalls contains only tool name, call ID, status, and timestamps. Use it as the authoritative",
+  "state after a session/changed wake-up notification (afterSeq gives incremental reads).",
   "Also usable as a low-frequency fallback poll when no notification arrives.",
   "",
   "The snapshot carries context pressure in projection (contextUsed, contextWindow, totalTokenCount)",
@@ -288,7 +327,8 @@ export const CompactSessionInputSchema = z
 export const CompactSessionOutputSchema = z
   .object({
     response: z.string(),
-    snapshot: ReadSessionOutputSchema,
+    // CompactSession 的 host 响应仍是内部完整 snapshot；ReadSession 工具摘要不应改变该写操作契约。
+    snapshot: z.unknown(),
     compact: z
       .object({
         state: z.enum(["accepted", "already_running"]),

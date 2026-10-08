@@ -16,9 +16,11 @@ import {
   createCoreError,
 } from "@zcode/contracts";
 import type { ToolEntry, ToolHandler } from "../types.js";
+import { summarizeReadSessionOutput } from "./read-session-summary.js";
 
 const MAX_READ_SESSION_BYTES = 200_000;
 const READ_SESSION_TIMEOUT_MS = 15_000;
+const DEFAULT_MESSAGE_LIMIT = 50;
 
 const readSessionHandler: ToolHandler = async (input, context) => {
   const parsed = ReadSessionInputSchema.safeParse(input);
@@ -38,25 +40,27 @@ const readSessionHandler: ToolHandler = async (input, context) => {
   // 优先使用 zcodeSessionPort（完整快照），回退到 zcodeTaskPort.getTaskSnapshot（紧凑快照）
   if (context.zcodeSessionPort) {
     // targetSessionId 是目标会话（要读的），sessionId 是调用方——两者不同，不碰撞。
-    return context.zcodeSessionPort.readSession({
+    const snapshot = await context.zcodeSessionPort.readSession({
       targetSessionId: parsed.data.sessionId,
       workspacePath: "", // 由 broker 从受信 session record 覆盖
-      messageLimit: parsed.data.messageLimit,
+      messageLimit: parsed.data.messageLimit ?? DEFAULT_MESSAGE_LIMIT,
       afterSeq: parsed.data.afterSeq,
       sessionId: context.sessionId,
       traceContext: context.traceContext,
       signal: context.abortSignal,
     });
+    return summarizeReadSessionOutput(snapshot);
   }
   if (context.zcodeTaskPort) {
-    return context.zcodeTaskPort.getTaskSnapshot({
+    const snapshot = await context.zcodeTaskPort.getTaskSnapshot({
       taskId: parsed.data.sessionId,
       workspacePath: "", // 由 broker 从受信 session record 覆盖
-      messageLimit: parsed.data.messageLimit,
+      messageLimit: parsed.data.messageLimit ?? DEFAULT_MESSAGE_LIMIT,
       sessionId: context.sessionId,
       traceContext: context.traceContext,
       signal: context.abortSignal,
     });
+    return summarizeReadSessionOutput(snapshot);
   }
   throw createCoreError(
     CoreErrorType.ToolExecutionFailed,
@@ -69,7 +73,7 @@ const readSessionHandler: ToolHandler = async (input, context) => {
 };
 
 export const readSessionToolEntry: ToolEntry = {
-  capability: "Read the full state of a ZCode session (history, runtime status, todos, etc.)",
+  capability: "Read a compact summary of a ZCode session without full tool inputs or outputs",
   metadata: {
     name: READ_SESSION_TOOL_NAME,
     description: READ_SESSION_DESCRIPTION,

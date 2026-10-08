@@ -34,6 +34,8 @@ Status: proposed
 
 第三阶段明确并实现 `ReadSession` 生命周期：目标会话不要求正在执行或驻留 runtime。读取时先复用正式 `session/resume` 的激活流程；已完成、空闲和冷存储但仍有持久化记录的会话均可读取。持久化记录不存在时返回 `Session not found`，恢复失败保留恢复错误，避免把“runtime 未驻留”误报为“会话不可读”。
 
+第四阶段将 `ReadSession` 工具边界收紧为摘要视图：Host 仍可构建完整内部快照，但模型只收到会话状态、计数、上下文压力、消息文本预览，以及工具名、调用 ID、状态和时间；完整工具输入、输出和内部 metadata 不再通过该工具返回。摘要投影在 core handler 边界完成，并有无密钥回放测试防止泄露。
+
 ## Affected surfaces
 
 提案涉及 CLI runtime 工具注册与 handler、`@zcode/contracts` 工具 schema、共享 session info 协议契约、Host session 路由/恢复，以及动态工具和 AI 会话 spec。不提议增加第二份 session 存储或新的 session 状态所有权路径。

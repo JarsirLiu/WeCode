@@ -434,7 +434,8 @@ export type ReadSessionInput = z.infer<typeof ReadSessionInputSchema>;
 **修正**：port 的 `readSession` 业务参数用 `targetSessionId`（目标），request context 的 `sessionId` 保持为调用方。broker 把 `targetSessionId` 透传为业务字段，用 `context.sessionId`（调用方）调 `buildWorkspaceRequestContext`。host executor 读 `targetSessionId`，映射到 `IZCodeSessionService.readSession({ sessionId: targetSessionId, ... })`。目标会话不要求正在运行：若不在 `context.sessions`，Host 必须按目标 ID 从持久化记录冷恢复后再读取；已完成、空闲和冷存储会话都可读。持久化记录不存在返回 `sessionUnavailable`/`Session not found`，恢复失败保留恢复错误，不得统一伪装为 `Session is not active`。
 
 ```typescript
-// 输出：优先走 ZCodeSessionPort.readSession（完整快照），回退 ZCodeTaskPort.getTaskSnapshot（紧凑快照|null）。
+// 输出：优先走 ZCodeSessionPort.readSession（Host 内部完整快照），回退 ZCodeTaskPort.getTaskSnapshot；
+// 工具边界统一投影为摘要，不向模型返回完整工具输入或结果。
 // 不用 readFullHistory 开关——两条路径由哪个端口在场决定，不由模型选。
 //
 // 完整快照 = ZCodeSessionStateSnapshot（packages/shared），关键字段：
@@ -444,16 +445,17 @@ export type ReadSessionInput = z.infer<typeof ReadSessionInputSchema>;
 //   settings:   { model, thoughtLevel, mode, permission? }
 //   projection: { status(6值,见§3.2.3), turnCount, totalTokenCount, contextUsed, contextWindow, pendingPermissions[], ... }
 //   runtime:    { eventSeq, stateRevision, deliveryKind?, activeTurnId?, ... }
-//   messages:   ZCodeMessageWithParts[]
+//   messages/toolCalls: 工具边界只返回文本预览和工具名、callId、状态、时间；不返回完整 input/output。
 //   todos?, todoGroups?, slashCommands?
 //
 // 紧凑快照 = zcodeAiTaskSnapshotSchema（见 shared/src/zcode-protocol/ai-session-orchestration.ts）
 //   { taskId, title?, status(6值), turnCount?, totalTokenCount?, recentMessages?, recentToolCalls?, lastError? } | null
-export const ReadSessionOutputSchema = z.union([
-  zcodeSessionStateSnapshotSchema, // 完整快照（sessionPort 在场）
-  zcodeAiTaskSnapshotSchema, // 紧凑快照（taskPort 回退）
-  z.literal(null), // 目标不存在
-]);
+export const ReadSessionOutputSchema = z.object({
+  sessionId: z.string(),
+  status: z.enum(["idle", "running", "waiting", "paused", "completed", "error"]),
+  messages: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string() })).optional(),
+  toolCalls: z.array(z.object({ toolCallId: z.string(), toolName: z.string(), status: z.string() })).optional(),
+});
 export type ReadSessionOutput = z.infer<typeof ReadSessionOutputSchema>;
 ```
 

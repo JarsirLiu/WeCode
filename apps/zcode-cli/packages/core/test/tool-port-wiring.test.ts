@@ -284,6 +284,65 @@ test("ReadSession 执行把 zcodeSessionPort 送达 handler 并命中 stub", asy
   assert.equal(JSON.stringify(calls[0]).includes("target_session"), true);
 });
 
+test("ReadSession 只返回摘要，不泄露工具 input/output", async () => {
+  const registry = createToolRegistry();
+  registerBuiltInTools(registry, { includeZCodeTask: true });
+  const executor = createToolExecutor({
+    registry,
+    permissionService: new PermissionService(),
+    emitEvent: async () => {},
+    sessionId: "sess_summary_test",
+    getMode: () => "yolo",
+    zcodeSessionPort: {
+      listSessions: async () => [],
+      readSession: async () =>
+        ({
+          session: { sessionId: "target_session", title: "Summary test" },
+          projection: {
+            status: "completed",
+            turnCount: 1,
+            totalTokenCount: 42,
+            contextUsed: 10,
+            contextWindow: 100,
+            pendingPermissions: [],
+          },
+          messages: [
+            {
+              info: { role: "assistant", time: { created: 1 } },
+              parts: [
+                {
+                  type: "tool",
+                  tool: "ReadFile",
+                  callId: "call_1",
+                  state: {
+                    status: "completed",
+                    input: { secret: "must-not-leak" },
+                    output: "full output must not leak",
+                    startedAt: 1,
+                    completedAt: 2,
+                  },
+                },
+              ],
+            },
+          ],
+        }) as never,
+    },
+  });
+
+  const result = await executor.execute({
+    id: "call_summary_read",
+    name: READ_SESSION_TOOL_NAME,
+    input: { sessionId: "target_session" },
+  });
+
+  assert.equal(result.success, true, `执行应成功：${JSON.stringify(result.error ?? {})}`);
+  const serialized = JSON.stringify(result.output);
+  assert.equal(serialized.includes("must-not-leak"), false);
+  assert.equal(serialized.includes("full output must not leak"), false);
+  assert.equal(serialized.includes('"toolName":"ReadFile"'), true);
+  assert.equal(serialized.includes('"status":"completed"'), true);
+});
+
 test("SendSessionMessage 返回 host admission 并把 messageId 送达端口", async () => {
   const { port, calls } = createRecordingTaskPort();
   const registry = createToolRegistry();

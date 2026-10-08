@@ -34,6 +34,8 @@ The second repair slice is implemented: `ListSessions` now projects shared `ZCod
 
 The third phase defines and implements `ReadSession` lifecycle semantics: the target session does not need to be running or resident. Reads reuse the formal `session/resume` activation path; completed, idle, and cold persisted sessions with a durable record are readable. Missing persistence returns `Session not found`, while activation failures retain the recovery error instead of collapsing into `Session is not active`.
 
+The fourth phase constrains the `ReadSession` tool boundary to a summary view. The Host may still build the complete internal snapshot, but the model receives only session status, counters, context pressure, message text previews, and tool name/call ID/status/timestamps. Full tool inputs, outputs, and internal metadata are removed at the core handler boundary, with a no-key replay test preventing leakage.
+
 ## Affected surfaces
 
 The proposed change affects the CLI runtime tool registry and handlers, `@zcode/contracts` tool schemas, the shared session info protocol contract, Host session routing/recovery, and the dynamic-tool and AI-session specs. It does not propose a second session store or a new ownership path for session state.
