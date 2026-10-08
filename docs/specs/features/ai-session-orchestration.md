@@ -437,6 +437,27 @@ export type ReadSessionInput = z.infer<typeof ReadSessionInputSchema>;
 
 **修正**：port 的 `readSession` 业务参数用 `targetSessionId`（目标），request context 的 `sessionId` 保持为调用方。broker 把 `targetSessionId` 透传为业务字段，用 `context.sessionId`（调用方）调 `buildWorkspaceRequestContext`。host executor 读 `targetSessionId`，映射到 `IZCodeSessionService.readSession({ sessionId: targetSessionId, ... })`。目标会话不要求正在运行：若不在 `context.sessions`，Host 必须按目标 ID 从持久化记录冷恢复后再读取；已完成、空闲和冷存储会话都可读。持久化记录不存在返回 `sessionUnavailable`/`Session not found`，恢复失败保留恢复错误，不得统一伪装为 `Session is not active`。
 
+### ReadSession 的跨工作区与冷会话路由
+
+`ReadSession` 的公开输入继续只包含目标 `sessionId`、`messageLimit` 和 `afterSeq`。session ID 是目标会话的定位键；调用方不需要、也不应额外提供 workspace path 或 workspace identity。Host 内部必须把调用方身份与目标身份分开：调用方 session 只用于授权、审计和反向请求上下文，目标 session 用于查找真实 workspace 并路由读取请求。
+
+路由顺序固定为：
+
+```text
+ReadSession(sessionId)
+  → broker 发送 { callerSessionId, targetSessionId }
+  → Host 从全局 session/task 索引按 targetSessionId 定位 workspace
+  → 校验 callerSessionId 与 targetSessionId 的关系
+  → 复用或按需启动目标 workspace 的 read-only client
+  → 读取目标 runtime 的持久化 snapshot/event projection
+```
+
+定位必须是 Host 持有的索引查询，不得遍历所有 workspace，也不得在定位失败时回退到调用方 workspace、`process.cwd()` 或本地缓存。活跃且同 workspace 的读取保留现有快速路径；目标 runtime 不在内存中时，沿 `getReadOnlyClient(..., "start-if-needed")` 按需恢复，读取完成后不要求保持常驻。远程目标必须精确匹配 `workspaceIdentity` 与 `remoteSessionId`，不能只按路径匹配。
+
+定位不到、会话已删除或恢复失败时，返回结构化的 `sessionUnavailable`/not-found 或恢复错误；不得把所有失败统一伪装为“会话未活跃”。冷读取或远程恢复可能比活跃读取更慢，调用链必须支持取消、有限超时和可诊断错误。全局 session ID 的唯一性不能替代 caller → target 的授权检查。
+
+该路由决策及其取舍记录在 [ReadSession 跨工作区路由 Agent Note](../../notes/proposed/feature/2026-10-08-read-session-cross-workspace-routing.zh.md)（[English](../../notes/proposed/feature/2026-10-08-read-session-cross-workspace-routing.md)）。
+
 ```typescript
 // 输出：优先走 ZCodeSessionPort.readSession（Host 内部完整快照），回退 ZCodeTaskPort.getTaskSnapshot；
 // 工具边界统一投影为摘要，不向模型返回完整工具输入或结果。
