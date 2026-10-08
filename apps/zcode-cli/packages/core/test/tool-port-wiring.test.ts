@@ -105,7 +105,7 @@ test("内置工具注册从同一 plan 生成，注册结果不漂移", () => {
   }
 });
 
-test("运行时默认工具面只暴露核心工具和 LoadToolSet", () => {
+test("运行时默认工具面只暴露核心工具和唯一的 LoadToolSet 入口", () => {
   const registry = createToolRegistry();
   registerBuiltInTools(registry, {
     deferOptionalToolSets: true,
@@ -127,25 +127,22 @@ test("运行时默认工具面只暴露核心工具和 LoadToolSet", () => {
     "TaskOutput",
     "TaskStop",
     "LoadToolSet",
-    "ToolSearch",
   ]);
   assert.equal(registry.has("CreateSession"), false);
   assert.equal(registry.has("CronCreate"), false);
 });
 
-test("ToolSearch exposes exact toolset IDs from the LoadToolSet catalog", async () => {
-  const registry = createToolRegistry();
-  registerBuiltInTools(registry, { deferOptionalToolSets: true });
-  const executor = createToolExecutor({
-    registry,
-    permissionService: new PermissionService(),
-    emitEvent: async () => {},
-    sessionId: "sess_tool_search",
-    getMode: () => "yolo",
-  });
-  const result = await executor.execute({ id: "search_1", name: "ToolSearch", input: { query: "orchestration" } });
-  assert.equal(result.success, true, `搜索失败：${JSON.stringify(result.error ?? {})}`);
-  assert.deepEqual((result.output as { results: Array<{ id: string }> }).results.map((entry) => entry.id), ["session"]);
+test("LoadToolSet description is the model-facing catalog and tells when/how to load", async () => {
+  const { loadToolSetToolEntry } = await import("../src/tool/handlers/load-tool-set.js");
+  const description = loadToolSetToolEntry.metadata.description ?? "";
+  assert.match(description, /current tool list does not contain the capability/i);
+  assert.match(description, /exact toolset_id/i);
+  assert.match(description, /next model turn/i);
+  assert.match(description, /core \(already active\)/i);
+  assert.match(description, /session:.*CreateSession.*ReadSession/is);
+  assert.match(description, /session:.*WorkspaceList.*ListSessions/is);
+  assert.match(description, /automation:.*CronCreate/is);
+  assert.doesNotMatch(description, /ToolSearch/);
 });
 
 test("LoadToolSet 执行后才把可选工具注册进当前会话", async () => {
@@ -178,6 +175,34 @@ test("LoadToolSet 执行后才把可选工具注册进当前会话", async () =>
   assert.equal(result.success, true, `动态加载失败：${JSON.stringify(result.error ?? {})}`);
   assert.equal(registry.has("CronCreate"), true);
   assert.equal(invalidated, 1);
+});
+
+test("加载 session 工具集会同时注册 WorkspaceList 和 ListSessions", async () => {
+  const registry = createToolRegistry();
+  registerBuiltInTools(registry, { deferOptionalToolSets: true });
+  const executor = createToolExecutor({
+    registry,
+    permissionService: new PermissionService(),
+    emitEvent: async () => {},
+    sessionId: "sess_session_toolset",
+    getMode: () => "yolo",
+    toolSetLoaderPort: {
+      isToolRegistered: (name) => registry.has(name),
+      registerTool: (entry) => registry.register(entry as never),
+      registerTools: (entries) => entries.forEach((entry) => registry.register(entry as never)),
+      invalidateToolCache: () => {},
+    },
+  });
+
+  const result = await executor.execute({
+    id: "call_session_toolset",
+    name: LOAD_TOOL_SET_TOOL_NAME,
+    input: { toolset_id: "session" },
+  });
+
+  assert.equal(result.success, true, `动态加载失败：${JSON.stringify(result.error ?? {})}`);
+  assert.equal(registry.has("WorkspaceList"), true);
+  assert.equal(registry.has("ListSessions"), true);
 });
 
 test("CreateSession 执行把 zcodeTaskPort 送达 handler 并命中 stub", async () => {
@@ -282,6 +307,7 @@ test("ReadSession 执行把 zcodeSessionPort 送达 handler 并命中 stub", asy
   assert.equal(result.success, true, `执行应成功：${JSON.stringify(result.error ?? {})}`);
   assert.equal(calls.length, 1);
   assert.equal(JSON.stringify(calls[0]).includes("target_session"), true);
+  assert.equal((calls[0] as { messageLimit?: number }).messageLimit, 20);
 });
 
 test("ReadSession 只返回摘要，不泄露工具 input/output", async () => {

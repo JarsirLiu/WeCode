@@ -8,14 +8,15 @@
 - 展开后列出实际执行的步骤和最终 `ReadSession` 快照中的结果文本；
 - 首行 `rowId` 是聚合项的稳定 UI identity，后续步骤更新不得重置展开状态；
 - 任一步骤失败、顺序不完整、跨 assistant turn 或被其他可见工作项打断时，不聚合。未聚合的会话编排工具行使用 `session-orchestration` 专属工具卡（见下），不得落入 raw JSON 兜底卡。
-- 会话编排七个工具（`CreateSession`、`ReadSession`、`SendSessionMessage`、`StopSessionGeneration`、`SetSessionModel`、`CompactSession`、`ResolveSessionPermission`）统一登记在 `packages/shared/src/tool-identity.ts` 的 `session-orchestration` family，由专属 renderer（`ToolCallBlocks/renderers/session-orchestration.tsx`）渲染：摘要行为机器人图标 + 具体工具动作（创建会话、读取会话结果等，不显示"会话管理"类目词），展开后按工具提取结构化输入与结果摘要字段（taskId、标题、消息条数等），不渲染全量 JSON dump（输出无法解析为 JSON 时才回退纯文本）；该 renderer 与其他工具 renderer 完全隔离，不得复用或改动 Bash/Read/MCP 等既有渲染路径。
+- 会话编排工具（`CreateSession`、`ReadSession`、`SendSessionMessage`、`StopSessionGeneration`、`SetSessionModel`、`CompactSession`、`ResolveSessionPermission`、`WorkspaceList`、`ListSessions`）统一登记在 `packages/shared/src/tool-identity.ts` 的 `session-orchestration` family，由专属 renderer（`ToolCallBlocks/renderers/session-orchestration.tsx`）渲染：摘要行为机器人图标 + 具体工具动作（创建会话、读取会话结果等，不显示"会话管理"类目词），展开后按工具提取结构化输入与结果摘要字段；`ListSessions` 必须显示会话数量及每条会话的标题、ID 和状态，不渲染全量 JSON dump（输出无法解析为 JSON 时才回退纯文本）；该 renderer 与其他工具 renderer 完全隔离，不得复用或改动 Bash/Read/MCP 等既有渲染路径。
+- `LoadToolSet` 是唯一动态工具入口，其模型描述列出可加载工具集、用途和包含的工具，并说明当当前工具面缺少能力时直接按精确 ID 加载，下一轮即可使用。历史消息中的旧 `ToolSearch`/`tool_search` 与当前 `LoadToolSet`/`load_tool_set` 都由独立 `tool-discovery` renderer 结构化呈现，不展示完整工具目录 JSON，也不落入通用 raw JSON 兜底卡。`ToolSearch` 只为历史回放保留 UI identity，不再注册到 runtime/provider schema。
 - Bash、Read、MCP 等非会话工具不受影响，继续沿用各自的“开始 → 更新 → 终态结果”卡片。
 
 这只是 transcript 的派生展示，不复制 session 状态、不改变工具事件、不改变 `ReadSession`作为权威结果来源。desktop continuous 和 web/mobile replayable 都使用相同的 row 投影规则。
 
 ## 目标
 
-会话编排工具集通过动态工具面暴露。模型必须先能调用首轮可见的 `ToolSearch`，按关键词得到 `session` 的精确工具集 ID，再调用 `LoadToolSet({ toolset_id: "session" })`；不得依赖模型记忆或用户提示猜测工具集名称。
+会话编排工具集通过动态工具面暴露。首轮可见的 `LoadToolSet` 描述必须包含 `session` 的用途及 `CreateSession`、`ReadSession` 等成员工具。需要会话编排而相关工具当前不可见时，模型直接调用 `LoadToolSet({ toolset_id: "session" })`；不得要求模型先调用搜索工具或依赖用户提醒。
 
 让 AI 能在当前会话中**创建独立会话、向会话发消息、读取进度/结果**，实现多任务并行编排与后台长任务代管。
 
@@ -31,6 +32,8 @@
 AI 的读取链路独立于 task/session 命令：`WorkspaceIndexPort → workspace/list 反向协议 → Host WorkspaceIndex executor → ISettingService.listWorkspaces()`。调用方 session 仅作为 Host 反向请求的受信身份和路由上下文；它不是被列出的工作区过滤条件。协议未装配、调用方 session 无效或 Host 索引服务不可用时，工具必须返回结构化失败，不得改用 `process.cwd()`、`listTasks()`、本地缓存或 MCP HTTP endpoint。
 
 工具仅返回索引所拥有的摘要字段：`workspaceIdentity`（本地工作区为空时使用 `workspacePath` 作为稳定身份键）、`workspacePath`、`label`、`kind`，以及可选的 `workspacePurpose` / `lastConnectionStatus`。不得推测 `projectType`、`lastActiveAt` 或 `activeSessionCount`；这些字段既不属于工作区索引，也无法由现有 authoritative source 证明。MCP 可以复用同一个 Host 设置索引服务，但 MCP ACL、外部目标 session 和 transport 适配仍由 MCP 自己负责，不反向依赖 AI 工具 handler。
+
+`WorkspaceList` 与 `ListSessions` 同属动态 `session` toolset。`ListSessions` 查询本地 workspace 时，先按 workspace path 读取，再允许旧会话在 `workspace_id` 缺失时通过 `path`/`directory` 匹配；远程 workspace identity 包含连接边界，必须精确匹配持久化 `workspace_id`，不得回退到相同远程路径。列表查询默认排除归档会话，调用方可显式开启归档项。
 
 ```text
 AI ToolEntry
@@ -421,6 +424,7 @@ export const ReadSessionInputSchema = z
     // 注意命名：这里叫 sessionId（目标），但 port 的 request context 里也有
     // sessionId（调用方）。两者不同——见下方碰撞说明。
     sessionId: z.string().min(1),
+    // 默认读取最近 20 条；调用方可显式传入更小范围。
     messageLimit: z.number().int().positive().optional(),
     afterSeq: z.number().int().nonnegative().optional(), // 增量读
   })
@@ -453,8 +457,12 @@ export type ReadSessionInput = z.infer<typeof ReadSessionInputSchema>;
 export const ReadSessionOutputSchema = z.object({
   sessionId: z.string(),
   status: z.enum(["idle", "running", "waiting", "paused", "completed", "error"]),
-  messages: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string() })).optional(),
-  toolCalls: z.array(z.object({ toolCallId: z.string(), toolName: z.string(), status: z.string() })).optional(),
+  messages: z
+    .array(z.object({ role: z.enum(["user", "assistant"]), content: z.string() }))
+    .optional(),
+  toolCalls: z
+    .array(z.object({ toolCallId: z.string(), toolName: z.string(), status: z.string() }))
+    .optional(),
 });
 export type ReadSessionOutput = z.infer<typeof ReadSessionOutputSchema>;
 ```
@@ -581,6 +589,8 @@ export type CompactSessionOutput = z.infer<typeof CompactSessionOutputSchema>;
 > - `title` ← `session.title`
 >
 > 选择 `readSession` 而非 `getTaskSnapshot` + `readSession` 双服务合并：session projection 已包含 AI 紧凑快照所需的全部字段，无需额外调 task service。开销等价于一次 session 读取。
+
+未提供 `messageLimit` 时，`ReadSession` 和 Host 的紧凑快照回退路径统一只读取最近 20 条消息；显式传入正整数时按调用方值读取。
 
 **检测建议**：AI 每次 `get_task_snapshot` 或 `read_session` 后检查 `status`。`waiting`/`paused` 时在回复中明确告知用户"会话正等待您的输入/已暂停，请在侧边栏查看并决定如何继续"。
 
@@ -859,14 +869,14 @@ Phase 2 依赖拆解：
 
 ## 实现顺序
 
-| 步骤 | 交付                                                                                         | 状态          |
-| ---- | -------------------------------------------------------------------------------------------- | ------------- |
-| 1    | `zcode-task.port.ts` + `zcode-session.port.ts` (contracts)                                   | ✅            |
-| 2    | shared 侧 wire schema `ai-session-orchestration.ts` + broker（bootstrap）                    | ✅            |
-| 3    | Host executor 接口 + `zcodeAgentService` dispatch 10 分支 + `createLocalServices` 装配       | ✅            |
-| 4    | `ToolExecutionContext` 端口字段 + `call-runner.ts` 传播 + `server-operations.ts` broker 注入 | ✅            |
-| 5    | 6 个工具 handler + contracts schema + `registerBuiltInTools` 注册开关                        | ✅            |
-| 6    | contracts dist 构建（`pnpm --filter @zcode/contracts run build`）                            | ✅            |
+| 步骤 | 交付                                                                                         | 状态 |
+| ---- | -------------------------------------------------------------------------------------------- | ---- |
+| 1    | `zcode-task.port.ts` + `zcode-session.port.ts` (contracts)                                   | ✅   |
+| 2    | shared 侧 wire schema `ai-session-orchestration.ts` + broker（bootstrap）                    | ✅   |
+| 3    | Host executor 接口 + `zcodeAgentService` dispatch 10 分支 + `createLocalServices` 装配       | ✅   |
+| 4    | `ToolExecutionContext` 端口字段 + `call-runner.ts` 传播 + `server-operations.ts` broker 注入 | ✅   |
+| 5    | 6 个工具 handler + contracts schema + `registerBuiltInTools` 注册开关                        | ✅   |
+| 6    | contracts dist 构建（`pnpm --filter @zcode/contracts run build`）                            | ✅   |
 
 > E2E 编排场景（并行创建/分发/聚合）暂缓，后续按实际使用反馈再细调，不作为本特性的验收门槛。
 

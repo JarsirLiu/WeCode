@@ -68,7 +68,7 @@ const TOOL_SETS: Record<string, { spec: ToolSetSpec; toolNames: string[] }> = {
   session: {
     spec: {
       id: "session",
-      description: "AI Session Orchestration (CreateSession, SendSessionMessage, ReadSession, etc.)",
+      description: "AI Session Orchestration, workspace discovery, and session listing (CreateSession, SendSessionMessage, ReadSession, WorkspaceList, ListSessions, etc.)",
       keywords: ["session", "orchestration", "create", "message", "read", "stop", "model"],
       tools: [
         "CreateSession",
@@ -78,6 +78,7 @@ const TOOL_SETS: Record<string, { spec: ToolSetSpec; toolNames: string[] }> = {
         "SetSessionModel",
         "CompactSession",
         "ResolveSessionPermission",
+        "WorkspaceList",
         "ListSessions",
       ],
       defaultEnabled: false,
@@ -90,6 +91,7 @@ const TOOL_SETS: Record<string, { spec: ToolSetSpec; toolNames: string[] }> = {
       "SetSessionModel",
       "CompactSession",
       "ResolveSessionPermission",
+      "WorkspaceList",
       "ListSessions",
     ],
   },
@@ -162,10 +164,21 @@ const TOOL_SETS: Record<string, { spec: ToolSetSpec; toolNames: string[] }> = {
   },
 };
 
-/** ToolSearch and LoadToolSet must read the same catalog to keep IDs discoverable. */
-export function listToolSetDefinitions(): readonly { spec: ToolSetSpec; toolNames: readonly string[] }[] {
+/** LoadToolSet owns the builtin toolset catalog and exposes it in its provider description. */
+function listToolSetDefinitions(): readonly { spec: ToolSetSpec; toolNames: readonly string[] }[] {
   return Object.values(TOOL_SETS);
 }
+
+const LOAD_TOOL_SET_DESCRIPTION = [
+  "Load an optional builtin toolset into the current session.",
+  "Use this single tool when the current tool list does not contain the capability you need.",
+  "Pass the exact toolset_id listed below; loaded tools become available on the next model turn.",
+  "Available toolsets:",
+  ...listToolSetDefinitions().map(
+    ({ spec }) =>
+      `- ${spec.id}${spec.defaultEnabled ? " (already active)" : ""}: ${spec.description}; tools: ${spec.tools.join(", ")}`,
+  ),
+].join(" ");
 
 const MAX_LOAD_TOOL_SET_BYTES = 50_000;
 const LOAD_TOOL_SET_TIMEOUT_MS = 5_000;
@@ -176,7 +189,7 @@ export const loadToolSetToolEntry: ToolEntry = {
   capability: "Dynamically load a builtin tool group (plan, automation, workflow, session, etc.) into the current session's tool registry",
   metadata: {
     name: LOAD_TOOL_SET_TOOL_NAME,
-    description: "Dynamically load a tool group at runtime",
+    description: LOAD_TOOL_SET_DESCRIPTION,
     readOnly: true,
     destructive: false,
     concurrentSafe: true,

@@ -249,7 +249,7 @@ async function compactActiveConversationImpl(
     events,
   );
   // 止血原因：massive MCP 工具会把 compact summary request 的 provider context 撑爆。
-  // ToolSearch/deferred tools 完成前，仅在工具数超过阈值时让 compact summary 保持无工具。
+  // 延迟工具装配完成前，仅在工具数超过阈值时让 compact summary 保持无工具。
   await this.initializeMcp(turnTraceContext);
   throwIfTurnAborted(options.abortSignal);
   const runtimeCompactTools = this.getTools(compactModel);

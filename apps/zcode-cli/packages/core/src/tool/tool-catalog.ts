@@ -24,6 +24,7 @@ import { botCommandToolEntry } from "./handlers/bot-command.js";
 import { compactSessionToolEntry } from "./handlers/compact-session.js";
 import { createSessionToolEntry } from "./handlers/create-session.js";
 import { listSessionsToolEntry } from "./handlers/list-sessions.js";
+import { workspaceListToolEntry } from "./handlers/workspace-list.js";
 import { readSessionToolEntry } from "./handlers/read-session.js";
 import { resolveSessionPermissionToolEntry } from "./handlers/resolve-session-permission.js";
 import { sendMessageToolEntry } from "./handlers/send-message.js";
@@ -106,6 +107,7 @@ const TOOL_CATALOG: Readonly<Record<string, ToolEntry>> = {
   CompactSession: compactSessionToolEntry,
   ResolveSessionPermission: resolveSessionPermissionToolEntry,
   ListSessions: listSessionsToolEntry,
+  WorkspaceList: workspaceListToolEntry,
 
   // Subagent communication
   SendMessage: sendMessageToolEntry,

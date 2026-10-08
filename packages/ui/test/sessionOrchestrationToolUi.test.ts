@@ -8,8 +8,12 @@ import type { ToolCallRow } from "@zcode/shared/zcode-protocol-v4";
 import { resolveToolCallRenderer } from "@/ToolCallBlocks/resolveRenderer.js";
 import { ExecuteToolCallBlock } from "@/ToolCallBlocks/renderers/execute.js";
 import { ReadToolCallBlock } from "@/ToolCallBlocks/renderers/read.js";
-import { SessionOrchestrationToolCallBlock } from "@/ToolCallBlocks/renderers/session-orchestration.js";
+import {
+  readOutputFields,
+  SessionOrchestrationToolCallBlock,
+} from "@/ToolCallBlocks/renderers/session-orchestration.js";
 import { SkillToolCallBlock } from "@/ToolCallBlocks/renderers/skill.js";
+import { ToolDiscoveryToolCallBlock } from "@/ToolCallBlocks/renderers/tool-discovery.js";
 import type { ToolCallBlockRenderContext } from "@/ToolCallBlocks/fileSummaryTypes.js";
 import { resolveToolCallIdentity } from "@/lib/toolIdentity.js";
 import type { ToolDisplayModel } from "@/lib/toolDisplay.js";
@@ -23,7 +27,12 @@ const SESSION_TOOL_NAMES = [
   "SetSessionModel",
   "CompactSession",
   "ResolveSessionPermission",
+  "WorkspaceList",
+  "ListSessions",
+  "workspace_list",
+  "list_sessions",
 ] as const;
+const DISCOVERY_TOOL_NAMES = ["ToolSearch", "LoadToolSet", "tool_search", "load_tool_set"] as const;
 
 const displayModel: ToolDisplayModel = {
   inlinePreview: { type: "none" },
@@ -77,6 +86,48 @@ test("session orchestration tool ui: renders session orchestration tools with th
   for (const toolName of SESSION_TOOL_NAMES) {
     const renderer = resolveToolCallRenderer(contextFor(toolCallFor(toolName)));
     assert.equal(renderer, SessionOrchestrationToolCallBlock);
+  }
+});
+
+test("session orchestration tool ui: projects ListSessions results into readable session rows", () => {
+  const fields = readOutputFields({
+    toolId: "list-sessions",
+    toolName: "ListSessions",
+    status: "completed",
+    input: {},
+    output: JSON.stringify({
+      sessions: [
+        {
+          sessionId: "sess_123",
+          title: "Investigate auth",
+          status: "completed",
+          mode: "build",
+          workspacePath: "D:/work/demo",
+          createdAt: 1,
+          updatedAt: 2,
+        },
+      ],
+    }),
+    raw: {},
+  } as never);
+
+  assert.deepEqual(fields, [
+    { labelId: "chat.toolCall.sessionOrchestration.field.sessions", value: "1" },
+    {
+      labelId: "chat.toolCall.sessionOrchestration.field.sessionItem",
+      value: "Investigate auth · sess_123 · completed",
+    },
+  ]);
+});
+
+test("tool discovery ui: keeps current loader and historical search calls on the dedicated card", () => {
+  for (const toolName of DISCOVERY_TOOL_NAMES) {
+    const identity = resolveToolCallIdentity({ toolName });
+    assert.equal(identity.family, "tool-discovery");
+    assert.equal(
+      resolveToolCallRenderer(contextFor(toolCallFor(toolName))),
+      ToolDiscoveryToolCallBlock,
+    );
   }
 });
 

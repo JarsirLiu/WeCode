@@ -456,7 +456,7 @@ export const ListSessionsInputJsonSchema = toToolJsonSchema(ListSessionsInputSch
 export const ListSessionsOutputJsonSchema = toToolJsonSchema(ListSessionsOutputSchema);
 
 export const LIST_SESSIONS_DESCRIPTION = [
-  "List all sessions in a workspace. Requires workspaceIdentity from workspace_list.",
+  "List all sessions in a workspace. Use workspaceIdentity from WorkspaceList; for the current local workspace, workspacePath may also be used as workspaceIdentity.",
   "",
   "Optional: workspacePath (display only), includeArchived (default false), limit (default 50, max 200).",
   "",

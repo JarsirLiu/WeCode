@@ -20,7 +20,7 @@ import { summarizeReadSessionOutput } from "./read-session-summary.js";
 
 const MAX_READ_SESSION_BYTES = 200_000;
 const READ_SESSION_TIMEOUT_MS = 15_000;
-const DEFAULT_MESSAGE_LIMIT = 50;
+const DEFAULT_MESSAGE_LIMIT = 20;
 
 const readSessionHandler: ToolHandler = async (input, context) => {
   const parsed = ReadSessionInputSchema.safeParse(input);

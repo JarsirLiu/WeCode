@@ -28,6 +28,8 @@ Status: proposed
 
 ## Fix
 
+后续修正：`ReadSession` 未显式传入 `messageLimit` 时统一返回最近 20 条消息；Host 回退投影与工具 handler 使用同一默认值。前端 identity 同时识别 PascalCase 内部工具名和 MCP snake_case 工具名，并将 `WorkspaceList`、`ListSessions` 纳入会话编排专用 renderer，避免会话工具落入参数/结果/raw JSON 兜底卡。
+
 第一阶段已实现工具发现修复：新增并注册首轮可见的 `ToolSearch`，它与 `LoadToolSet` 共用同一工具集目录；搜索结果返回精确工具集 ID、描述、关键词、工具名和加载状态。`LoadToolSet` 参数描述改为指向 `ToolSearch`，并添加无密钥回放测试覆盖首轮注册和 session 工具集搜索。
 
 第二阶段已实现：`ListSessions` 在 runtime 校验前将共享的 `ZCodeSessionInfo` 投影为文档定义的扁平摘要，并增加无密钥 handler/schema 测试。runtime Zod 校验诊断现在包含失败字段路径（例如 `$.sessions[0].workspacePath: Required`）。
@@ -35,6 +37,20 @@ Status: proposed
 第三阶段明确并实现 `ReadSession` 生命周期：目标会话不要求正在执行或驻留 runtime。读取时先复用正式 `session/resume` 的激活流程；已完成、空闲和冷存储但仍有持久化记录的会话均可读取。持久化记录不存在时返回 `Session not found`，恢复失败保留恢复错误，避免把“runtime 未驻留”误报为“会话不可读”。
 
 第四阶段将 `ReadSession` 工具边界收紧为摘要视图：Host 仍可构建完整内部快照，但模型只收到会话状态、计数、上下文压力、消息文本预览，以及工具名、调用 ID、状态和时间；完整工具输入、输出和内部 metadata 不再通过该工具返回。摘要投影在 core handler 边界完成，并有无密钥回放测试防止泄露。
+
+第五阶段补齐动态工具发现 UI：`ToolSearch` 与 `LoadToolSet` 及其 MCP snake_case 别名登记到独立 `tool-discovery` family，使用结构化摘要 renderer，避免历史和新会话中的工具调用继续显示参数、结果和 raw JSON 三段兜底内容。
+
+第六阶段修正模型侧发现提示：`ToolSearch` 的 provider-facing description 与 `LoadToolSet` 共用同一权威 catalog，列出工具集 ID、用途和包含的工具，并明确“当前工具面没有所需能力时先搜索，再用精确 ID 加载”的调用顺序。仅写“搜索工具集”不足以让模型知道何时调用发现工具。
+
+## 工作区会话列表后续修复
+
+2026-10-08 08:36:58 的回放日志确认，`ListSessions` 调用成功，但实际返回空载荷 `{"sessions":[]}`（15 字节）。工具结果已传回模型，因此这次不是单纯的 UI 展示遗漏。模型同时传入了本地工作区路径和 workspace identity；协议先按路径读取存储会话，随后用 `(workspace_id || path || directory) === workspaceIdentity` 二次过滤。旧本地会话的 `workspace_id = NULL`，目录路径与 workspace identity 比较不相等，导致记录被全部过滤。
+
+修复继续由协议服务端负责持久会话列表。本地工作区在旧记录缺少 workspace identity 时允许按请求路径匹配；远程 identity 包含连接边界，因此仍要求 `workspace_id` 精确匹配。本次将 `WorkspaceList` 纳入 session 工具集及动态工具目录，让模型从权威索引发现工作区；`ListSessions` 专属 UI renderer 显示会话数量和每条会话的标题、ID、状态，空列表也明确显示数量 0。
+
+## 后续设计收敛：单一加载入口
+
+复核后确认当前目录只有少量静态内置工具集，`ToolSearch` 仅对同一目录做关键词过滤，既不加载工具，也不返回可调用 schema。把目录完整放进 provider-facing 描述后，搜索步骤不再提供额外信息，只多一次模型工具往返。因此取消新 runtime 中的 `ToolSearch`，由 `LoadToolSet` 描述直接列出工具集及其功能/工具；需要缺失能力时直接按精确 `toolset_id` 加载，下一轮生效。保留旧 `ToolSearch` 的 UI identity/renderer 仅用于历史会话回放。新增无密钥测试校验单工具入口、模型描述和工具加载流程。静态 catalog 与各工具的 runtime capability gate 并非同一机制；本次不声称已解决 feature gate 与工具集成员的细粒度对齐，需在后续逐工具审查中单独处理。
 
 ## Affected surfaces
 
@@ -54,6 +70,8 @@ Status: proposed
 - 空结果和非空结果均通过 session 列表 handler 的 runtime 与 JSON Schema 校验。
 - `ReadSession` 对任意已知会话可读；冷恢复复用既有 session resume 生命周期，错误能区分目标不存在和恢复失败，不伪报成功。
 - 测试无需凭据，并实际走 handler/port 契约，而非仅使用彼此隔离的 mock schema fixture。
+- 无 `workspace_id` 的本地旧会话仍可按精确本地路径列出；远程会话仍按精确 identity 隔离。
+- `ListSessions` 结果以结构化列表显示在工具卡中，不再被空的专属 renderer 隐藏。
 
 ## Risks
 

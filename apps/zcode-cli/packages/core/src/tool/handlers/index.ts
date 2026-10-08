@@ -21,7 +21,6 @@ import {
   SEND_SESSION_MESSAGE_TOOL_NAME,
   SET_SESSION_MODEL_TOOL_NAME,
   STOP_SESSION_GENERATION_TOOL_NAME,
-  TOOL_SEARCH_TOOL_NAME,
   SUBMIT_RESULT_TOOL_NAME,
   WORKSPACE_LIST_TOOL_NAME,
   type JsonSchema,
@@ -88,7 +87,6 @@ import { listWorkflowRunsToolEntry } from "./list-workflow-runs.js";
 import { getWorkflowRunToolEntry } from "./get-workflow-run.js";
 import { resumeWorkflowRunToolEntry } from "./resume-workflow-run.js";
 import { loadToolSetToolEntry } from "./load-tool-set.js";
-import { toolSearchToolEntry } from "./tool-search.js";
 // import { workflowToolEntry } from "./workflow.js";
 import { createToolRuleNameSet } from "../tool-visibility.js";
 
@@ -172,7 +170,6 @@ export const builtInTools: ToolEntry[] = [
   // needsApproval=false 因为工具本身默认就全部可用，动态加载只是补充能力（不是受权限保护的操作）。
   // 进 WORKFLOW_CHILD_DISALLOWED_TOOLS 防止 child 污染父会话的工具面（结构性禁用）。
   loadToolSetToolEntry,
-  toolSearchToolEntry,
   // workflowToolEntry,
 ];
 
@@ -361,7 +358,6 @@ const DEFAULT_RUNTIME_TOOL_NAMES = new Set([
   "TaskOutput",
   "TaskStop",
   "LoadToolSet",
-  TOOL_SEARCH_TOOL_NAME,
 ]);
 
 /** 初次装配与 runtime 刷新都经同一 registration plan，避免能力门控漂移。 */

@@ -28,6 +28,8 @@ For `ReadSession`, reproduce reads of active, completed-but-persisted, archived,
 
 ## Fix
 
+Follow-up correction: when `messageLimit` is omitted, `ReadSession` consistently returns the latest 20 messages; the Host fallback projection uses the same default as the tool handler. The frontend identity resolver now recognizes both PascalCase internal names and MCP snake_case names, and routes `WorkspaceList` and `ListSessions` through the dedicated session-orchestration renderer instead of the parameter/result/raw-JSON fallback card.
+
 The first repair slice is implemented: a real, first-turn-visible `ToolSearch` is registered and reads the same tool-set catalog as `LoadToolSet`. Results expose exact tool-set IDs, descriptions, keywords, tool names, and loaded state. `LoadToolSet` now directs the model to `ToolSearch`, and a no-secret replayable test covers first-turn registration and session tool-set discovery.
 
 The second repair slice is implemented: `ListSessions` now projects shared `ZCodeSessionInfo` into its documented flat summary before runtime validation, with a no-secret handler/schema test. Runtime Zod validation diagnostics now include the failing field path (for example `$.sessions[0].workspacePath: Required`).
@@ -35,6 +37,20 @@ The second repair slice is implemented: `ListSessions` now projects shared `ZCod
 The third phase defines and implements `ReadSession` lifecycle semantics: the target session does not need to be running or resident. Reads reuse the formal `session/resume` activation path; completed, idle, and cold persisted sessions with a durable record are readable. Missing persistence returns `Session not found`, while activation failures retain the recovery error instead of collapsing into `Session is not active`.
 
 The fourth phase constrains the `ReadSession` tool boundary to a summary view. The Host may still build the complete internal snapshot, but the model receives only session status, counters, context pressure, message text previews, and tool name/call ID/status/timestamps. Full tool inputs, outputs, and internal metadata are removed at the core handler boundary, with a no-key replay test preventing leakage.
+
+The fifth phase adds a dedicated UI boundary for `ToolSearch` and `LoadToolSet`. PascalCase internal names and MCP snake_case aliases resolve to an independent `tool-discovery` family and render query, toolset, result-count, and load-count summaries instead of the generic parameters/result/raw-JSON fallback.
+
+The sixth phase fixes the model-facing discovery prompt. `ToolSearch` now builds its provider-facing description from the same authoritative catalog used by `LoadToolSet`, including each toolset ID, purpose, and member tools, and explicitly instructs the model to search when the current tool surface lacks a capability before loading the exact returned ID. A generic “search toolsets” sentence was insufficient to establish when discovery should be invoked.
+
+## Workspace Session Listing Follow-up
+
+The 2026-10-08 replay at 08:36:58 confirms that `ListSessions` completed successfully but returned the exact empty payload `{"sessions":[]}` (15 bytes). The tool result was passed back to the model, so this incident was not a renderer-only omission. The model supplied both the local workspace path and its workspace identity; the protocol first queried stored sessions by path, then filtered them by requiring `(workspace_id || path || directory) === workspaceIdentity`. Legacy local rows had `workspace_id = NULL`, so their directory path was compared with the workspace identity and all rows were discarded.
+
+The repair keeps the protocol server as the owner of persisted session listing. Local workspaces may match by the requested path when legacy rows have no workspace identity; remote identities continue to require exact `workspace_id` equality because the path alone does not identify the remote connection. `WorkspaceList` is included in the session toolset and dynamic tool catalog so the model can discover the authoritative workspace identity. The dedicated `ListSessions` UI renderer now shows count and per-session title, ID, and status, including an explicit zero count for an empty result.
+
+## Follow-up Design Simplification: One Loading Entry
+
+Review confirmed that the current catalog contains only a small, static set of builtin toolsets. `ToolSearch` only keyword-filters that same catalog; it neither loads tools nor returns callable schemas. Once the full catalog is in the provider-facing description, search adds no information and only costs another model/tool round trip. New runtimes therefore remove `ToolSearch` and put the toolsets, their purposes, and member tools directly in `LoadToolSet`'s description. The model loads the exact `toolset_id` when a needed capability is absent; it is available on the next turn. The old `ToolSearch` UI identity/renderer remains solely for historical conversation replay. A no-secret test covers the single-entry surface, description, and loading path. The static catalog and per-tool runtime capability gates are separate mechanisms; this change does not claim to align every gate with toolset membership, which remains a separate per-tool audit.
 
 ## Affected surfaces
 
@@ -54,6 +70,8 @@ The proposed change affects the CLI runtime tool registry and handlers, `@zcode/
 - The session-list handler returns data that passes both runtime and JSON Schema validation for empty and populated results.
 - `ReadSession` can read any known target session; cold reads reuse the existing session resume lifecycle, and errors distinguish missing targets from recovery failures without false success.
 - Tests run without credentials and exercise the real handler/port contract, not only isolated mock schema fixtures.
+- Local legacy sessions with no `workspace_id` remain listable by exact local path, while remote sessions remain isolated by exact identity.
+- `ListSessions` results are visible as a structured list in the tool card rather than hidden behind an empty specialized renderer.
 
 ## Risks
 

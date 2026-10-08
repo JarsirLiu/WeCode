@@ -14,9 +14,7 @@ import { ToolSnapshotFieldNotice } from "@/ToolCallBlocks/ToolSnapshotFieldNotic
 import { ToolLayout } from "../ToolLayout.js";
 import type { ToolCallBlockRenderContext } from "../shared.js";
 
-const SESSION_ORCHESTRATION_ICON = (
-  <BotIcon className="size-4 shrink-0 text-foreground-subtle" />
-);
+const SESSION_ORCHESTRATION_ICON = <BotIcon className="size-4 shrink-0 text-foreground-subtle" />;
 
 type SessionToolCall = ToolCallBlockRenderContext["toolCallNode"]["toolCall"];
 
@@ -32,6 +30,10 @@ const ACTION_LABEL_ID_BY_TOOL: Record<string, string> = {
   SetSessionModel: "chat.toolCall.sessionOrchestration.tool.SetSessionModel",
   CompactSession: "chat.toolCall.sessionOrchestration.tool.CompactSession",
   ResolveSessionPermission: "chat.toolCall.sessionOrchestration.tool.ResolveSessionPermission",
+  WorkspaceList: "chat.toolCall.sessionOrchestration.tool.WorkspaceList",
+  ListSessions: "chat.toolCall.sessionOrchestration.tool.ListSessions",
+  workspace_list: "chat.toolCall.sessionOrchestration.tool.WorkspaceList",
+  list_sessions: "chat.toolCall.sessionOrchestration.tool.ListSessions",
 };
 
 interface DetailField {
@@ -104,6 +106,10 @@ function readPrimaryText(toolCall: SessionToolCall): string | undefined {
     case "ReadSession":
     case "StopSessionGeneration":
     case "CompactSession":
+    case "WorkspaceList":
+    case "ListSessions":
+    case "workspace_list":
+    case "list_sessions":
     default:
       return readTargetSessionId(toolCall);
   }
@@ -128,6 +134,10 @@ function readSecondaryText(toolCall: SessionToolCall): string | undefined {
     case "ResolveSessionPermission":
       return readString(input, "decision");
     case "CompactSession":
+    case "WorkspaceList":
+    case "ListSessions":
+    case "workspace_list":
+    case "list_sessions":
     default:
       return undefined;
   }
@@ -186,7 +196,7 @@ function parseJsonOutput(text: string | undefined): unknown {
  * 展开区结果摘要：按工具从 JSON 输出提取人类可读字段。
  * 只挑白名单字段；解析失败或没有可读字段时返回空数组，由调用方决定回退纯文本。
  */
-function readOutputFields(toolCall: SessionToolCall): DetailField[] {
+export function readOutputFields(toolCall: SessionToolCall): DetailField[] {
   const parsed = parseJsonOutput(readOutputText(toolCall));
   if (parsed === null || parsed === undefined) {
     return [];
@@ -266,11 +276,38 @@ function readOutputFields(toolCall: SessionToolCall): DetailField[] {
       if (isPlainRecord(parsed)) {
         const taskId = readString(parsed, "taskId") ?? readString(parsed, "sessionId");
         if (taskId) {
-          fields.push({ labelId: "chat.toolCall.sessionOrchestration.field.sessionId", value: taskId });
+          fields.push({
+            labelId: "chat.toolCall.sessionOrchestration.field.sessionId",
+            value: taskId,
+          });
         }
       }
       break;
     }
+    case "ListSessions":
+    case "list_sessions": {
+      if (isPlainRecord(parsed) && Array.isArray(parsed.sessions)) {
+        fields.push({
+          labelId: "chat.toolCall.sessionOrchestration.field.sessions",
+          value: String(parsed.sessions.length),
+        });
+        for (const item of parsed.sessions) {
+          if (!isPlainRecord(item)) continue;
+          const title = readString(item, "title") ?? readString(item, "sessionId");
+          const sessionId = readString(item, "sessionId");
+          const status = readString(item, "status");
+          const metadata = [sessionId, status].filter(Boolean).join(" · ");
+          fields.push({
+            labelId: "chat.toolCall.sessionOrchestration.field.sessionItem",
+            value: metadata ? `${title} · ${metadata}` : title,
+          });
+        }
+      }
+      break;
+    }
+    case "WorkspaceList":
+    case "workspace_list":
+      break;
     default:
       break;
   }
@@ -301,7 +338,7 @@ export function SessionOrchestrationToolCallBlock(context: ToolCallBlockRenderCo
     (fields: DetailField[]) =>
       fields.length > 0 ? (
         <div className="space-y-1">
-          {fields.map((field) => {
+          {fields.map((field, index) => {
             const label = intl.formatMessage(
               { id: field.labelId },
               field.values as Record<string, string | number> | undefined,
@@ -312,14 +349,17 @@ export function SessionOrchestrationToolCallBlock(context: ToolCallBlockRenderCo
             if (value === undefined || value === "") {
               // 无值行（如"已请求停止生成"）整行就是摘要文案本身。
               return (
-                <p key={field.labelId} className="font-mono text-ui-base text-foreground-subtle">
+                <p
+                  key={`${field.labelId}-${index}`}
+                  className="font-mono text-ui-base text-foreground-subtle"
+                >
                   {label}
                 </p>
               );
             }
             return (
               <div
-                key={field.labelId}
+                key={`${field.labelId}-${index}`}
                 className="flex items-start gap-2 font-mono text-ui-base text-foreground"
               >
                 <span className="shrink-0 text-foreground-subtle">{label}</span>

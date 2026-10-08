@@ -137,7 +137,7 @@ export function createZCodeTaskServiceExecutor(options: {
         contextWindow: projection.contextWindow,
         ...(messages.length > 0
           ? {
-              recentMessages: messages.slice(-Math.max(input.messageLimit ?? 5, 1)).map((m) => {
+              recentMessages: messages.slice(-Math.max(input.messageLimit ?? 20, 1)).map((m) => {
                 const textParts = m.parts.filter((p) => p.type === "text");
                 return {
                   role: m.info.role,

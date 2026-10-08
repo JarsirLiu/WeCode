@@ -92,6 +92,7 @@ import {
   resolveSessionContextUsage,
   shouldExposeSessionEventToProtocol,
 } from "./mapper.js";
+import { matchesListedWorkspace } from "./list-session-workspace-match.js";
 import { optionalModelSelectionFromString } from "./model-mapper.js";
 import {
   ProtocolRequestError,
@@ -1327,9 +1328,7 @@ export async function listSessions(context: ZCodeProtocolAgentServerContext, raw
     if (!session) return false;
     return (
       (params.includeArchived || session.time.archived === undefined) &&
-      (!params.workspace ||
-        (session.workspaceID?.trim() || session.path || session.directory) ===
-          (params.workspace.workspaceIdentity?.trim() || params.workspace.workspacePath))
+      (!params.workspace || matchesListedWorkspace(session, params.workspace))
     );
   });
   const storedIds = new Set(stored.map((session) => String(session.id)));
@@ -1358,6 +1357,12 @@ export async function listSessions(context: ZCodeProtocolAgentServerContext, raw
   }
   return { sessions };
 }
+
+/**
+ * 本地旧会话可能只有 directory/path，没有写入 workspace_id；本地 workspace 的稳定身份键
+ * 本身就是 workspacePath，因此允许按路径回退。远程 workspace 的 identity 携带连接边界，
+ * 必须严格按 workspace_id 匹配，不能用相同路径跨连接认领会话。
+ */
 
 export async function listSessionSubagents(
   context: ZCodeProtocolAgentServerContext,

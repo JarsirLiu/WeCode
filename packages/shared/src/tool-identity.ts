@@ -43,6 +43,10 @@ export const ZCODE_KNOWN_TOOL_NAMES = [
   "SetSessionModel",
   "CompactSession",
   "ResolveSessionPermission",
+  "WorkspaceList",
+  "ListSessions",
+  "ToolSearch",
+  "LoadToolSet",
 ] as const;
 
 export type ZCodeKnownToolName = (typeof ZCODE_KNOWN_TOOL_NAMES)[number];
@@ -62,7 +66,8 @@ export type ZCodeToolFamily =
   | "task-control"
   | "node-repl"
   | "workflow"
-  | "session-orchestration";
+  | "session-orchestration"
+  | "tool-discovery";
 
 const TOOL_FAMILY_BY_NAME: Record<ZCodeKnownToolName, ZCodeToolFamily> = {
   Read: "file-read",
@@ -106,6 +111,26 @@ const TOOL_FAMILY_BY_NAME: Record<ZCodeKnownToolName, ZCodeToolFamily> = {
   SetSessionModel: "session-orchestration",
   CompactSession: "session-orchestration",
   ResolveSessionPermission: "session-orchestration",
+  WorkspaceList: "session-orchestration",
+  ListSessions: "session-orchestration",
+  ToolSearch: "tool-discovery",
+  LoadToolSet: "tool-discovery",
+};
+
+// MCP exposes the same tools with snake_case names. Keep the UI identity canonical so
+// both protocol surfaces use the same renderer and never fall through to raw JSON.
+const TOOL_NAME_ALIASES: Record<string, ZCodeKnownToolName> = {
+  create_session: "CreateSession",
+  read_session: "ReadSession",
+  send_session_message: "SendSessionMessage",
+  stop_session_generation: "StopSessionGeneration",
+  set_session_model: "SetSessionModel",
+  compact_session: "CompactSession",
+  resolve_session_permission: "ResolveSessionPermission",
+  workspace_list: "WorkspaceList",
+  list_sessions: "ListSessions",
+  tool_search: "ToolSearch",
+  load_tool_set: "LoadToolSet",
 };
 
 const TOOL_NAME_BY_LOWER = new Map<string, ZCodeKnownToolName>(
@@ -120,7 +145,11 @@ export function normalizeZCodeToolName(
     return null;
   }
 
-  return TOOL_NAME_BY_LOWER.get(normalized.toLowerCase()) ?? null;
+  return (
+    TOOL_NAME_BY_LOWER.get(normalized.toLowerCase()) ??
+    TOOL_NAME_ALIASES[normalized.toLowerCase()] ??
+    null
+  );
 }
 
 export function getZCodeToolFamilyForName(
