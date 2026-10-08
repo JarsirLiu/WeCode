@@ -17,11 +17,11 @@ Navigation map from capability to code. For a deep dive into one module, run `pn
 | client | — | 6 | packages/client/src | ./src/index.ts (+1) | — |
 | server | — | 54 | packages/server/src | ./src/index.ts (+4) | — |
 | zcode-server-cli | — | 42 | packages/zcode-server-cli/src | ./src/index.ts (+1) | — |
-| ui | — | 1501 | packages/ui/src | ./src/index.ts (+8) | [card](../packages/ui/README.md) |
+| ui | — | 1503 | packages/ui/src | ./src/index.ts (+8) | [card](../packages/ui/README.md) |
 | web | — | 16 | packages/web/src | — | — |
 | desktop | — | 270 | packages/desktop/src | out/main/index.js | [card](../packages/desktop/README.md) |
 | formal-proof | — | 2 | packages/formal-proof/src | ./src/model.ts | [card](../packages/formal-proof/README.md) |
-| zcode-cli | — | 1447 | apps/zcode-cli | — | [card](../apps/zcode-cli/README.md) |
+| zcode-cli | — | 1455 | apps/zcode-cli | — | [card](../apps/zcode-cli/README.md) |
 
 ## Coverage
 
