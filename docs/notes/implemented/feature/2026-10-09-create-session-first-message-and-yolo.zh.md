@@ -4,6 +4,10 @@ Status: implemented
 
 English：[English version](2026-10-09-create-session-first-message-and-yolo.md)
 
+## 问题
+
+允许 AI 创建空会话会留下无法执行请求的会话。可选的历史 `initialPrompt` 也让编排契约与预期流程不一致；同时暴露 `manual` 容易把目标权限审批和会话管理授权混淆。
+
 ## 决策
 
 - `CreateSession.content` 必填，创建成功后沿同一 Host task service 立即调用 `sendPrompt`。

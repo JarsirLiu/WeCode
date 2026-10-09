@@ -2,6 +2,8 @@
 
 Status: proposed
 
+English：[English version](2026-10-09-session-management-authorization-follow-up.md)
+
 ## Problem
 
 会话关系中的 `approvalPolicy` 描述目标会话遇到权限请求时的处理方式，不应同时决定创建者能否读取、发消息、停止生成或修改模型。当前两类授权混用会导致 `manual` 在首条消息阶段被 Host 拒绝，而请求尚未进入目标 runtime，也不会产生可审批的 pending permission。
