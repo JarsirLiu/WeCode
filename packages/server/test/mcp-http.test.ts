@@ -148,7 +148,7 @@ test("Host MCP handler reaches every registered service operation", async () => 
   };
   await handler("workspace_list", {});
   await handler("list_sessions", { workspacePath: workspace.workspacePath });
-  await handler("create_session", { workspacePath: workspace.workspacePath });
+  await handler("create_session", { workspacePath: workspace.workspacePath, message: "hello" });
   await handler("send_session_message", {
     sessionId: args.sessionId,
     message: args.message,
@@ -166,6 +166,7 @@ test("Host MCP handler reaches every registered service operation", async () => 
   assert.deepEqual(calls, [
     "listSessions",
     "createTask",
+    "sendPrompt",
     "sendPrompt",
     "readSession",
     "stopGeneration",
@@ -207,7 +208,7 @@ test("Host MCP handler maps model and delegated permission inputs to Host contra
   assert.equal((permission as { response: { decision: string } }).response.decision, "allow");
 });
 
-test("Host MCP handler resolves session workspace and submits create initialPrompt", async () => {
+test("Host MCP handler resolves session workspace and submits create message", async () => {
   const workspace = { kind: "local", workspacePath: "D:\\work", label: "work" };
   const calls: string[] = [];
   const collection = services(true)
@@ -231,7 +232,7 @@ test("Host MCP handler resolves session workspace and submits create initialProm
     } as never);
   const result = await createHostMcpToolHandler(collection)("create_session", {
     workspacePath: workspace.workspacePath,
-    initialPrompt: "你是谁？",
+    message: "你是谁？",
   });
   assert.equal((result as { taskId: string }).taskId, "s");
   assert.deepEqual(calls, ["你是谁？"]);
@@ -280,7 +281,10 @@ test("Host MCP handler rejects a workspace outside the Host index", async () => 
     .register(IZCodeTaskService, { createTask: async () => ({}) } as never)
     .register(IZCodeSessionService, {} as never);
   await assert.rejects(
-    createHostMcpToolHandler(collection)("create_session", { workspacePath: "D:\\private" }),
+    createHostMcpToolHandler(collection)("create_session", {
+      workspacePath: "D:\\private",
+      message: "start",
+    }),
     /WECODE_MCP_WORKSPACE_FORBIDDEN/,
   );
 });

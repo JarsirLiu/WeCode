@@ -49,7 +49,7 @@ const createSessionHandler: ToolHandler = async (input, context) => {
   const result = await context.zcodeTaskPort.createTask({
     workspacePath: parsed.data.workspacePath,
     workspaceIdentity: parsed.data.workspaceIdentity,
-    mode: parsed.data.mode,
+    mode: parsed.data.mode ?? "yolo",
     modelSelection: parsed.data.modelSelection as ModelSelection | undefined,
     model: parsed.data.model,
     thoughtLevel: parsed.data.thoughtLevel,
@@ -57,7 +57,6 @@ const createSessionHandler: ToolHandler = async (input, context) => {
     forkedFromTaskId: parsed.data.forkedFromTaskId,
     automationId: parsed.data.automationId,
     offPeakTaskId: parsed.data.offPeakTaskId,
-    approvalPolicy: parsed.data.approvalPolicy,
     deferPersistenceUntilFirstPrompt: false,
     // 创建和 sendPrompt 必须使用同一套 V4 session/runtime 记录；旧 session/create
     // 不会建立 V4 CommandInbox 所需的持久化关系，随后发送会触发外键错误。
@@ -66,17 +65,15 @@ const createSessionHandler: ToolHandler = async (input, context) => {
     traceContext: context.traceContext,
     signal: context.abortSignal,
   });
-  if (parsed.data.initialPrompt !== undefined) {
-    await context.zcodeTaskPort.sendPrompt({
-      taskId: result.taskId,
-      traceId: result.traceId,
-      messageId: crypto.randomUUID(),
-      content: parsed.data.initialPrompt,
-      sessionId: context.sessionId,
-      traceContext: context.traceContext,
-      signal: context.abortSignal,
-    });
-  }
+  await context.zcodeTaskPort.sendPrompt({
+    taskId: result.taskId,
+    traceId: result.traceId,
+    messageId: crypto.randomUUID(),
+    content: parsed.data.content,
+    sessionId: context.sessionId,
+    traceContext: context.traceContext,
+    signal: context.abortSignal,
+  });
   // Host 返回完整 task meta；工具契约只公开创建结果字段，逐字段投影避免内部索引字段
   // 触发 strict runtimeOutputSchema 校验失败。
   return {

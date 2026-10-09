@@ -63,8 +63,7 @@ export const CreateSessionInputSchema = z
     forkedFromTaskId: z.string().optional(),
     automationId: z.string().optional(),
     offPeakTaskId: z.string().optional(),
-    approvalPolicy: z.enum(["manual", "delegated", "autonomous"]).optional(),
-    initialPrompt: z.string().min(1).optional(),
+    content: z.string().min(1),
   })
   .strict();
 
@@ -95,19 +94,17 @@ export const CreateSessionInputJsonSchema = toToolJsonSchema(CreateSessionInputS
 export const CreateSessionOutputJsonSchema = toToolJsonSchema(CreateSessionOutputSchema);
 
 export const CREATE_SESSION_DESCRIPTION = [
-  "Create a new WeCode session/task in the specified workspace. Returns the taskId for subsequent operations.",
+  "Create a new WeCode session/task in the specified workspace and send its first message. Returns the taskId for subsequent operations.",
   "",
   "Modes:",
-  "  - yolo: fully autonomous, no approval prompts (recommended for background tasks)",
+  "  - yolo: fully autonomous, no approval prompts (default)",
   "  - auto: default, asks for approval on sensitive operations",
   "  - plan: planning mode, read-only analysis",
   "  - build: build-focused mode",
   "  - edit: edit-focused mode",
   "  - autoEdit: auto with edit bias",
   "",
-  "approvalPolicy defaults to manual. delegated/autonomous are recorded for host policy enforcement; they do not let this tool approve a request.",
-  "",
-  "Optional initialPrompt: sends the first message immediately after creation. That turn wakes you with a session/changed notification when it completes, fails, or requests approval — same as send_session_message.",
+  "content is required and is sent as the first message after the session is created.",
   "",
   "The returned taskId is used with send_session_message, read_session, stop_session_generation,",
   "set_session_model, and compact_session.",

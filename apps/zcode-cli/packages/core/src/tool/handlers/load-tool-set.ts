@@ -68,7 +68,7 @@ const TOOL_SETS: Record<string, { spec: ToolSetSpec; toolNames: string[] }> = {
   session: {
     spec: {
       id: "session",
-      description: "AI Session Orchestration, workspace discovery, and session listing (CreateSession, SendSessionMessage, ReadSession, WorkspaceList, ListSessions, etc.)",
+      description: "AI session management and workspace discovery (CreateSession, SendSessionMessage, ReadSession, StopSessionGeneration, SetSessionModel, CompactSession, ResolveSessionPermission, WorkspaceList, ListSessions). Internal runtime APIs such as getTaskSnapshot and resumeTask are not model tools.",
       keywords: ["session", "orchestration", "create", "message", "read", "stop", "model"],
       tools: [
         "CreateSession",

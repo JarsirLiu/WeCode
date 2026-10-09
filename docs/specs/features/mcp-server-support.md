@@ -348,7 +348,7 @@ MCP 的正式形态是：外部客户端（Cherry Studio、Claude Desktop 等）
 3. Gateway/桌面 Host 校验身份、workspace 授权和 `mcpEnabled`
 4. 客户端发送 `initialize`，获得 `capabilities.tools` 与 9 个工具
 5. 客户端调用 `workspace_list` → 适配器经 Host `ISettingService.listWorkspaces()` public port 获得工作区索引；不得读取环境变量或 MCP 进程本地缓存
-6. 客户端调用 `create_session` → Host 返回 `taskId`；提供 `initialPrompt` 时立即提交首条消息
+6. 客户端调用 `create_session` → Host 创建会话并立即提交必填 `message`；默认使用 yolo
 7. 客户端调用 `send_session_message` / `read_session` → 仅凭 `sessionId` 由 Host 解析会话归属并复用 V4 会话运行时
 8. 关闭 MCP 后，新连接和新工具调用均得到明确的 disabled 错误；已有连接在安全边界处终止
 
@@ -371,7 +371,7 @@ MCP 与应用内 AI 共用 Host task/session/permission 服务及会话运行时
 
 - **`workspace_list`**：无参数，返回本地 + 远程工作区列表
 - **`list_sessions`**：`workspacePath`（必填）+ `workspaceIdentity`（远程工作区可选）+ `includeArchived` + `limit`
-- **`create_session`**：`workspacePath`（必填）+ `mode` + `modelSelection` + `initialPrompt`（可选）
+- **`create_session`**：`workspacePath`（必填）+ `message`（必填）+ `mode` + `modelSelection`；未指定 mode 时使用 yolo
 - **`send_session_message`**：`sessionId` + `message`；可选 `traceId` 仅用于链路观测，不是幂等键；workspace 由 Host 按 session 解析
 - **`read_session`**：`sessionId` 为目标会话；可选 `messageLimit` 和 `afterSeq` 必须透传给 Host session service
 - **`stop_session_generation`、`set_session_model`、`compact_session`、`resolve_session_permission`**：`sessionId` 为目标会话，workspace 由 Host 按 session 解析；客户端不需要重复传路径
@@ -384,7 +384,7 @@ MCP 与应用内 AI 共用 Host task/session/permission 服务及会话运行时
 
 会话创建后，`IZCodeTaskService.resolveTaskTarget({ taskId })` 是会话归属的 Host public port。它从 Host 的 task index 解析 `workspacePath`/`workspaceIdentity`，后续会话工具统一使用该目标；工具 schema 不要求调用方传路径。找不到目标或 workspace 不在 Host 索引中，统一返回 `WECODE_MCP_WORKSPACE_FORBIDDEN`。
 
-`create_session.initialPrompt` 必须沿同一 Host task service 提交一次 `sendPrompt`；提交失败时 MCP 调用失败，不返回一个假装已完成的空会话。
+`create_session.message` 必须沿同一 Host task service 提交一次 `sendPrompt`；提交失败时 MCP 调用失败，不返回一个假装已完成的空会话。MCP 和应用内 AI 不暴露 approvalPolicy；权限审批与会话管理授权另行设计。
 
 身份规则：应用内 AI 的 `ToolExecutionContext.sessionId` 是发起工具调用的受信会话；跨会话参数使用 `targetSessionId` 或目标 `taskId`，Host broker 从受信 session record 注入 workspace、workspaceIdentity、remoteSessionId 和 clientMode。MCP 的 `sessionId` 则直接表示外部客户端要管理的目标会话；Host 必须通过 `resolveTaskTarget` 解析其 workspace 并执行 ACL，不信任调用方附加的路由字段。
 

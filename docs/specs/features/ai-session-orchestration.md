@@ -76,7 +76,7 @@ AI tool → Host task service → CommandInbox admission → target turn
 
 | 层级              | 组件                                                                         | 状态                                                                                                                                                             |
 | ----------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **服务端**        | `IZCodeTaskService` (packages/services/src/session/zcodeTaskService.ts)      | ✅ 完整实现：`createTask`、`sendPrompt`、`getTaskSnapshot`、`listTasks`、`stopGeneration`、`closeTask`、`resumeTask`、`setModel`、`setMode`、`compactSession` 等 |
+| **服务端**        | `IZCodeTaskService` (packages/services/src/session/zcodeTaskService.ts)      | ✅ 完整实现底层 task/runtime 能力；AI 可见工具只使用会话编排层明确列出的操作，`getTaskSnapshot`/`resumeTask` 保留给 UI、CLI 和 Bot |
 | **服务端**        | `IZCodeSessionService` (packages/services/src/zcode-session/zcodeSession.ts) | ✅ 完整实现：`createSession`、`readSession`、`listSessions`、`setModel`、`setThoughtLevel`、`setMode` 等                                                         |
 | **RPC 暴露**      | `ServiceChannels.ZCodeTask` / `ZCodeSession` / `ZCodeAgent`                  | ✅ Host 已注册并通过 ChannelServer 暴露                                                                                                                          |
 | **Renderer 访问** | `RemoteServiceAccess.zcodeTaskService` / `zcodeSessionService`               | ✅ `packages/client/src/remoteServiceAccess.ts`                                                                                                                  |
@@ -126,7 +126,7 @@ export interface ZCodeTaskPort {
       automationId?: string;
       offPeakTaskId?: string;
       deferPersistenceUntilFirstPrompt?: boolean;
-      // 创建与首条消息必须共享 V4 生命周期；initialPrompt 由 handler 在创建成功后
+      // 创建与首条消息必须共享 V4 生命周期；content 由 handler 在创建成功后
       // 通过同一端口发送，不在 createTask 中引入第二条写入路径。
     } & ZCodeTaskPortRequestContext,
   ): Promise<ZCodeAiTaskCreateResult>;
@@ -312,9 +312,9 @@ agent 输入里同名提供的 `workspaceIdentity`/`remoteSessionId`/`clientMode
 
 | 工具名                  | 文件                         | 对应端口                                                                        | 核心能力                                                                                                                     |
 | ----------------------- | ---------------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `CreateSession`         | `create-session.ts`          | `ZCodeTaskPort.createTask` + `sendPrompt`                                       | 创建新会话，固定使用 V4；可选 `initialPrompt` 在创建成功后经 V4 `sendText` 投递                                              |
+| `CreateSession`         | `create-session.ts`          | `ZCodeTaskPort.createTask` + `sendPrompt`                                       | 创建新会话并发送必填 `content`，固定使用 V4                                                                                  |
 | `SendSessionMessage`    | `send-session-message.ts`    | `ZCodeTaskPort.sendPrompt`                                                      | 发消息，**异步**：发完即返；目标会话 turn 终态/审批/停止经 `session/changed` 唤醒创建者（见 §5），`ReadSession` 补读权威结果 |
-| `ReadSession`           | `read-session.ts`            | `ZCodeSessionPort.readSession`（优先）/ `ZCodeTaskPort.getTaskSnapshot`（回退） | 读取进度/结果                                                                                                                |
+| `ReadSession`           | `read-session.ts`            | `ZCodeSessionPort.readSession`                                                      | 读取进度/结果；AI 不直接调用内部 `getTaskSnapshot`                                          |
 | `StopSessionGeneration` | `stop-session-generation.ts` | `ZCodeTaskPort.stopGeneration`                                                  | 停止当前生成，会话保留可继续                                                                                                 |
 | `SetSessionModel`       | `set-session-model.ts`       | `ZCodeTaskPort.setModel` → V4 `switchModelConfig`                               | 换模型，返回服务端 authoritative configOptions                                                                               |
 | `CompactSession`        | `compact-session.ts`         | `ZCodeTaskPort.compactSession` → V4 `compact`                                   | 手动压缩上下文                                                                                                               |
@@ -350,9 +350,7 @@ export const CreateSessionInputSchema = z
     forkedFromTaskId: z.string().optional(),
     automationId: z.string().optional(),
     offPeakTaskId: z.string().optional(),
-    // initialPrompt：创建成功后由 CreateSession handler 立即调用 sendPrompt，
-    // 仍保持 createTask 与 sendPrompt 的独立 admission 边界。
-    initialPrompt: z.string().min(1).optional(),
+    content: z.string().min(1),
   })
   .strict();
 
@@ -367,9 +365,9 @@ export const CreateSessionOutputSchema = zcodeTaskMetaSchema.extend({
 export type CreateSessionOutput = z.infer<typeof CreateSessionOutputSchema>;
 ```
 
-`CreateSession` handler 必须逐字段投影 Host 的 `ZCodeTaskCreateResult` 后再返回工具层；不能把完整 task meta 直接透传，也不能为容纳内部字段而放宽工具输出的 strict schema。创建调用必须传 `v4Create: true`。当 `initialPrompt` 存在时，handler 在创建成功后使用返回的 `taskId`/`traceId` 调用一次 `sendPrompt`；这条消息走 V4 `sendText`，并使用新的 `messageId` 作为幂等键。发送失败时创建结果不会伪装成成功，工具直接失败并保留 Host 原始错误。
+`CreateSession` handler 必须逐字段投影 Host 的 `ZCodeTaskCreateResult` 后再返回工具层；不能把完整 task meta 直接透传，也不能为容纳内部字段而放宽工具输出的 strict schema。创建调用必须传 `v4Create: true`，未指定模式时使用 `yolo`。创建成功后必须使用返回的 `taskId`/`traceId` 调用一次 `sendPrompt(content)`；这条消息走 V4 `sendText`，并使用新的 `messageId` 作为幂等键。发送失败时创建结果不会伪装成成功，工具直接失败并保留 Host 原始错误；已创建会话保留给用户继续处理。
 
-创建生命周期只有一个状态所有者：目标 session runtime 的 V4 `CommandInbox`。事件顺序为 `CreateSession → V4 createSession → 可选 V4 sendText → ReadSession`。没有 `initialPrompt` 时会话可以为空，标题保持 `New session`；有首条消息时由首条输入的现有标题逻辑生成标题。自定义标题不通过 `initialPrompt` 伪造，后续由明确的 rename 能力处理。
+创建生命周期只有一个状态所有者：目标 session runtime 的 V4 `CommandInbox`。事件顺序为 `CreateSession → V4 createSession → V4 sendText(content) → ReadSession`。会话不能由 AI 工具创建为空；标题由首条消息的现有标题逻辑生成。AI 工具不暴露权限审批策略，创建默认使用 `yolo`；普通会话管理授权与目标会话的权限审批策略另行设计。
 
 `SetSessionModel` 和 `CompactSession` 也必须只写 V4 命令面：
 
@@ -437,6 +435,10 @@ export type ReadSessionInput = z.infer<typeof ReadSessionInputSchema>;
 
 **修正**：port 的 `readSession` 业务参数用 `targetSessionId`（目标），request context 的 `sessionId` 保持为调用方。broker 把 `targetSessionId` 透传为业务字段，用 `context.sessionId`（调用方）调 `buildWorkspaceRequestContext`。host executor 读 `targetSessionId`，映射到 `IZCodeSessionService.readSession({ sessionId: targetSessionId, ... })`。目标会话不要求正在运行：若不在 `context.sessions`，Host 必须按目标 ID 从持久化记录冷恢复后再读取；已完成、空闲和冷存储会话都可读。持久化记录不存在返回 `sessionUnavailable`/`Session not found`，恢复失败保留恢复错误，不得统一伪装为 `Session is not active`。
 
+这里的“反向请求”只表示请求方向：AI 工具运行在 CLI Agent 内，由 CLI Agent 通过双向 stdio 协议请求 Host-owned service。它不表示 ReadSession 有第二套会话加载逻辑。Host 仍是全局目标定位、授权、workspace 路由和 service dispatch 的状态所有者；目标 runtime 的读取继续复用桌面端使用的 `IZCodeSessionService.readSession → zcodeAgentService → session/read` 路径。
+
+请求必须分开携带两套身份：`callerSessionId` 用于受信上下文、授权、审计和 trace；`targetSessionId` 用于 Host 全局索引定位和目标操作。broker 不得使用 `targetSessionId` 调用 `requireSession` 或等价的调用方 resident-session 查询。目标可以在当前 Agent 中常驻、在同 workspace 中冷却，或位于另一个 workspace/Agent；Host 先定位目标 workspace，再复用或按需启动目标 read-only client。Host 处理反向请求时可以向目标 Agent 发普通 `session/read` 或 task command，协议必须保持双向、多路复用和可取消，不创建第二个 runtime 或轮询队列。
+
 ### ReadSession 的跨工作区与冷会话路由
 
 `ReadSession` 的公开输入继续只包含目标 `sessionId`、`messageLimit` 和 `afterSeq`。session ID 是目标会话的定位键；调用方不需要、也不应额外提供 workspace path 或 workspace identity。Host 内部必须把调用方身份与目标身份分开：调用方 session 只用于授权、审计和反向请求上下文，目标 session 用于查找真实 workspace 并路由读取请求。
@@ -452,14 +454,14 @@ ReadSession(sessionId)
   → 读取目标 runtime 的持久化 snapshot/event projection
 ```
 
-定位必须是 Host 持有的索引查询，不得遍历所有 workspace，也不得在定位失败时回退到调用方 workspace、`process.cwd()` 或本地缓存。活跃且同 workspace 的读取保留现有快速路径；目标 runtime 不在内存中时，沿 `getReadOnlyClient(..., "start-if-needed")` 按需恢复，读取完成后不要求保持常驻。远程目标必须精确匹配 `workspaceIdentity` 与 `remoteSessionId`，不能只按路径匹配。
+定位必须是 Host 持有的索引查询，不得遍历所有 workspace，也不得在定位失败时回退到调用方 workspace、`process.cwd()` 或本地缓存。活跃且同 workspace 的读取保留现有快速路径；目标 runtime 不在内存中时，沿 `getReadOnlyClient(..., "start-if-needed")` 按需恢复，读取完成后不要求保持常驻。远程目标必须精确匹配 `workspaceIdentity` 与 `remoteSessionId`，不能只按路径匹配。同 workspace 的冷会话由目标 Agent 的既有 `activateSessionForResume` 生命周期恢复，不要求调用方 Agent 持有目标 runtime。
 
 定位不到、会话已删除或恢复失败时，返回结构化的 `sessionUnavailable`/not-found 或恢复错误；不得把所有失败统一伪装为“会话未活跃”。冷读取或远程恢复可能比活跃读取更慢，调用链必须支持取消、有限超时和可诊断错误。全局 session ID 的唯一性不能替代 caller → target 的授权检查。
 
-该路由决策及其取舍记录在 [ReadSession 跨工作区路由 Agent Note](../../notes/proposed/feature/2026-10-08-read-session-cross-workspace-routing.zh.md)（[English](../../notes/proposed/feature/2026-10-08-read-session-cross-workspace-routing.md)）。
+该路由决策及其取舍记录在 [ReadSession 跨工作区路由 Agent Note](../../notes/implemented/feature/2026-10-08-read-session-cross-workspace-routing.zh.md)（[English](../../notes/implemented/feature/2026-10-08-read-session-cross-workspace-routing.md)）。
 
 ```typescript
-// 输出：优先走 ZCodeSessionPort.readSession（Host 内部完整快照），回退 ZCodeTaskPort.getTaskSnapshot；
+// 输出：走 ZCodeSessionPort.readSession（Host 内部完整快照）；getTaskSnapshot 仅是 UI/Bot/runtime 的内部兼容接口；
 // 工具边界统一投影为摘要，不向模型返回完整工具输入或结果。
 // 不用 readFullHistory 开关——两条路径由哪个端口在场决定，不由模型选。
 //
@@ -488,7 +490,7 @@ export const ReadSessionOutputSchema = z.object({
 export type ReadSessionOutput = z.infer<typeof ReadSessionOutputSchema>;
 ```
 
-> **实现必须修的 bug**：当前 host 把 `session/readSession` dispatch 到 `taskExecutor.getTaskSnapshot`（返回紧凑快照），但 broker 用 `zcodeSessionReadSessionResultSchema`（完整快照，要求 `protocol` 字段）校验响应——紧凑快照缺 `protocol`，`.strict()` 校验会拒掉。要么 host 改 dispatch 到 `IZCodeSessionService.readSession`（完整），要么 broker 改用紧凑 schema 校验。spec 取前者（readSession 本就该走 session service）。
+> **已实现**：Host 的 `session/readSession` dispatch 调用 `IZCodeSessionService.readSession` 返回完整快照，broker 使用 `zcodeSessionReadSessionResultSchema` 校验；不会再把紧凑 task snapshot 当成完整 session snapshot。
 
 **stop-session-generation.tool.ts**：
 
@@ -561,7 +563,7 @@ export type CompactSessionOutput = z.infer<typeof CompactSessionOutputSchema>;
 - AI 创建会话获得 `taskId`
 - AI 通过 `send_session_message` 发送指令
 - AI 通过 `read_session` **主动轮询**进度/结果
-- 事件流向：`目标会话 Agent → Event Store → getTaskSnapshot/readSession → 创建者会话 AI`
+- 事件流向：`目标会话 Agent → Event Store → ReadSession/readSession → 创建者会话 AI`；内部 `getTaskSnapshot` 不作为 AI 工具暴露。
 
 **本地/远程统一**：Host 侧 `windowRemoteConnectionRegistry` 按 `workspaceIdentity`/`remoteSessionId` 路由到对应 `ServiceCollection`，端口实现自动指向本地或远端 `IZCodeTaskService`。工具层完全无感。
 
@@ -575,9 +577,9 @@ export type CompactSessionOutput = z.infer<typeof CompactSessionOutputSchema>;
 
 **为什么不支持同步等待**：反向请求是请求/响应模型，`waitForCompletion: true` 要把一条 stdio 上的 pending request 挂住直到会话进入终态（可能几分钟）。期间超时、取消、断连、并发占用语义都得单独定义，且 broker 的 `resultSchema` 校验在响应到达时才跑——长挂住会占满 agent 的反向请求通道。Phase 1 不引入这个复杂度。
 
-**等待语义必须写进工具描述**：模型只看得到工具描述，通知机制的醒来路径对模型不可见。`SendSessionMessage`、`CreateSession`（`initialPrompt` 触发同样 turn 生命周期）和 `StopSessionGeneration` 的描述必须如实告知：turn 结束（完成/失败/权限请求/停止）会收到 `session/changed` 通知，权威状态用 `ReadSession` 读取；模型也可以稍等后主动 `read_session` 获取回复。`ReadSession` 描述把唤醒后补读列为主用法，不再把轮询列为主用法。
+**等待语义必须写进工具描述**：模型只看得到工具描述，通知机制的醒来路径对模型不可见。`SendSessionMessage`、`CreateSession`（首条 `content` 触发同样 turn 生命周期）和 `StopSessionGeneration` 的描述必须如实告知：turn 结束（完成/失败/权限请求/停止）会收到 `session/changed` 通知，权威状态用 `ReadSession` 读取；模型也可以稍等后主动 `read_session` 获取回复。`ReadSession` 描述把唤醒后补读列为主用法，不再把轮询列为主用法。
 
-**后续扩展**：若要支持同步等待，正确做法是在 broker 侧发 `sendPrompt` 后内部轮询 `getTaskSnapshot` 直到终态再 resolve（多次短请求，不挂住单条连接），而非把单条反向请求挂几分钟。这是 Phase 2+ 的事。
+**后续扩展**：若要支持同步等待，正确做法是在 broker 侧发 `sendPrompt` 后通过内部状态读取路径短轮询直到终态再 resolve（多次短请求，不挂住单条连接），而非把单条反向请求挂几分钟。这是 Phase 2+ 的事；该内部路径不新增 AI 工具。
 
 ##### 3.2.3 会话状态：6 值来源与映射
 
@@ -596,7 +598,7 @@ export type CompactSessionOutput = z.infer<typeof CompactSessionOutputSchema>;
 
 **状态来源（关键）**：AI 紧凑快照的 `status` 必须来自 **session projection**（`zcodeSessionProjectionSchema.status`，6 值），**不能**来自 task persist 层的 `zcodeTaskPersistStatusSchema`（只有 `running|completed|error` 3 值）。原因：persist 层用 `deriveZCodeTaskStatusFromSessionSnapshot`（`packages/shared/src/zcode-session-task-status.ts:57-78`）把 `waiting`/`paused` 塌缩成 `running`、`idle` 映射成 `undefined`。如果 AI 快照读 persist 的 3 值，会丢掉 `waiting`/`paused`/`idle`——而 `waiting` 正是"停止自动编排"的触发条件。
 
-> **实现方案（已实施）**：executor 的 `getTaskSnapshot` 调用 `IZodeSessionService.readSession`（`messageLimit` 控制消息截断），从 `ZCodeSessionStateSnapshot.projection` 投影出 `ZCodeAiTaskSnapshot`。不使用 `IZodeTaskService.getTaskSnapshot`（3 值 status）。投影映射：
+> **内部实现方案（已实施）**：Host executor 的兼容快照路径调用 `IZodeSessionService.readSession`（`messageLimit` 控制消息截断），从 `ZCodeSessionStateSnapshot.projection` 投影出 `ZCodeAiTaskSnapshot`。这不是独立的 AI 工具；AI 统一通过 `ReadSession` 获取完整会话结果。
 >
 > - `status` ← `projection.status`（6 值）
 > - `turnCount` ← `projection.turnCount`
@@ -609,7 +611,7 @@ export type CompactSessionOutput = z.infer<typeof CompactSessionOutputSchema>;
 > - `taskId` ← `projection.sessionId`
 > - `title` ← `session.title`
 >
-> 选择 `readSession` 而非 `getTaskSnapshot` + `readSession` 双服务合并：session projection 已包含 AI 紧凑快照所需的全部字段，无需额外调 task service。开销等价于一次 session 读取。
+> 选择 `readSession` 作为 AI 读取入口，而不是让模型组合 `getTaskSnapshot` + `readSession`：session projection 已包含所需字段，无需暴露第二个读取工具。
 
 未提供 `messageLimit` 时，`ReadSession` 和 Host 的紧凑快照回退路径统一只读取最近 20 条消息；显式传入正整数时按调用方值读取。
 
@@ -629,8 +631,9 @@ export type CompactSessionOutput = z.infer<typeof CompactSessionOutputSchema>;
 **核心用法**：当前会话 AI 创建后台会话完全代管任务，**不卡审批、不等人**：
 
 ```typescript
-// 创建自主会话；initialPrompt 存在时 handler 会在创建成功后立即发送首条消息
+// 创建自主会话；content 是必填首条消息，handler 会在创建成功后立即发送
 const { taskId, traceId } = await create_session({
+  content: "重构 auth 模块：拆分接口、迁移调用、删旧代码、跑测试",
   mode: "yolo", // 关键：永不进入 plan 模式，永不请求审批
 });
 
@@ -660,7 +663,7 @@ const snapshot = await read_session({ sessionId: taskId, messageLimit: 10 });
 
 | 链路类型                | 适用场景                                     | 进度可见性                             | `ReadSession` 行为                               |
 | ----------------------- | -------------------------------------------- | -------------------------------------- | ------------------------------------------------ |
-| `desktop-continuous`    | Desktop 本地、SSH/WSL/Docker attached remote | **实时流式**：工具调用、token 流式回传 | `readSession`/`getTaskSnapshot` 返回最新实时状态 |
+| `desktop-continuous`    | Desktop 本地、SSH/WSL/Docker attached remote | **实时流式**：工具调用、token 流式回传 | `ReadSession` 返回最新实时状态 |
 | `web-remote-replayable` | 手机 Web 远控、浏览器远程                    | **快照恢复**：定期同步快照，非实时     | 返回最近同步的快照，可能有延迟                   |
 
 `clientMode` 不在工具输入里给模型——broker 从受信 session record 的 `deliveryKind` 注入（见 §2 身份注入）。Host 侧按实际链路类型返回对应数据。
@@ -864,7 +867,7 @@ ZCode 应借鉴这些边界：
 1. **并行任务编排**：用户说"帮我同时重构 auth 模块、写 user 模块测试、更新 README" → AI 创建 3 个 `mode: "yolo"` 会话、分发 Prompt、轮询 `ReadSession` 聚合结果
 2. **后台长任务代管**：AI 创建 `mode: "yolo"` 会话跑"全量测试+生成报告"，`SendSessionMessage` 异步发送后主会话继续别的事，定期 `ReadSession` 查进度
 3. **可介入并行任务**：AI 创建 `mode: "auto"` 会话处理"重构模块 A"，用户随时可在侧边栏打断/指正，AI 轮询发现 `waiting` 停止编排汇报用户
-4. **用户指派恢复历史任务**：用户说"继续昨天的那个重构任务" → Phase 1 无 `resume_session` 工具，AI 用 `CreateSession` 新建延续上下文；`resumeTask` 留 port 接口，工具后续补
+4. **用户继续已有会话**：用户说"继续昨天的那个重构任务" → AI 使用已有目标会话的 `SendSessionMessage`；`resumeTask` 只用于 UI/CLI/runtime 生命周期恢复，不作为 AI 工具
 5. **远程派发（Phase 2）**：本地 AI 创建会话，`workspaceIdentity` 指向服务器，服务器 AI 拉代码、配置环境、跑 CI
 
 ---
@@ -908,7 +911,7 @@ Phase 2 依赖拆解：
 - 无外部依赖，纯内部接线
 - `ZCodeTaskPort` / `ZCodeSessionPort` 与现有 `session.port.ts` 不冲突（后者是底层 event store 抽象，前者是业务编排抽象，命名空间分离）
 - `packages/contracts` 导出需同步更新 `index.ts`（已加 `export * from "./tools/ai-session-orchestration.js"`）
-- **当前边界**：创建和首条消息是两个明确的协议 admission（handler 内按顺序执行 create+send）；`waitForCompletion` 同步等待不支持（纯异步+轮询）；通知流和 `SessionMessageBoard` 尚未实现；`resume_session` 工具不暴露（port 留接口）；`compact_session` 不支持附带压缩指令（V4 compact payload 为空对象，明确决策按不支持收口，不做 runtime/legacy 指令链补齐）；断连后的远程重连在 Phase 1 是用户侧 UI 能力，AI 不感知也不触发；Phase 2 引入 `ensureConnected` + 启动自动重连作为远程派发前置，见"Phase 2 依赖"一节。
+- **当前边界**：创建和首条消息是两个明确的协议 admission（handler 内按顺序执行 create+send）；`waitForCompletion` 同步等待不支持（纯异步+轮询）；通知流和 `SessionMessageBoard` 尚未实现；AI 继续已有会话统一使用 `SendSessionMessage`，`resumeTask` 和 `getTaskSnapshot` 仅保留为 UI/CLI/runtime/Bot 内部接口；`compact_session` 不支持附带压缩指令（V4 compact payload 为空对象，明确决策按不支持收口，不做 runtime/legacy 指令链补齐）；断连后的远程重连在 Phase 1 是用户侧 UI 能力，AI 不感知也不触发；Phase 2 引入 `ensureConnected` + 启动自动重连作为远程派发前置，见"Phase 2 依赖"一节。
 
 ### 失败语义
 

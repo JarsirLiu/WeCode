@@ -222,11 +222,11 @@ test("CreateSession 执行把 zcodeTaskPort 送达 handler 并命中 stub", asyn
   const result = await executor.execute({
     id: "call_wiring_1",
     name: CREATE_SESSION_TOOL_NAME,
-    input: { workspacePath: "/tmp/zcode-wiring-test", mode: "build" },
+    input: { workspacePath: "/tmp/zcode-wiring-test", mode: "build", content: "start" },
   });
 
   assert.equal(result.success, true, `执行应成功：${JSON.stringify(result.error ?? {})}`);
-  assert.equal(calls.length, 1, "stub port 的 createTask 应被命中一次");
+  assert.equal(calls.length, 2, "stub port 应命中 createTask 和首条 sendPrompt");
   assert.equal(calls[0]?.method, "createTask");
   assert.equal((calls[0]?.params as { v4Create?: boolean }).v4Create, true);
   assert.equal(
@@ -236,7 +236,7 @@ test("CreateSession 执行把 zcodeTaskPort 送达 handler 并命中 stub", asyn
   );
 });
 
-test("CreateSession 的 initialPrompt 在 V4 创建后经 sendPrompt 投递", async () => {
+test("CreateSession 的 content 在 V4 创建后经 sendPrompt 投递", async () => {
   const { port, calls } = createRecordingTaskPort();
   const registry = createToolRegistry();
   registerBuiltInTools(registry, { includeZCodeTask: true });
@@ -254,7 +254,7 @@ test("CreateSession 的 initialPrompt 在 V4 创建后经 sendPrompt 投递", as
     name: CREATE_SESSION_TOOL_NAME,
     input: {
       workspacePath: "/tmp/zcode-wiring-test",
-      initialPrompt: "implement the requested change",
+      content: "implement the requested change",
     },
   });
 
@@ -419,7 +419,7 @@ test("executor 缺 zcodeTaskPort 时 CreateSession 返回结构化失败而非�
   const result = await executor.execute({
     id: "call_wiring_2",
     name: CREATE_SESSION_TOOL_NAME,
-    input: { workspacePath: "/tmp/zcode-wiring-test" },
+      input: { workspacePath: "/tmp/zcode-wiring-test", content: "start" },
   });
 
   assert.equal(result.success, false);

@@ -80,7 +80,7 @@ function readPrimaryText(toolCall: SessionToolCall): string | undefined {
     case "SendSessionMessage":
       return toSnippet(input ? readString(input, "content") : undefined);
     case "CreateSession":
-      return toSnippet(input ? readString(input, "initialPrompt") : undefined);
+      return toSnippet(input ? readString(input, "content") : undefined);
     case "SetSessionModel":
       return readModelSelectionLabel(toolCall);
     case "ResolveSessionPermission":
@@ -142,8 +142,6 @@ function readInputFields(toolCall: SessionToolCall): DetailField[] {
   push("chat.toolCall.sessionOrchestration.field.target", readTargetSessionId(toolCall));
   push("chat.toolCall.sessionOrchestration.field.workspace", readString(input, "workspacePath"));
   push("chat.toolCall.sessionOrchestration.field.mode", readString(input, "mode"));
-  push("chat.toolCall.sessionOrchestration.field.approval", readString(input, "approvalPolicy"));
-  push("chat.toolCall.sessionOrchestration.field.prompt", readString(input, "initialPrompt"));
   push("chat.toolCall.sessionOrchestration.field.content", readString(input, "content"));
   push("chat.toolCall.sessionOrchestration.field.model", readModelSelectionLabel(toolCall));
   push("chat.toolCall.sessionOrchestration.field.decision", readString(input, "decision"));

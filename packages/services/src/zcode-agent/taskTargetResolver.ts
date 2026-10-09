@@ -5,6 +5,7 @@ export interface ResolvedTaskTarget {
   taskId: string;
   workspacePath: string;
   workspaceIdentity?: string;
+  remoteSessionId?: string;
 }
 
 export async function resolveTaskTargetFromHost(
@@ -14,7 +15,12 @@ export async function resolveTaskTargetFromHost(
   rememberIndexedTaskMeta: (meta: ZCodeTaskMeta) => unknown,
 ): Promise<ResolvedTaskTarget> {
   const cached = cachedTargets.get(taskId);
-  if (cached) return { taskId: cached.taskId, workspacePath: cached.workspacePath, ...(cached.workspaceIdentity ? { workspaceIdentity: cached.workspaceIdentity } : {}) };
+  if (cached) return {
+    taskId: cached.taskId,
+    workspacePath: cached.workspacePath,
+    ...(cached.workspaceIdentity ? { workspaceIdentity: cached.workspaceIdentity } : {}),
+    ...(cached.remoteSessionId ? { remoteSessionId: cached.remoteSessionId } : {}),
+  };
   const metas = await taskIndexRepo.listTaskMetas({ taskId });
   if (metas.length > 1) {
     throw Object.assign(new Error(`Multiple active task index rows found for session ${taskId}`), {
@@ -24,5 +30,9 @@ export async function resolveTaskTargetFromHost(
   const meta = metas[0];
   if (!meta) throw Object.assign(new Error(`ZCode session target is not loaded: ${taskId}`), { code: "ZCODE_SESSION_TARGET_NOT_FOUND" });
   rememberIndexedTaskMeta(meta);
-  return { taskId: meta.taskId, workspacePath: meta.workspacePath, ...(meta.workspaceIdentity ? { workspaceIdentity: meta.workspaceIdentity } : {}) };
+  return {
+    taskId: meta.taskId,
+    workspacePath: meta.workspacePath,
+    ...(meta.workspaceIdentity ? { workspaceIdentity: meta.workspaceIdentity } : {}),
+  };
 }

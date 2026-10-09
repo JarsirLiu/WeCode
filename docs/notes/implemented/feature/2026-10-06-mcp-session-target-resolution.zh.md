@@ -10,7 +10,7 @@ MCP bridge 每次会话操作都只根据本次请求参数校验 workspace。`c
 
 ## Decision
 
-Host task service 新增 `resolveTaskTarget({ taskId })`，从既有 task index 和内存 target 表解析 Host 持有的 `workspacePath` 与 `workspaceIdentity`。MCP 会话工具统一先解析该目标，再执行 workspace ACL，schema 不要求调用方重复传 workspace。`create_session.initialPrompt` 创建成功后经同一 task service 提交；提交失败直接让 MCP 调用失败，不返回空会话成功。模型选择使用共享 picker parser 或结构化 selection；V4 compact 不再暴露不支持的 instructions；审批决策映射为 V4 allow/deny，同时保留 option id 精确匹配。
+Host task service 新增 `resolveTaskTarget({ taskId })`，从既有 task index 和内存 target 表解析 Host 持有的 `workspacePath` 与 `workspaceIdentity`。MCP 会话工具统一先解析该目标，再执行 workspace ACL，schema 不要求调用方重复传 workspace。历史 `create_session.initialPrompt` 已迁移为必填 `message`，创建成功后经同一 task service 提交；提交失败直接让 MCP 调用失败，不返回空会话成功。模型选择使用共享 picker parser 或结构化 selection；V4 compact 不再暴露不支持的 instructions；审批决策映射为 V4 allow/deny，同时保留 option id 精确匹配。
 
 ## Affected surfaces
 

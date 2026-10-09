@@ -1902,7 +1902,7 @@ export function createZCodeTaskServiceAdapter(
 
     async sendPrompt(params) {
       const target = {
-        ...getTaskTarget(params.taskId),
+        ...(params.workspacePath ? { taskId: params.taskId, workspacePath: params.workspacePath, ...(params.workspaceIdentity ? { workspaceIdentity: params.workspaceIdentity } : {}) } : getTaskTarget(params.taskId)),
         ...(params.remoteSessionId ? { remoteSessionId: params.remoteSessionId } : {}),
       };
       return sendPromptToAgent(target, {
@@ -2733,7 +2733,7 @@ export function createZCodeTaskServiceAdapter(
     async setModel(params): Promise<ZCodeConfigOption[]> {
       // AI 会话工具的模型变更只允许走 V4 switchModelConfig；旧 session/setModel
       // 没有同一条 CommandInbox 生命周期，会把 runtime 与投影拆成两套事实源。
-      const target = getTaskTarget(params.taskId);
+      const target = params.workspacePath ? { taskId: params.taskId, workspacePath: params.workspacePath, ...(params.workspaceIdentity ? { workspaceIdentity: params.workspaceIdentity } : {}), ...(params.remoteSessionId ? { remoteSessionId: params.remoteSessionId } : {}) } : getTaskTarget(params.taskId);
       const snapshot = await setTaskModelV4({
         agentService: options.zcodeAgentService,
         target,

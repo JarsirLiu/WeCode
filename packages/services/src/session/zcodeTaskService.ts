@@ -216,12 +216,19 @@ export interface IZCodeTaskService {
   /** 由 Host task index 解析 session 的权威 workspace 归属。 */
   resolveTaskTarget(params: {
     taskId: string;
-  }): Promise<{ taskId: string; workspacePath: string; workspaceIdentity?: string }>;
+  }): Promise<{
+    taskId: string;
+    workspacePath: string;
+    workspaceIdentity?: string;
+    remoteSessionId?: string;
+  }>;
 
   /** 发送 prompt 到指定 task */
   sendPrompt(
     params: {
       taskId: string;
+      workspacePath?: string;
+      workspaceIdentity?: string;
       remoteSessionId?: string;
       traceId: TraceId;
       queryId?: string;
@@ -550,6 +557,9 @@ export interface IZCodeTaskService {
   /** 切换模型，返回服务端 authoritative configOptions */
   setModel(params: {
     taskId: string;
+    workspacePath?: string;
+    workspaceIdentity?: string;
+    remoteSessionId?: string;
     traceId: TraceId;
     modelSelection: ModelSelection;
   }): Promise<ZCodeConfigOption[]>;

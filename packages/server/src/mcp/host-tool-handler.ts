@@ -74,21 +74,19 @@ export function createHostMcpToolHandler(services: ServiceCollection): WeCodeToo
         const workspace = await assertWorkspaceAllowed(args.workspacePath, args.workspaceIdentity);
         const result = await task.createTask({
           ...workspace,
-          mode: args.mode,
+          mode: args.mode ?? "yolo",
           ...(args.modelSelection ? { modelSelection: args.modelSelection } : {}),
           ...(typeof args.model === "string" ? { model: args.model } : {}),
           v4Create: true,
         });
-        if (typeof args.initialPrompt === "string" && args.initialPrompt.trim()) {
-          await task.sendPrompt({
-            taskId: result.taskId,
-            ...workspace,
-            traceId: randomUUID(),
-            content: args.initialPrompt,
-            clientLabel: "mcp",
-            clientMode: "desktop-continuous",
-          });
-        }
+        await task.sendPrompt({
+          taskId: result.taskId,
+          ...workspace,
+          traceId: randomUUID(),
+          content: args.message,
+          clientLabel: "mcp",
+          clientMode: "desktop-continuous",
+        });
         return result;
       }
       case "send_session_message": {

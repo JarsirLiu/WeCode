@@ -21,6 +21,7 @@ import { runPermissionResolutionWithClaim } from "./permissionResolutionClaim.js
 export function createZCodeTaskServiceExecutor(options: {
   readZCodeTaskService: () => IZCodeTaskService | undefined;
   readZCodeSessionService: () => IZCodeSessionService | undefined;
+  createPeerSessionRelationRepo?: () => PeerSessionRelationRepo;
 }): ZCodeTaskServiceExecutor {
   const task = (): IZCodeTaskService => {
     const svc = options.readZCodeTaskService();
@@ -31,6 +32,39 @@ export function createZCodeTaskServiceExecutor(options: {
     const svc = options.readZCodeSessionService();
     if (!svc) throw new Error("zcode session service not available");
     return svc;
+  };
+
+  const resolveManagedTarget = async (input: {
+    callerSessionId: string;
+    targetSessionId: string;
+    callerRemoteSessionId?: string;
+  }) => {
+    const target = await task().resolveTaskTarget({ taskId: input.targetSessionId });
+    if (input.callerSessionId === input.targetSessionId) {
+      return input.callerRemoteSessionId && !target.remoteSessionId
+        ? { ...target, remoteSessionId: input.callerRemoteSessionId }
+        : target;
+    }
+    const repo = options.createPeerSessionRelationRepo?.() ?? new PeerSessionRelationRepo();
+    try {
+      const relation = await repo.findCreatedSession({
+        workspacePath: target.workspacePath,
+        ...(target.workspaceIdentity ? { workspaceIdentity: target.workspaceIdentity } : {}),
+        targetSessionId: input.targetSessionId,
+      });
+      if (!relation || relation.creatorSessionId !== input.callerSessionId || relation.approvalPolicy === "manual") {
+        throw new PermissionResolutionError(
+          "not_authorized",
+          "session management is not authorized for this target session",
+        );
+      }
+      if (!target.remoteSessionId && relation.remoteSessionId) {
+        return { ...target, remoteSessionId: relation.remoteSessionId };
+      }
+    } finally {
+      repo.close();
+    }
+    return target;
   };
 
   return {
@@ -57,12 +91,13 @@ export function createZCodeTaskServiceExecutor(options: {
         },
       }),
 
-    sendPrompt: (input) =>
-      task().sendPrompt({
-        taskId: input.taskId,
-        traceId: input.traceId,
-        content: input.content,
-        ...(input.remoteSessionId ? { remoteSessionId: input.remoteSessionId } : {}),
+    sendPrompt: async (input) => {
+      const target = await resolveManagedTarget({ callerSessionId: input.callerSessionId, targetSessionId: input.taskId, callerRemoteSessionId: input.remoteSessionId });
+      return task().sendPrompt({
+        taskId: input.taskId, traceId: input.traceId, content: input.content,
+        workspacePath: target.workspacePath,
+        ...(target.workspaceIdentity ? { workspaceIdentity: target.workspaceIdentity } : {}),
+        ...(target.remoteSessionId ? { remoteSessionId: target.remoteSessionId } : {}),
         ...(input.queryId ? { queryId: input.queryId } : {}),
         ...(input.messageId ? { messageId: input.messageId } : {}),
         ...(input.attachments
@@ -73,27 +108,32 @@ export function createZCodeTaskServiceExecutor(options: {
         ...(input.clientMode ? { clientMode: input.clientMode as ZCodeTaskClientMode } : {}),
         ...(input.toolDenylist ? { toolDenylist: input.toolDenylist } : {}),
         ...(input.modelSelection ? { modelSelection: input.modelSelection } : {}),
-      }),
+      });
+    },
 
-    stopGeneration: (input) =>
-      task().stopGeneration({
+    stopGeneration: async (input) => {
+      const target = await resolveManagedTarget({ callerSessionId: input.callerSessionId, targetSessionId: input.taskId, callerRemoteSessionId: input.remoteSessionId });
+      return task().stopGeneration({
         taskId: input.taskId,
-        ...(input.workspacePath ? { workspacePath: input.workspacePath } : {}),
-        ...(input.workspaceIdentity ? { workspaceIdentity: input.workspaceIdentity } : {}),
+        workspacePath: target.workspacePath,
+        ...(target.workspaceIdentity ? { workspaceIdentity: target.workspaceIdentity } : {}),
         ...(input.runId ? { runId: input.runId } : {}),
-      }),
+      });
+    },
 
-    compactSession: (input) =>
-      task().compactSession({
+    compactSession: async (input) => {
+      const target = await resolveManagedTarget({ callerSessionId: input.callerSessionId, targetSessionId: input.taskId, callerRemoteSessionId: input.remoteSessionId });
+      return task().compactSession({
         taskId: input.taskId,
-        ...(input.workspacePath ? { workspacePath: input.workspacePath } : {}),
-        ...(input.workspaceIdentity ? { workspaceIdentity: input.workspaceIdentity } : {}),
+        workspacePath: target.workspacePath,
+        ...(target.workspaceIdentity ? { workspaceIdentity: target.workspaceIdentity } : {}),
         ...(input.inputId ? { inputId: input.inputId } : {}),
         ...(input.instructions ? { instructions: input.instructions } : {}),
         ...(input.expectedRevision !== undefined
           ? { expectedRevision: input.expectedRevision }
           : {}),
-      }),
+      });
+    },
 
     resumeTask: (input) =>
       task().resumeTask({
@@ -118,9 +158,10 @@ export function createZCodeTaskServiceExecutor(options: {
       // 不从 task persist 的 3 值读（waiting/paused/idle 会被塌缩）。
       // session projection 已包含 turnCount/tokenCount/contextUsed/pendingPermissions，
       // 无需额外调 task service。
+      const target = await resolveManagedTarget({ callerSessionId: input.callerSessionId, targetSessionId: input.taskId, callerRemoteSessionId: input.remoteSessionId });
       const snapshot = await session().readSession({
-        workspacePath: input.workspacePath,
-        ...(input.workspaceIdentity ? { workspaceIdentity: input.workspaceIdentity } : {}),
+        workspacePath: target.workspacePath,
+        ...(target.workspaceIdentity ? { workspaceIdentity: target.workspaceIdentity } : {}),
         ...(input.remoteSessionId ? { remoteSessionId: input.remoteSessionId } : {}),
         sessionId: input.taskId,
         messageLimit: input.messageLimit ?? 0,
@@ -154,22 +195,29 @@ export function createZCodeTaskServiceExecutor(options: {
       };
     },
 
-    setModel: (input) =>
-      task().setModel({
+    setModel: async (input) => {
+      const target = await resolveManagedTarget({ callerSessionId: input.callerSessionId, targetSessionId: input.taskId, callerRemoteSessionId: input.remoteSessionId });
+      return task().setModel({
         taskId: input.taskId,
         traceId: input.traceId,
         modelSelection: input.modelSelection,
-      }),
+        workspacePath: target.workspacePath,
+        ...(target.workspaceIdentity ? { workspaceIdentity: target.workspaceIdentity } : {}),
+        ...(target.remoteSessionId ? { remoteSessionId: target.remoteSessionId } : {}),
+      });
+    },
 
-    readSession: (input) =>
-      session().readSession({
-        workspacePath: input.workspacePath,
-        ...(input.workspaceIdentity ? { workspaceIdentity: input.workspaceIdentity } : {}),
+    readSession: async (input) => {
+      const target = await resolveManagedTarget({ callerSessionId: input.callerSessionId, targetSessionId: input.targetSessionId, callerRemoteSessionId: input.remoteSessionId });
+      return session().readSession({
+        workspacePath: target.workspacePath,
+        ...(target.workspaceIdentity ? { workspaceIdentity: target.workspaceIdentity } : {}),
         ...(input.remoteSessionId ? { remoteSessionId: input.remoteSessionId } : {}),
         sessionId: input.targetSessionId,
         ...(input.messageLimit ? { messageLimit: input.messageLimit } : {}),
         ...(input.afterSeq ? { afterSeq: input.afterSeq } : {}),
-      }),
+      });
+    },
 
     listSessions: (input) =>
       session().listSessions({
@@ -186,11 +234,15 @@ export function createZCodeTaskServiceExecutor(options: {
           "allow_always_not_supported",
           "allow_always is not supported for delegated session permissions",
         );
-      const repo = new PeerSessionRelationRepo();
+      const target = await resolveManagedTarget({
+        callerSessionId: input.creatorSessionId,
+        targetSessionId: input.targetSessionId,
+      });
+      const repo = options.createPeerSessionRelationRepo?.() ?? new PeerSessionRelationRepo();
       try {
         const relation = await repo.findCreatedSession({
-          workspacePath: input.workspacePath,
-          ...(input.workspaceIdentity ? { workspaceIdentity: input.workspaceIdentity } : {}),
+          workspacePath: target.workspacePath,
+          ...(target.workspaceIdentity ? { workspaceIdentity: target.workspaceIdentity } : {}),
           targetSessionId: input.targetSessionId,
         });
         if (
@@ -215,8 +267,8 @@ export function createZCodeTaskServiceExecutor(options: {
         repo.close();
       }
       const resolved = await runPermissionResolutionWithClaim({
-        workspacePath: input.workspacePath,
-        ...(input.workspaceIdentity ? { workspaceIdentity: input.workspaceIdentity } : {}),
+        workspacePath: target.workspacePath,
+        ...(target.workspaceIdentity ? { workspaceIdentity: target.workspaceIdentity } : {}),
         targetSessionId: input.targetSessionId,
         requestId: input.requestId,
         decision: input.decision,
@@ -225,8 +277,8 @@ export function createZCodeTaskServiceExecutor(options: {
         ...(input.reason ? { reason: input.reason } : {}),
         resolve: async () => {
           const snapshot = await session().readSession({
-            workspacePath: input.workspacePath,
-            ...(input.workspaceIdentity ? { workspaceIdentity: input.workspaceIdentity } : {}),
+            workspacePath: target.workspacePath,
+            ...(target.workspaceIdentity ? { workspaceIdentity: target.workspaceIdentity } : {}),
             sessionId: input.targetSessionId,
             messageLimit: 0,
           });
@@ -248,8 +300,8 @@ export function createZCodeTaskServiceExecutor(options: {
           try {
             const accepted = await task().respondPermission({
               taskId: input.targetSessionId,
-              workspacePath: input.workspacePath,
-              ...(input.workspaceIdentity ? { workspaceIdentity: input.workspaceIdentity } : {}),
+              workspacePath: target.workspacePath,
+              ...(target.workspaceIdentity ? { workspaceIdentity: target.workspaceIdentity } : {}),
               requestId: input.requestId,
               optionId: option.optionId,
               response: {

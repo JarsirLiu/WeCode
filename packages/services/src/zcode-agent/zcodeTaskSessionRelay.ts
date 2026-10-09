@@ -153,7 +153,7 @@ export function handleTaskSessionReverseRequest(args: {
     }
     void taskExecutor
       .sendPrompt({
-        workspaceKey: parsed.data.workspaceKey,
+        callerSessionId: parsed.data.sessionId, workspaceKey: parsed.data.workspaceKey,
         workspacePath: parsed.data.workspacePath,
         workspaceIdentity: parsed.data.workspaceIdentity,
         remoteSessionId: parsed.data.remoteSessionId,
@@ -190,7 +190,7 @@ export function handleTaskSessionReverseRequest(args: {
     }
     void taskExecutor
       .stopGeneration({
-        workspaceKey: parsed.data.workspaceKey,
+        callerSessionId: parsed.data.sessionId, workspaceKey: parsed.data.workspaceKey,
         workspacePath: parsed.data.workspacePath,
         workspaceIdentity: parsed.data.workspaceIdentity,
         remoteSessionId: parsed.data.remoteSessionId,
@@ -219,7 +219,7 @@ export function handleTaskSessionReverseRequest(args: {
     }
     void taskExecutor
       .compactSession({
-        workspaceKey: parsed.data.workspaceKey,
+        callerSessionId: parsed.data.sessionId, workspaceKey: parsed.data.workspaceKey,
         workspacePath: parsed.data.workspacePath,
         workspaceIdentity: parsed.data.workspaceIdentity,
         remoteSessionId: parsed.data.remoteSessionId,
@@ -310,7 +310,7 @@ export function handleTaskSessionReverseRequest(args: {
     }
     void taskExecutor
       .getTaskSnapshot({
-        workspaceKey: parsed.data.workspaceKey,
+        callerSessionId: parsed.data.sessionId, workspaceKey: parsed.data.workspaceKey,
         workspacePath: parsed.data.workspacePath,
         workspaceIdentity: parsed.data.workspaceIdentity,
         remoteSessionId: parsed.data.remoteSessionId,
@@ -339,7 +339,7 @@ export function handleTaskSessionReverseRequest(args: {
     }
     void taskExecutor
       .setModel({
-        workspaceKey: parsed.data.workspaceKey,
+        callerSessionId: parsed.data.sessionId, workspaceKey: parsed.data.workspaceKey,
         workspacePath: parsed.data.workspacePath,
         workspaceIdentity: parsed.data.workspaceIdentity,
         remoteSessionId: parsed.data.remoteSessionId,
@@ -369,7 +369,7 @@ export function handleTaskSessionReverseRequest(args: {
     }
     void taskExecutor
       .readSession({
-        workspaceKey: parsed.data.workspaceKey,
+        callerSessionId: parsed.data.sessionId, workspaceKey: parsed.data.workspaceKey,
         workspacePath: parsed.data.workspacePath,
         workspaceIdentity: parsed.data.workspaceIdentity,
         remoteSessionId: parsed.data.remoteSessionId,

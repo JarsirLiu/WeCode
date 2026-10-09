@@ -10,7 +10,7 @@ The MCP bridge checked the workspace on every session operation using only the c
 
 ## Decision
 
-The Host task service exposes `resolveTaskTarget({ taskId })`, backed by the existing task index and in-memory target map. MCP session operations resolve `workspacePath` and `workspaceIdentity` from that Host-owned record, then apply the workspace ACL. Session tool schemas do not require workspace fields. `create_session.initialPrompt` is submitted through the same task service after creation; a failed submission fails the MCP call instead of returning an empty-session success. Model selection uses the shared picker parser or the structured selection, V4 compact does not advertise unsupported instructions, and delegated permission decisions map to the V4 allow/deny response while preserving the option id.
+The Host task service exposes `resolveTaskTarget({ taskId })`, backed by the existing task index and in-memory target map. MCP session operations resolve `workspacePath` and `workspaceIdentity` from that Host-owned record, then apply the workspace ACL. Session tool schemas do not require workspace fields. The historical `create_session.initialPrompt` field is migrated to required `message`, which is submitted through the same task service after creation; a failed submission fails the MCP call instead of returning an empty-session success. Model selection uses the shared picker parser or the structured selection, V4 compact does not advertise unsupported instructions, and delegated permission decisions map to the V4 allow/deny response while preserving the option id.
 
 ## Affected surfaces
 

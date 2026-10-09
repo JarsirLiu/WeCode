@@ -63,17 +63,15 @@ export function createProtocolZCodeSessionBroker(
   };
 
   return {
-    // readSession 用 targetSessionId 解析目标会话的 workspace 路由（不是调用方）。
-    // requireSession 只查 context.sessions（本 runtime 内活跃会话），跨工作区
-    // 会话天然不可达，不构成越权读。不用 withTrustedContext——后者取 params.sessionId
-    // （调用方），会把请求投到调用方自己的工作区。
+    // workspace context 始终解析当前 Agent 会话（caller）。目标会话由 Host 的全局
+    // task index 定位，不能在调用方 Agent 内 requireSession(targetSessionId)。
     readSession: (params) => {
       const { traceContext, signal, targetSessionId, messageLimit, afterSeq } = params;
       return request(
         zcodeProtocolMethods.sessionReadSession,
         {
           ...buildWorkspaceRequestContext(context, {
-            sessionId: targetSessionId,
+            sessionId: params.sessionId,
             traceContext,
           }),
           targetSessionId,

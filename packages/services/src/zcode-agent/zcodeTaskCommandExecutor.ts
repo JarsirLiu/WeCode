@@ -49,6 +49,7 @@ export interface ZCodeTaskServiceExecutor {
   }): Promise<ZCodeTaskCreateResult>;
 
   sendPrompt(input: {
+    callerSessionId: string;
     workspaceKey: string;
     workspacePath: string;
     workspaceIdentity?: string;
@@ -67,6 +68,7 @@ export interface ZCodeTaskServiceExecutor {
   }): Promise<ZCodeAiTaskPromptAdmission>;
 
   stopGeneration(input: {
+    callerSessionId: string;
     workspaceKey: string;
     workspacePath: string;
     workspaceIdentity?: string;
@@ -77,6 +79,7 @@ export interface ZCodeTaskServiceExecutor {
   }): Promise<void>;
 
   compactSession(input: {
+    callerSessionId: string;
     workspaceKey: string;
     workspacePath: string;
     workspaceIdentity?: string;
@@ -111,6 +114,7 @@ export interface ZCodeTaskServiceExecutor {
   }): Promise<ZCodeTaskMeta[]>;
 
   getTaskSnapshot(input: {
+    callerSessionId: string;
     workspaceKey: string;
     workspacePath: string;
     workspaceIdentity?: string;
@@ -121,6 +125,7 @@ export interface ZCodeTaskServiceExecutor {
   }): Promise<ZCodeAiTaskSnapshot | null>;
 
   setModel(input: {
+    callerSessionId: string;
     workspaceKey: string;
     workspacePath: string;
     workspaceIdentity?: string;
@@ -135,6 +140,7 @@ export interface ZCodeTaskServiceExecutor {
 
   /** 读取目标会话完整快照。targetSessionId 是要读的会话，不是调用方。 */
   readSession(input: {
+    callerSessionId: string;
     workspaceKey: string;
     workspacePath: string;
     workspaceIdentity?: string;

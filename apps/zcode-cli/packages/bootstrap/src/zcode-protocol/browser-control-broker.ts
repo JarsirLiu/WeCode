@@ -137,6 +137,8 @@ export function buildWorkspaceRequestContext(
     traceContext?: TraceContext;
   },
 ) {
+  // 此处的 sessionId 始终是发起请求的 caller；跨会话目标由 Host 按 targetSessionId
+  // 定位，不能在 Agent 进程内用目标 ID 查询本地 sessions。
   const record = requireSession(context, input.sessionId);
   const workspaceIdentity = record.workspace.workspaceIdentity?.trim() || undefined;
   const remoteSessionId = record.workspace.remoteSessionId?.trim() || undefined;
