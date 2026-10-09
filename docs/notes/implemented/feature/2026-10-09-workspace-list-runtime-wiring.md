@@ -6,7 +6,7 @@ Status: implemented
 
 ## Problem
 
-The Host workspace index and `WorkspaceList` handler already existed, but Protocol App creation did not consistently provide the workspace index port. A session could therefore create and list sessions while failing to discover registered workspaces. Temporary text-generation runtimes also had no explicit boundary for session orchestration tools.
+The Host workspace index and `WorkspaceList` handler already existed, but Protocol App creation did not consistently provide the workspace index port. A session could therefore create and list sessions while failing to discover registered workspaces. The first wiring fix stopped at `createZCodeApp`: its `AgentRuntime` construction forwarded the task, session, and permission ports but omitted `workspaceIndexPort`, so the tool was registered and then failed at execution. Temporary text-generation runtimes also had no explicit boundary for session orchestration tools.
 
 ## Decision
 
@@ -24,5 +24,5 @@ Keeping per-call-site port wiring was rejected because legacy, V4, and recovery 
 
 ## Consequences
 
-The runtime capability boundary is explicit and consistent. Missing Host index service remains a visible structured failure. Tests must cover the enabled Session Runtime and the disabled temporary Runtime separately.
+The runtime capability boundary is explicit and consistent. The App-to-AgentRuntime forwarding boundary is part of that capability contract. Missing Host index service remains a visible structured failure. Tests must cover the enabled Session Runtime and the disabled temporary Runtime separately.
 

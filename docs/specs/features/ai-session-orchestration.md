@@ -31,7 +31,7 @@
 
 AI 的读取链路独立于 task/session 命令：`WorkspaceIndexPort → workspace/list 反向协议 → Host WorkspaceIndex executor → ISettingService.listWorkspaces()`。调用方 session 仅作为 Host 反向请求的受信身份和路由上下文；它不是被列出的工作区过滤条件。协议未装配、调用方 session 无效或 Host 索引服务不可用时，工具必须返回结构化失败，不得改用 `process.cwd()`、`listTasks()`、本地缓存或 MCP HTTP endpoint。
 
-完整的 Session Runtime 将 `zcodeTaskPort`、`zcodeSessionPort`、`zcodePermissionPort` 和 `workspaceIndexPort` 作为一组由 Protocol App 装配边界统一提供的会话编排能力。普通 session 创建、V4 创建和冷恢复必须经过同一个装配 helper；调用方显式提供的端口可以覆盖默认 broker。纯文本生成、模型连通性测试等临时 Runtime 不开启这组能力，也不注册 `WorkspaceList`。因此工具是否可用由 Runtime 能力声明决定，不由某个创建调用点是否忘记传单个端口决定。
+完整的 Session Runtime 将 `zcodeTaskPort`、`zcodeSessionPort`、`zcodePermissionPort` 和 `workspaceIndexPort` 作为一组由 Protocol App 装配边界统一提供、并完整转发到 `AgentRuntime` 的会话编排能力。普通 session 创建、V4 创建和冷恢复必须经过同一个装配 helper；调用方显式提供的端口可以覆盖默认 broker。纯文本生成、模型连通性测试等临时 Runtime 不开启这组能力，也不注册 `WorkspaceList`。因此工具是否可用由 Runtime 能力声明决定，不由某个创建调用点是否忘记传单个端口决定。
 
 工具仅返回索引所拥有的摘要字段：`workspaceIdentity`（本地工作区为空时使用 `workspacePath` 作为稳定身份键）、`workspacePath`、`label`、`kind`，以及可选的 `workspacePurpose` / `lastConnectionStatus`。不得推测 `projectType`、`lastActiveAt` 或 `activeSessionCount`；这些字段既不属于工作区索引，也无法由现有 authoritative source 证明。MCP 可以复用同一个 Host 设置索引服务，但 MCP ACL、外部目标 session 和 transport 适配仍由 MCP 自己负责，不反向依赖 AI 工具 handler。
 
