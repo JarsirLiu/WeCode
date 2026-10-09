@@ -52,7 +52,9 @@ export function createZCodeTaskServiceExecutor(options: {
         ...(target.workspaceIdentity ? { workspaceIdentity: target.workspaceIdentity } : {}),
         targetSessionId: input.targetSessionId,
       });
-      if (!relation || relation.creatorSessionId !== input.callerSessionId || relation.approvalPolicy === "manual") {
+      // 普通会话管理只校验创建关系；approvalPolicy 属于目标 runtime 的权限决议策略，
+      // 不能阻断 yolo 会话的发消息、读取、停止、切模型或压缩操作。
+      if (!relation || relation.creatorSessionId !== input.callerSessionId) {
         throw new PermissionResolutionError(
           "not_authorized",
           "session management is not authorized for this target session",
@@ -92,9 +94,15 @@ export function createZCodeTaskServiceExecutor(options: {
       }),
 
     sendPrompt: async (input) => {
-      const target = await resolveManagedTarget({ callerSessionId: input.callerSessionId, targetSessionId: input.taskId, callerRemoteSessionId: input.remoteSessionId });
+      const target = await resolveManagedTarget({
+        callerSessionId: input.callerSessionId,
+        targetSessionId: input.taskId,
+        callerRemoteSessionId: input.remoteSessionId,
+      });
       return task().sendPrompt({
-        taskId: input.taskId, traceId: input.traceId, content: input.content,
+        taskId: input.taskId,
+        traceId: input.traceId,
+        content: input.content,
         workspacePath: target.workspacePath,
         ...(target.workspaceIdentity ? { workspaceIdentity: target.workspaceIdentity } : {}),
         ...(target.remoteSessionId ? { remoteSessionId: target.remoteSessionId } : {}),
@@ -112,7 +120,11 @@ export function createZCodeTaskServiceExecutor(options: {
     },
 
     stopGeneration: async (input) => {
-      const target = await resolveManagedTarget({ callerSessionId: input.callerSessionId, targetSessionId: input.taskId, callerRemoteSessionId: input.remoteSessionId });
+      const target = await resolveManagedTarget({
+        callerSessionId: input.callerSessionId,
+        targetSessionId: input.taskId,
+        callerRemoteSessionId: input.remoteSessionId,
+      });
       return task().stopGeneration({
         taskId: input.taskId,
         workspacePath: target.workspacePath,
@@ -122,7 +134,11 @@ export function createZCodeTaskServiceExecutor(options: {
     },
 
     compactSession: async (input) => {
-      const target = await resolveManagedTarget({ callerSessionId: input.callerSessionId, targetSessionId: input.taskId, callerRemoteSessionId: input.remoteSessionId });
+      const target = await resolveManagedTarget({
+        callerSessionId: input.callerSessionId,
+        targetSessionId: input.taskId,
+        callerRemoteSessionId: input.remoteSessionId,
+      });
       return task().compactSession({
         taskId: input.taskId,
         workspacePath: target.workspacePath,
@@ -158,7 +174,11 @@ export function createZCodeTaskServiceExecutor(options: {
       // 不从 task persist 的 3 值读（waiting/paused/idle 会被塌缩）。
       // session projection 已包含 turnCount/tokenCount/contextUsed/pendingPermissions，
       // 无需额外调 task service。
-      const target = await resolveManagedTarget({ callerSessionId: input.callerSessionId, targetSessionId: input.taskId, callerRemoteSessionId: input.remoteSessionId });
+      const target = await resolveManagedTarget({
+        callerSessionId: input.callerSessionId,
+        targetSessionId: input.taskId,
+        callerRemoteSessionId: input.remoteSessionId,
+      });
       const snapshot = await session().readSession({
         workspacePath: target.workspacePath,
         ...(target.workspaceIdentity ? { workspaceIdentity: target.workspaceIdentity } : {}),
@@ -196,7 +216,11 @@ export function createZCodeTaskServiceExecutor(options: {
     },
 
     setModel: async (input) => {
-      const target = await resolveManagedTarget({ callerSessionId: input.callerSessionId, targetSessionId: input.taskId, callerRemoteSessionId: input.remoteSessionId });
+      const target = await resolveManagedTarget({
+        callerSessionId: input.callerSessionId,
+        targetSessionId: input.taskId,
+        callerRemoteSessionId: input.remoteSessionId,
+      });
       return task().setModel({
         taskId: input.taskId,
         traceId: input.traceId,
@@ -208,7 +232,11 @@ export function createZCodeTaskServiceExecutor(options: {
     },
 
     readSession: async (input) => {
-      const target = await resolveManagedTarget({ callerSessionId: input.callerSessionId, targetSessionId: input.targetSessionId, callerRemoteSessionId: input.remoteSessionId });
+      const target = await resolveManagedTarget({
+        callerSessionId: input.callerSessionId,
+        targetSessionId: input.targetSessionId,
+        callerRemoteSessionId: input.remoteSessionId,
+      });
       return session().readSession({
         workspacePath: target.workspacePath,
         ...(target.workspaceIdentity ? { workspaceIdentity: target.workspaceIdentity } : {}),

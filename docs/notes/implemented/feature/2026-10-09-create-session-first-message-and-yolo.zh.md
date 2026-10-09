@@ -15,6 +15,7 @@ English：[English version](2026-10-09-create-session-first-message-and-yolo.md)
 - AI 与 MCP 的公开创建契约移除 `initialPrompt` 和 `approvalPolicy`；MCP 使用必填 `message`。
 - 首条消息发送失败时工具失败，但保留已创建会话给用户继续处理。
 - 会话管理授权和目标会话权限审批作为独立问题提案，本次不改变 Host 授权模型。
+- 第一阶段先完成 `yolo` 会话管理：创建者可以向目标会话发消息、读取、停止、切换模型和压缩上下文。`approvalPolicy` 不能阻断这些普通操作；权限决议留到后续阶段。
 
 ## 后果
 

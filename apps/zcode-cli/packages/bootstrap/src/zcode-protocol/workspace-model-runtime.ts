@@ -15,6 +15,15 @@ import {
 } from "./server-types.js";
 import { runSessionModelConfigMutation } from "../zcode-protocol-v4/model-config-mutation.js";
 import { createProviderRuntimeHeadersPort } from "./provider-runtime-headers.js";
+import { createProtocolWorkspaceIndexBroker } from "./workspace-index-broker.js";
+import { createProtocolZCodePermissionBroker } from "./zcode-permission-broker.js";
+import { createProtocolZCodeSessionBroker } from "./zcode-session-broker.js";
+import { createProtocolZCodeTaskBroker } from "./zcode-task-broker.js";
+
+type WorkspaceZCodeAppOptions = Omit<ZCodeAppOptions, "providerRegistry"> & {
+  /** Session orchestration is enabled for persistent Session Runtimes only. */
+  sessionOrchestration?: boolean;
+};
 
 export async function readWorkspacePresentation(
   context: ZCodeProtocolAgentServerContext,
@@ -51,6 +60,7 @@ export async function testProviderModelConnectivity(
     (await createWorkspaceZCodeApp(context, params.workspace, {
       env: context.deps.env,
       eventStore: createInMemorySessionEventStore(),
+      sessionOrchestration: false,
       runtimeConfig: { workingDirectory: params.workspace.workspacePath },
       sessionStore: context.deps.sessionStore,
       version: context.deps.version,
@@ -69,16 +79,34 @@ export async function testProviderModelConnectivity(
 export async function createWorkspaceZCodeApp(
   context: ZCodeProtocolAgentServerContext,
   workspace: ZCodeWorkspaceRef,
-  options: Omit<ZCodeAppOptions, "providerRegistry">,
+  options: WorkspaceZCodeAppOptions,
 ): Promise<ZCodeApp> {
+  const {
+    sessionOrchestration = true,
+    zcodeTaskPort,
+    zcodeSessionPort,
+    zcodePermissionPort,
+    workspaceIndexPort,
+    ...appOptions
+  } = options;
   const providerRuntimeHeadersPort =
-    options.providerRuntimeHeadersPort ?? createProviderRuntimeHeadersPort(context, workspace);
+    appOptions.providerRuntimeHeadersPort ?? createProviderRuntimeHeadersPort(context, workspace);
   return context.deps.createZCodeApp({
-    ...options,
+    ...appOptions,
     platform: context.deps.platform,
     providerRuntimeHeadersPort,
+    ...(sessionOrchestration
+      ? {
+          zcodeTaskPort: zcodeTaskPort ?? createProtocolZCodeTaskBroker(context),
+          zcodeSessionPort: zcodeSessionPort ?? createProtocolZCodeSessionBroker(context),
+          zcodePermissionPort:
+            zcodePermissionPort ?? createProtocolZCodePermissionBroker(context),
+          workspaceIndexPort:
+            workspaceIndexPort ?? createProtocolWorkspaceIndexBroker(context),
+        }
+      : {}),
     runtimeConfig: {
-      ...options.runtimeConfig,
+      ...appOptions.runtimeConfig,
       // createZCodeApp 会把 workingDirectory 规范化为执行 cwd。把协议入口的
       // workspacePath 单独注入 runtime，session 持久化才能保留本地 workspaceKey 的路径表示。
       workspacePath: workspace.workspacePath,
@@ -89,14 +117,14 @@ export async function createWorkspaceZCodeApp(
       ...(workspace.workspaceIdentity
         ? {
             memory: {
-              ...options.runtimeConfig?.memory,
+              ...appOptions.runtimeConfig?.memory,
               workspaceIdentity: workspace.workspaceIdentity,
             },
           }
         : {}),
       // Electron/Protocol 主会话之前没有像 CLI/TUI 那样显式开启模型流式，
       // 导致主 turn 退回 generateText 非流式请求，遇到返回 SSE 的兼容端点会按 JSON 解析失败。
-      modelStreaming: options.runtimeConfig?.modelStreaming ?? "on",
+      modelStreaming: appOptions.runtimeConfig?.modelStreaming ?? "on",
     },
   });
 }

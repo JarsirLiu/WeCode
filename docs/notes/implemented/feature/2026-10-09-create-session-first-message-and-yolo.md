@@ -15,6 +15,7 @@ Allowing an AI-created session without a first message leaves an empty session t
 - Public AI and MCP creation contracts remove `initialPrompt` and `approvalPolicy`; MCP uses required `message`.
 - If first-message submission fails, the tool fails while the created session remains available for the user.
 - Session management authorization and target permission approval are tracked as a separate design problem; this change does not alter the Host authorization model.
+- The initial management milestone covers `yolo` sessions: the creator can send, read, stop, change model, and compact its target session. `approvalPolicy` must not block these ordinary operations; permission resolution remains outside this milestone.
 
 ## Affected surfaces
 

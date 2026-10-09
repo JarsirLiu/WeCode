@@ -31,6 +31,8 @@
 
 AI 的读取链路独立于 task/session 命令：`WorkspaceIndexPort → workspace/list 反向协议 → Host WorkspaceIndex executor → ISettingService.listWorkspaces()`。调用方 session 仅作为 Host 反向请求的受信身份和路由上下文；它不是被列出的工作区过滤条件。协议未装配、调用方 session 无效或 Host 索引服务不可用时，工具必须返回结构化失败，不得改用 `process.cwd()`、`listTasks()`、本地缓存或 MCP HTTP endpoint。
 
+完整的 Session Runtime 将 `zcodeTaskPort`、`zcodeSessionPort`、`zcodePermissionPort` 和 `workspaceIndexPort` 作为一组由 Protocol App 装配边界统一提供的会话编排能力。普通 session 创建、V4 创建和冷恢复必须经过同一个装配 helper；调用方显式提供的端口可以覆盖默认 broker。纯文本生成、模型连通性测试等临时 Runtime 不开启这组能力，也不注册 `WorkspaceList`。因此工具是否可用由 Runtime 能力声明决定，不由某个创建调用点是否忘记传单个端口决定。
+
 工具仅返回索引所拥有的摘要字段：`workspaceIdentity`（本地工作区为空时使用 `workspacePath` 作为稳定身份键）、`workspacePath`、`label`、`kind`，以及可选的 `workspacePurpose` / `lastConnectionStatus`。不得推测 `projectType`、`lastActiveAt` 或 `activeSessionCount`；这些字段既不属于工作区索引，也无法由现有 authoritative source 证明。MCP 可以复用同一个 Host 设置索引服务，但 MCP ACL、外部目标 session 和 transport 适配仍由 MCP 自己负责，不反向依赖 AI 工具 handler。
 
 `WorkspaceList` 与 `ListSessions` 同属动态 `session` toolset。`ListSessions` 查询本地 workspace 时，先按 workspace path 读取，再允许旧会话在 `workspace_id` 缺失时通过 `path`/`directory` 匹配；远程 workspace identity 包含连接边界，必须精确匹配持久化 `workspace_id`，不得回退到相同远程路径。列表查询默认排除归档会话，调用方可显式开启归档项。
@@ -74,14 +76,14 @@ AI tool → Host task service → CommandInbox admission → target turn
 
 ## 架构现状
 
-| 层级              | 组件                                                                         | 状态                                                                                                                                                             |
-| ----------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 层级              | 组件                                                                         | 状态                                                                                                                               |
+| ----------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | **服务端**        | `IZCodeTaskService` (packages/services/src/session/zcodeTaskService.ts)      | ✅ 完整实现底层 task/runtime 能力；AI 可见工具只使用会话编排层明确列出的操作，`getTaskSnapshot`/`resumeTask` 保留给 UI、CLI 和 Bot |
-| **服务端**        | `IZCodeSessionService` (packages/services/src/zcode-session/zcodeSession.ts) | ✅ 完整实现：`createSession`、`readSession`、`listSessions`、`setModel`、`setThoughtLevel`、`setMode` 等                                                         |
-| **RPC 暴露**      | `ServiceChannels.ZCodeTask` / `ZCodeSession` / `ZCodeAgent`                  | ✅ Host 已注册并通过 ChannelServer 暴露                                                                                                                          |
-| **Renderer 访问** | `RemoteServiceAccess.zcodeTaskService` / `zcodeSessionService`               | ✅ `packages/client/src/remoteServiceAccess.ts`                                                                                                                  |
-| **Core Runtime**  | 端口注入到 `ToolExecutionContext`                                            | ✅ 完整：`ZCodeTaskPort`/`ZCodeSessionPort` 已声明并传播到 `call-runner.ts`                                                                                      |
-| **AI 工具**       | 9 个会话编排工具                                                             | ✅ 完整：contracts schema + handler + `includeWeCodeTask` gate 已实现，contracts dist 已构建                                                                     |
+| **服务端**        | `IZCodeSessionService` (packages/services/src/zcode-session/zcodeSession.ts) | ✅ 完整实现：`createSession`、`readSession`、`listSessions`、`setModel`、`setThoughtLevel`、`setMode` 等                           |
+| **RPC 暴露**      | `ServiceChannels.ZCodeTask` / `ZCodeSession` / `ZCodeAgent`                  | ✅ Host 已注册并通过 ChannelServer 暴露                                                                                            |
+| **Renderer 访问** | `RemoteServiceAccess.zcodeTaskService` / `zcodeSessionService`               | ✅ `packages/client/src/remoteServiceAccess.ts`                                                                                    |
+| **Core Runtime**  | 端口注入到 `ToolExecutionContext`                                            | ✅ 完整：`ZCodeTaskPort`/`ZCodeSessionPort` 已声明并传播到 `call-runner.ts`                                                        |
+| **AI 工具**       | 9 个会话编排工具                                                             | ✅ 完整：contracts schema + handler + `includeWeCodeTask` gate 已实现，contracts dist 已构建                                       |
 
 ---
 
@@ -310,14 +312,14 @@ agent 输入里同名提供的 `workspaceIdentity`/`remoteSessionId`/`clientMode
 
 工具名遵循仓库约定（与 `BotCommand`、`CronCreate`、`OffPeakCreate` 一致用 PascalCase）。
 
-| 工具名                  | 文件                         | 对应端口                                                                        | 核心能力                                                                                                                     |
-| ----------------------- | ---------------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `CreateSession`         | `create-session.ts`          | `ZCodeTaskPort.createTask` + `sendPrompt`                                       | 创建新会话并发送必填 `content`，固定使用 V4                                                                                  |
-| `SendSessionMessage`    | `send-session-message.ts`    | `ZCodeTaskPort.sendPrompt`                                                      | 发消息，**异步**：发完即返；目标会话 turn 终态/审批/停止经 `session/changed` 唤醒创建者（见 §5），`ReadSession` 补读权威结果 |
-| `ReadSession`           | `read-session.ts`            | `ZCodeSessionPort.readSession`                                                      | 读取进度/结果；AI 不直接调用内部 `getTaskSnapshot`                                          |
-| `StopSessionGeneration` | `stop-session-generation.ts` | `ZCodeTaskPort.stopGeneration`                                                  | 停止当前生成，会话保留可继续                                                                                                 |
-| `SetSessionModel`       | `set-session-model.ts`       | `ZCodeTaskPort.setModel` → V4 `switchModelConfig`                               | 换模型，返回服务端 authoritative configOptions                                                                               |
-| `CompactSession`        | `compact-session.ts`         | `ZCodeTaskPort.compactSession` → V4 `compact`                                   | 手动压缩上下文                                                                                                               |
+| 工具名                  | 文件                         | 对应端口                                          | 核心能力                                                                                                                     |
+| ----------------------- | ---------------------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `CreateSession`         | `create-session.ts`          | `ZCodeTaskPort.createTask` + `sendPrompt`         | 创建新会话并发送必填 `content`，固定使用 V4                                                                                  |
+| `SendSessionMessage`    | `send-session-message.ts`    | `ZCodeTaskPort.sendPrompt`                        | 发消息，**异步**：发完即返；目标会话 turn 终态/审批/停止经 `session/changed` 唤醒创建者（见 §5），`ReadSession` 补读权威结果 |
+| `ReadSession`           | `read-session.ts`            | `ZCodeSessionPort.readSession`                    | 读取进度/结果；AI 不直接调用内部 `getTaskSnapshot`                                                                           |
+| `StopSessionGeneration` | `stop-session-generation.ts` | `ZCodeTaskPort.stopGeneration`                    | 停止当前生成，会话保留可继续                                                                                                 |
+| `SetSessionModel`       | `set-session-model.ts`       | `ZCodeTaskPort.setModel` → V4 `switchModelConfig` | 换模型，返回服务端 authoritative configOptions                                                                               |
+| `CompactSession`        | `compact-session.ts`         | `ZCodeTaskPort.compactSession` → V4 `compact`     | 手动压缩上下文                                                                                                               |
 
 **无以下工具**（刻意不提供）：
 
@@ -367,7 +369,9 @@ export type CreateSessionOutput = z.infer<typeof CreateSessionOutputSchema>;
 
 `CreateSession` handler 必须逐字段投影 Host 的 `ZCodeTaskCreateResult` 后再返回工具层；不能把完整 task meta 直接透传，也不能为容纳内部字段而放宽工具输出的 strict schema。创建调用必须传 `v4Create: true`，未指定模式时使用 `yolo`。创建成功后必须使用返回的 `taskId`/`traceId` 调用一次 `sendPrompt(content)`；这条消息走 V4 `sendText`，并使用新的 `messageId` 作为幂等键。发送失败时创建结果不会伪装成成功，工具直接失败并保留 Host 原始错误；已创建会话保留给用户继续处理。
 
-创建生命周期只有一个状态所有者：目标 session runtime 的 V4 `CommandInbox`。事件顺序为 `CreateSession → V4 createSession → V4 sendText(content) → ReadSession`。会话不能由 AI 工具创建为空；标题由首条消息的现有标题逻辑生成。AI 工具不暴露权限审批策略，创建默认使用 `yolo`；普通会话管理授权与目标会话的权限审批策略另行设计。
+创建生命周期只有一个状态所有者：目标 session runtime 的 V4 `CommandInbox`。事件顺序为 `CreateSession → V4 createSession → V4 sendText(content) → ReadSession`。会话不能由 AI 工具创建为空；标题由首条消息的现有标题逻辑生成。AI 工具不暴露权限审批策略，创建默认使用 `yolo`。
+
+AI 会话管理的当前验收范围是 `yolo` 目标会话：创建者可以继续向其创建的目标会话发消息、读取状态、停止生成、切换模型和压缩上下文。Host 只依据持久化 peer relation 的 creator/target/workspace identity 关系授权这些普通操作；`approvalPolicy` 不得阻断会话管理操作。权限请求的人工或 AI 决议策略不属于本阶段验收范围，后续单独设计，不得因此阻塞 yolo 会话的普通管理能力。
 
 `SetSessionModel` 和 `CompactSession` 也必须只写 V4 命令面：
 
@@ -661,10 +665,10 @@ const snapshot = await read_session({ sessionId: taskId, messageLimit: 10 });
 
 #### 3.2.5 远程链路语义对进度可见性的影响
 
-| 链路类型                | 适用场景                                     | 进度可见性                             | `ReadSession` 行为                               |
-| ----------------------- | -------------------------------------------- | -------------------------------------- | ------------------------------------------------ |
+| 链路类型                | 适用场景                                     | 进度可见性                             | `ReadSession` 行为             |
+| ----------------------- | -------------------------------------------- | -------------------------------------- | ------------------------------ |
 | `desktop-continuous`    | Desktop 本地、SSH/WSL/Docker attached remote | **实时流式**：工具调用、token 流式回传 | `ReadSession` 返回最新实时状态 |
-| `web-remote-replayable` | 手机 Web 远控、浏览器远程                    | **快照恢复**：定期同步快照，非实时     | 返回最近同步的快照，可能有延迟                   |
+| `web-remote-replayable` | 手机 Web 远控、浏览器远程                    | **快照恢复**：定期同步快照，非实时     | 返回最近同步的快照，可能有延迟 |
 
 `clientMode` 不在工具输入里给模型——broker 从受信 session record 的 `deliveryKind` 注入（见 §2 身份注入）。Host 侧按实际链路类型返回对应数据。
 

@@ -42,37 +42,44 @@ test("Host executor routes prompt and model changes through the resolved target 
     modelSelection: { providerId: "provider", modelId: "model" },
   });
 
-  assert.deepEqual(calls.map(({ method, workspacePath, workspaceIdentity, remoteSessionId }) => ({
-    method,
-    workspacePath,
-    workspaceIdentity,
-    remoteSessionId,
-  })), [
-    {
-      method: "sendPrompt",
-      workspacePath: "D:/target-workspace",
-      workspaceIdentity: "remote:ssh:target:/workspace",
-      remoteSessionId: "remote-target-session",
-    },
-    {
-      method: "setModel",
-      workspacePath: "D:/target-workspace",
-      workspaceIdentity: "remote:ssh:target:/workspace",
-      remoteSessionId: "remote-target-session",
-    },
-  ]);
+  assert.deepEqual(
+    calls.map(({ method, workspacePath, workspaceIdentity, remoteSessionId }) => ({
+      method,
+      workspacePath,
+      workspaceIdentity,
+      remoteSessionId,
+    })),
+    [
+      {
+        method: "sendPrompt",
+        workspacePath: "D:/target-workspace",
+        workspaceIdentity: "remote:ssh:target:/workspace",
+        remoteSessionId: "remote-target-session",
+      },
+      {
+        method: "setModel",
+        workspacePath: "D:/target-workspace",
+        workspaceIdentity: "remote:ssh:target:/workspace",
+        remoteSessionId: "remote-target-session",
+      },
+    ],
+  );
 });
 
 test("Host executor preserves the caller remote session for a self target recovered from the index", async () => {
   let received: Record<string, unknown> | undefined;
   const executor = createZCodeTaskServiceExecutor({
-    readZCodeTaskService: () => ({
-      resolveTaskTarget: async () => ({ taskId: "caller-session", workspacePath: "D:/caller-workspace" }),
-      sendPrompt: async (input: Record<string, unknown>) => {
-        received = input;
-        return { taskId: "caller-session", accepted: true };
-      },
-    }) as never,
+    readZCodeTaskService: () =>
+      ({
+        resolveTaskTarget: async () => ({
+          taskId: "caller-session",
+          workspacePath: "D:/caller-workspace",
+        }),
+        sendPrompt: async (input: Record<string, unknown>) => {
+          received = input;
+          return { taskId: "caller-session", accepted: true };
+        },
+      }) as never,
     readZCodeSessionService: () => undefined,
   });
 
@@ -93,15 +100,18 @@ test("Host executor preserves the caller remote session for a self target recove
 test("Host executor preserves structured target lookup failures", async () => {
   let serviceCalled = false;
   const executor = createZCodeTaskServiceExecutor({
-    readZCodeTaskService: () => ({
-      resolveTaskTarget: async () => {
-        throw Object.assign(new Error("ambiguous target"), { code: "ZCODE_SESSION_TARGET_AMBIGUOUS" });
-      },
-      sendPrompt: async () => {
-        serviceCalled = true;
-        return { taskId: "target-session", accepted: true };
-      },
-    }) as never,
+    readZCodeTaskService: () =>
+      ({
+        resolveTaskTarget: async () => {
+          throw Object.assign(new Error("ambiguous target"), {
+            code: "ZCODE_SESSION_TARGET_AMBIGUOUS",
+          });
+        },
+        sendPrompt: async () => {
+          serviceCalled = true;
+          return { taskId: "target-session", accepted: true };
+        },
+      }) as never,
     readZCodeSessionService: () => undefined,
   });
 
@@ -114,7 +124,8 @@ test("Host executor preserves structured target lookup failures", async () => {
       traceId: "trace-ambiguous" as never,
       content: "hello",
     }),
-    (error: unknown) => error instanceof Error && "code" in error && error.code === "ZCODE_SESSION_TARGET_AMBIGUOUS",
+    (error: unknown) =>
+      error instanceof Error && "code" in error && error.code === "ZCODE_SESSION_TARGET_AMBIGUOUS",
   );
   assert.equal(serviceCalled, false);
 });
@@ -122,18 +133,23 @@ test("Host executor preserves structured target lookup failures", async () => {
 test("Host executor rejects a target without a creator relation", async () => {
   let serviceCalled = false;
   const executor = createZCodeTaskServiceExecutor({
-    readZCodeTaskService: () => ({
-      resolveTaskTarget: async () => ({ taskId: "target-session", workspacePath: "D:/target-workspace" }),
-      sendPrompt: async () => {
-        serviceCalled = true;
-        return { taskId: "target-session", accepted: true };
-      },
-    }) as never,
+    readZCodeTaskService: () =>
+      ({
+        resolveTaskTarget: async () => ({
+          taskId: "target-session",
+          workspacePath: "D:/target-workspace",
+        }),
+        sendPrompt: async () => {
+          serviceCalled = true;
+          return { taskId: "target-session", accepted: true };
+        },
+      }) as never,
     readZCodeSessionService: () => undefined,
-    createPeerSessionRelationRepo: () => ({
-      findCreatedSession: async () => null,
-      close: () => undefined,
-    }) as never,
+    createPeerSessionRelationRepo: () =>
+      ({
+        findCreatedSession: async () => null,
+        close: () => undefined,
+      }) as never,
   });
 
   await assert.rejects(
@@ -145,7 +161,54 @@ test("Host executor rejects a target without a creator relation", async () => {
       traceId: "trace-unauthorized" as never,
       content: "hello",
     }),
-    (error: unknown) => error instanceof Error && "code" in error && error.code === "not_authorized",
+    (error: unknown) =>
+      error instanceof Error && "code" in error && error.code === "not_authorized",
   );
   assert.equal(serviceCalled, false);
+});
+
+test("Host executor lets the creator manage a manual-policy session", async () => {
+  let received: Record<string, unknown> | undefined;
+  const executor = createZCodeTaskServiceExecutor({
+    readZCodeTaskService: () =>
+      ({
+        resolveTaskTarget: async () => ({
+          taskId: "target-session",
+          workspacePath: "D:/target-workspace",
+          workspaceIdentity: "target-identity",
+        }),
+        sendPrompt: async (input: Record<string, unknown>) => {
+          received = input;
+          return { taskId: "target-session", accepted: true };
+        },
+      }) as never,
+    readZCodeSessionService: () => undefined,
+    createPeerSessionRelationRepo: () =>
+      ({
+        findCreatedSession: async () => ({
+          creatorSessionId: "caller-session",
+          targetSessionId: "target-session",
+          workspaceKey: "caller-workspace",
+          workspacePath: "D:/target-workspace",
+          workspaceIdentity: "target-identity",
+          createdBy: "ai",
+          approvalPolicy: "manual",
+          createdAt: 1,
+        }),
+        close: () => undefined,
+      }) as never,
+  });
+
+  await executor.sendPrompt({
+    callerSessionId: "caller-session",
+    workspaceKey: "caller-workspace",
+    workspacePath: "D:/caller-workspace",
+    taskId: "target-session",
+    traceId: "trace-manual" as never,
+    content: "continue",
+  });
+
+  assert.equal(received?.taskId, "target-session");
+  assert.equal(received?.workspacePath, "D:/target-workspace");
+  assert.equal(received?.workspaceIdentity, "target-identity");
 });

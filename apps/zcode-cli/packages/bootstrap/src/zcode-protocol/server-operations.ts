@@ -2472,6 +2472,7 @@ export async function generateWorkspaceText(
     (await createWorkspaceZCodeApp(context, params.workspace, {
       env: context.deps.env,
       eventStore: context.deps.createSessionEventStore("workspace-generate-text"),
+      sessionOrchestration: false,
       runtimeConfig: {
         workingDirectory: params.workspace.workspacePath,
       },
