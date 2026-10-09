@@ -404,6 +404,76 @@ test("SendSessionMessage 返回 host admission 并把 messageId 送达端口", a
   assert.equal(JSON.stringify(calls.at(-1)?.params).includes("message_wiring_send"), true);
 });
 
+test("SetSessionModel 丢弃展示字段并补齐目标模型默认推理档位", async () => {
+  const calls: unknown[] = [];
+  const registry = createToolRegistry();
+  registerBuiltInTools(registry, { includeZCodeTask: true });
+  const executor = createToolExecutor({
+    registry,
+    permissionService: new PermissionService(),
+    emitEvent: async () => {},
+    sessionId: "sess_set_model_wiring",
+    getMode: () => "yolo",
+    zcodeTaskPort: {
+      createTask: async () => STUB_TASK_META,
+      sendPrompt: async () => ({ messageId: "m", turnId: "t", acceptedAt: 0, deduplicated: false }),
+      stopGeneration: async () => {},
+      compactSession: async () => ({ compact: { state: "accepted" } } as never),
+      resumeTask: async () => STUB_TASK_META,
+      listTasks: async () => [],
+      getTaskSnapshot: async () => null,
+      setModel: async (params) => {
+        calls.push(params);
+        return [];
+      },
+    },
+    modelCatalogPort: {
+      listModels: () => [
+        {
+          providerId: "nvidia",
+          modelId: "nemotron-3-ultra-550b-a55b",
+          reasoningLevels: ["low", "high"],
+          defaultReasoningLevel: "high",
+          current: false,
+        },
+      ],
+    },
+  });
+
+  const result = await executor.execute({
+    id: "call_set_model_wiring",
+    name: SET_SESSION_MODEL_TOOL_NAME,
+    input: {
+      taskId: "sess_target",
+      traceId: "trace_set_model",
+      modelSelection: {
+        providerId: "nvidia",
+        modelId: "nemotron-3-ultra-550b-a55b",
+        enabled: true,
+      },
+    },
+  });
+
+  assert.equal(result.success, false, "schema must reject catalog display fields");
+  assert.equal(calls.length, 0);
+
+  const valid = await executor.execute({
+    id: "call_set_model_wiring_valid",
+    name: SET_SESSION_MODEL_TOOL_NAME,
+    input: {
+      taskId: "sess_target",
+      traceId: "trace_set_model_valid",
+      modelSelection: { providerId: "nvidia", modelId: "nemotron-3-ultra-550b-a55b" },
+    },
+  });
+  assert.equal(valid.success, true, JSON.stringify(valid.error));
+  assert.deepEqual((calls[0] as { modelSelection: unknown }).modelSelection, {
+    providerId: "nvidia",
+    modelId: "nemotron-3-ultra-550b-a55b",
+    options: { reasoningLevel: "high" },
+  });
+});
+
 test("executor 缺 zcodeTaskPort 时 CreateSession 返回结构化失败而非崩溃", async () => {
   const registry = createToolRegistry();
   registerBuiltInTools(registry, { includeZCodeTask: true });

@@ -13,6 +13,21 @@
 import { z } from "zod";
 import { toToolJsonSchema } from "./json-schema.js";
 
+// Keep the tool boundary schema local: contracts and shared use separate Zod
+// instances, while both must enforce the same wire-level ModelSelection shape.
+const setSessionModelSelectionSchema = z
+  .object({
+    providerId: z.string().trim().min(1),
+    modelId: z.string().trim().min(1),
+    options: z
+      .object({
+        reasoningLevel: z.string().trim().min(1).optional(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
+
 // Tool names
 export const CREATE_SESSION_TOOL_NAME = "CreateSession";
 export const SEND_SESSION_MESSAGE_TOOL_NAME = "SendSessionMessage";
@@ -278,7 +293,7 @@ export const SetSessionModelInputSchema = z
   .object({
     taskId: z.string().min(1),
     traceId: z.string().min(1),
-    modelSelection: z.record(z.string(), z.unknown()),
+    modelSelection: setSessionModelSelectionSchema,
   })
   .strict();
 

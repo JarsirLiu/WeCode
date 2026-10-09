@@ -46,10 +46,22 @@ const setSessionModelHandler: ToolHandler = async (input, context) => {
       },
     );
   }
+  const requestedSelection = parsed.data.modelSelection;
+  const catalogEntry = context.modelCatalogPort?.listModels().find(
+    (entry) =>
+      entry.providerId === requestedSelection.providerId && entry.modelId === requestedSelection.modelId,
+  );
+  const modelSelection =
+    requestedSelection.options?.reasoningLevel || catalogEntry?.defaultReasoningLevel === undefined
+      ? requestedSelection
+      : {
+          ...requestedSelection,
+          options: { reasoningLevel: catalogEntry.defaultReasoningLevel },
+        };
   return context.zcodeTaskPort.setModel({
     taskId: parsed.data.taskId,
     traceId: parsed.data.traceId,
-    modelSelection: parsed.data.modelSelection as any,
+    modelSelection,
     sessionId: context.sessionId,
     traceContext: context.traceContext,
     signal: context.abortSignal,

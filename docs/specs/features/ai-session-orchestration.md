@@ -37,6 +37,8 @@ AI 的读取链路独立于 task/session 命令：`WorkspaceIndexPort → worksp
 
 `WorkspaceList` 与 `ListSessions` 同属动态 `session` toolset。`ListSessions` 查询本地 workspace 时，先按 workspace path 读取，再允许旧会话在 `workspace_id` 缺失时通过 `path`/`directory` 匹配；远程 workspace identity 包含连接边界，必须精确匹配持久化 `workspace_id`，不得回退到相同远程路径。列表查询默认排除归档会话，调用方可显式开启归档项。
 
+`SetSessionModel` 的 `modelSelection` 是执行选择，不是模型目录行的透传对象。工具只向 Host 发送 `providerId`、`modelId` 和可选的 `options.reasoningLevel`；目录中的 `enabled`、展示名称、上下文窗口等字段必须被丢弃。若目标模型在当前 Host 目录声明了默认推理档位且调用方未提供档位，工具在发送协议请求前补上该默认值。这样 `task/setModel` 始终接收严格的 `ModelSelection`，需要推理档位的模型不会等到 V4 执行阶段才失败。
+
 ```text
 AI ToolEntry
   → WorkspaceIndexPort (caller session + trace + cancellation)
