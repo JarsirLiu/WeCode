@@ -14,6 +14,10 @@ The relation's `approvalPolicy` describes how the target session handles permiss
 - Permission approval policy applies only after the target runtime emits an exact `requestId`; `manual` is handled by the user UI, while `delegated` may allow an authorized AI caller to resolve a request.
 - AI-created sessions currently default to `yolo`; approval policy is not exposed as an AI tool parameter.
 
+## Affected surfaces
+
+Host task/session authorization, relation persistence, AI session management tools, MCP session management tools, cross-workspace routing, and Host replay tests.
+
 ## Acceptance criteria
 
 - Define caller, target, and creator relationships for ordinary session management and permission decisions.
@@ -23,3 +27,9 @@ The relation's `approvalPolicy` describes how the target session handles permiss
 ## Risks
 
 An incomplete relationship matrix could either block the creator's ordinary operations or grant access based only on a session identifier. The Host remains the authorization owner; broker-supplied workspace fields are not an authority source.
+
+## Alternatives considered
+
+**Use `approvalPolicy` as the management ACL:** rejected because a permission prompt policy does not express which caller may manage a session.
+
+**Authorize from the session ID alone:** rejected because identifiers are locators, not grants.
