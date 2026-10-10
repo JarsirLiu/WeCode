@@ -278,7 +278,7 @@ test("CreateSession 的 content 在 V4 创建后经 sendPrompt 投递", async ()
   );
 });
 
-test("CreateSession ignores removed model fields and uses the Host default", async () => {
+test("CreateSession uses the Host default because model fields are not accepted", async () => {
   const { port, calls } = createRecordingTaskPort();
   const registry = createToolRegistry();
   registerBuiltInTools(registry, { includeZCodeTask: true });
@@ -297,7 +297,6 @@ test("CreateSession ignores removed model fields and uses the Host default", asy
     input: {
       workspacePath: "/tmp/zcode-wiring-test",
       content: "start",
-      modelSelection: { providerId: "unknown", modelId: "guessed" },
     },
   });
 
@@ -353,13 +352,27 @@ test("ReadSession 只返回摘要，不泄露工具 input/output", async () => {
       readSession: async () =>
         ({
           session: { sessionId: "target_session", title: "Summary test" },
+          settings: {
+            model: { current: { providerId: "openai", modelId: "gpt-test" } },
+            thoughtLevel: { current: "high" },
+            mode: { current: "yolo" },
+          },
           projection: {
             status: "completed",
             turnCount: 1,
             totalTokenCount: 42,
             contextUsed: 10,
             contextWindow: 100,
-            pendingPermissions: [],
+            pendingPermissions: [
+              {
+                requestId: "permission_1",
+                toolCallId: "tool_call_1",
+                toolName: "Bash",
+                reason: "Run a command",
+                riskLevel: "high",
+                requestedAt: 123,
+              },
+            ],
           },
           messages: [
             {
@@ -396,6 +409,12 @@ test("ReadSession 只返回摘要，不泄露工具 input/output", async () => {
   assert.equal(serialized.includes("full output must not leak"), false);
   assert.equal(serialized.includes('"toolName":"ReadFile"'), true);
   assert.equal(serialized.includes('"status":"completed"'), true);
+  assert.equal(serialized.includes('"providerId":"openai"'), true);
+  assert.equal(serialized.includes('"modelId":"gpt-test"'), true);
+  assert.equal(serialized.includes('"mode":"yolo"'), true);
+  assert.equal(serialized.includes('"thoughtLevel":"high"'), true);
+  assert.equal(serialized.includes('"requestId":"permission_1"'), true);
+  assert.equal(serialized.includes('"reason":"Run a command"'), true);
 });
 
 test("SendSessionMessage 返回 host admission 并把 messageId 送达端口", async () => {

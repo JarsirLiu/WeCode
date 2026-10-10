@@ -202,6 +202,15 @@ export const ReadSessionSummaryToolCallSchema = z
   })
   .strict();
 
+export const ReadSessionPendingPermissionSchema = z.object({
+    requestId: z.string().min(1),
+    toolCallId: z.string().min(1),
+    toolName: z.string().min(1),
+    reason: z.string().max(1000),
+    riskLevel: z.enum(["low", "medium", "high", "critical"]),
+    requestedAt: z.number().int().nonnegative().optional(),
+}).strict();
+
 export const ReadSessionSummaryStatusSchema = z.enum([
   "idle",
   "running",
@@ -216,6 +225,9 @@ export const ReadSessionOutputSchema = z
     sessionId: z.string().min(1),
     title: z.string().optional(),
     status: ReadSessionSummaryStatusSchema,
+    mode: z.enum(["plan", "build", "edit", "yolo", "auto"]).optional(),
+    model: z.object({ providerId: z.string().min(1), modelId: z.string().min(1) }).strict().optional(),
+    thoughtLevel: z.string().min(1).optional(),
     turnCount: z.number().int().nonnegative().optional(),
     totalTokenCount: z.number().int().nonnegative().optional(),
     contextUsed: z.number().int().nonnegative().optional(),
@@ -223,6 +235,7 @@ export const ReadSessionOutputSchema = z
     messages: z.array(ReadSessionSummaryMessageSchema).optional(),
     toolCalls: z.array(ReadSessionSummaryToolCallSchema).optional(),
     pendingPermissions: z.number().int().nonnegative().optional(),
+    pendingPermissionRequests: z.array(ReadSessionPendingPermissionSchema).optional(),
     lastError: z.string().max(1000).optional(),
   })
   .strict();
@@ -230,6 +243,7 @@ export const ReadSessionOutputSchema = z
 export type ReadSessionInput = z.infer<typeof ReadSessionInputSchema>;
 export type ReadSessionSummaryMessage = z.infer<typeof ReadSessionSummaryMessageSchema>;
 export type ReadSessionSummaryToolCall = z.infer<typeof ReadSessionSummaryToolCallSchema>;
+export type ReadSessionPendingPermission = z.infer<typeof ReadSessionPendingPermissionSchema>;
 export type ReadSessionOutput = z.infer<typeof ReadSessionOutputSchema>;
 
 export const ReadSessionInputJsonSchema = toToolJsonSchema(ReadSessionInputSchema);
@@ -247,9 +261,8 @@ export const READ_SESSION_DESCRIPTION = [
   "state after a session/changed wake-up notification (afterSeq gives incremental reads).",
   "Also usable as a low-frequency fallback poll when no notification arrives.",
   "",
-  "The snapshot carries context pressure in projection (contextUsed, contextWindow, totalTokenCount)",
-  "and runtime.contextUsage (used, size, cost) — use contextUsed/contextWindow to decide when to",
-  "call compact_session.",
+  "The snapshot carries context pressure (contextUsed, contextWindow, totalTokenCount); use it to decide when to call compact_session.",
+  "It also reports the active model, reasoning level, mode, and pending request IDs. Pass a pending request ID to ResolveSessionPermission; approvalPolicy is not an AI setting.",
 ].join("\n");
 
 // ============================================================

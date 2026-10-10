@@ -12,13 +12,25 @@ type SnapshotPart = {
 
 type Snapshot = {
   session?: { sessionId?: string; title?: string };
+  settings?: {
+    model?: { current?: { providerId?: string; modelId?: string } };
+    thoughtLevel?: { current?: string };
+    mode?: { current?: ReadSessionOutput["mode"] };
+  };
   projection?: {
     status?: ReadSessionOutput["status"];
     turnCount?: number;
     totalTokenCount?: number;
     contextUsed?: number;
     contextWindow?: number;
-    pendingPermissions?: unknown[];
+    pendingPermissions?: Array<{
+      requestId?: string;
+      toolCallId?: string;
+      toolName?: string;
+      reason?: string;
+      riskLevel?: "low" | "medium" | "high" | "critical";
+      requestedAt?: number;
+    }>;
     lastError?: { message?: string };
   };
   messages?: Array<{
@@ -94,6 +106,18 @@ export function summarizeReadSessionOutput(output: unknown): ReadSessionOutput {
     sessionId: snapshot.session.sessionId ?? "unknown",
     ...(snapshot.session.title ? { title: snapshot.session.title } : {}),
     status: snapshot.projection.status ?? "idle",
+    ...(snapshot.settings?.mode?.current ? { mode: snapshot.settings.mode.current } : {}),
+    ...(snapshot.settings?.model?.current?.providerId && snapshot.settings.model.current.modelId
+      ? {
+          model: {
+            providerId: snapshot.settings.model.current.providerId,
+            modelId: snapshot.settings.model.current.modelId,
+          },
+        }
+      : {}),
+    ...(snapshot.settings?.thoughtLevel?.current
+      ? { thoughtLevel: snapshot.settings.thoughtLevel.current }
+      : {}),
     ...(snapshot.projection.turnCount !== undefined
       ? { turnCount: snapshot.projection.turnCount }
       : {}),
@@ -109,6 +133,26 @@ export function summarizeReadSessionOutput(output: unknown): ReadSessionOutput {
     messages,
     toolCalls,
     pendingPermissions: snapshot.projection.pendingPermissions?.length ?? 0,
+    ...(snapshot.projection.pendingPermissions?.length
+      ? {
+          pendingPermissionRequests: snapshot.projection.pendingPermissions.flatMap((permission) =>
+            permission.requestId && permission.toolCallId && permission.toolName && permission.riskLevel
+              ? [
+                  {
+                    requestId: permission.requestId,
+                    toolCallId: permission.toolCallId,
+                    toolName: permission.toolName,
+                    reason: preview(permission.reason) ?? "",
+                    riskLevel: permission.riskLevel,
+                    ...(permission.requestedAt !== undefined
+                      ? { requestedAt: permission.requestedAt }
+                      : {}),
+                  },
+                ]
+              : [],
+          ),
+        }
+      : {}),
     ...(snapshot.projection.lastError?.message
       ? { lastError: preview(snapshot.projection.lastError.message) }
       : {}),

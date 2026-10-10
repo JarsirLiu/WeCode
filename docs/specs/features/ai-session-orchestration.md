@@ -446,6 +446,8 @@ export type ReadSessionInput = z.infer<typeof ReadSessionInputSchema>;
 
 `ReadSession` 的公开输入继续只包含目标 `sessionId`、`messageLimit` 和 `afterSeq`。session ID 是目标会话的定位键；调用方不需要、也不应额外提供 workspace path 或 workspace identity。Host 内部必须把调用方身份与目标身份分开：调用方 session 只用于授权、审计和反向请求上下文，目标 session 用于查找真实 workspace 并路由读取请求。
 
+`ReadSession` 同时是 AI 的会话状态检查入口，不再恢复历史 `GetTaskSnapshot` 工具。工具边界返回当前 `mode`、当前 `model`（providerId/modelId）、当前 `thoughtLevel`、上下文用量（`contextUsed`/`contextWindow`/`totalTokenCount`）和待处理权限请求的最小摘要（requestId、toolCallId、toolName、reason、riskLevel、requestedAt）。这些字段来自目标 session 的 authoritative `settings` 与 `projection`；`approvalPolicy` 不是独立设置，不出现在工具契约中。AI 可以据此决定是否调用 `SetSessionModel`、`CompactSession` 或 `ResolveSessionPermission`。完整模型目录、权限请求 input/options 和工具 input/output 继续留在 Host/UI 内部，避免状态检查变成第二条快照读取链路。
+
 路由顺序固定为：
 
 ```text
