@@ -278,6 +278,35 @@ test("CreateSession 的 content 在 V4 创建后经 sendPrompt 投递", async ()
   );
 });
 
+test("CreateSession ignores removed model fields and uses the Host default", async () => {
+  const { port, calls } = createRecordingTaskPort();
+  const registry = createToolRegistry();
+  registerBuiltInTools(registry, { includeZCodeTask: true });
+  const executor = createToolExecutor({
+    registry,
+    permissionService: new PermissionService(),
+    emitEvent: async () => {},
+    sessionId: "sess_wiring_test",
+    getMode: () => "yolo",
+    zcodeTaskPort: port,
+  });
+
+  const result = await executor.execute({
+    id: "call_wiring_create_model_removed",
+    name: CREATE_SESSION_TOOL_NAME,
+    input: {
+      workspacePath: "/tmp/zcode-wiring-test",
+      content: "start",
+      modelSelection: { providerId: "unknown", modelId: "guessed" },
+    },
+  });
+
+  assert.equal(result.success, true, JSON.stringify(result.error ?? {}));
+  assert.equal(calls[0]?.method, "createTask");
+  assert.equal("modelSelection" in (calls[0]?.params ?? {}), false);
+  assert.equal("model" in (calls[0]?.params ?? {}), false);
+});
+
 test("ReadSession 执行把 zcodeSessionPort 送达 handler 并命中 stub", async () => {
   const calls: unknown[] = [];
   const sessionPort: ZCodeSessionPort = {

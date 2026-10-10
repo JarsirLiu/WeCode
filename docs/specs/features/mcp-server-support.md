@@ -32,7 +32,7 @@
 | ------------------ | ---------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | 列出已知工作区     | `workspace_list`             | `ISettingService.listWorkspaces`                                                                              |
 | 列出工作区下的会话 | `list_sessions`              | `WeCodeSessionPort.listSessions` → `session/listSessions`                                                     |
-| 创建会话           | `create_session`             | `CreateSession` → `WeCodeTaskPort.createTask(v4Create=true)` → V4 `createSession` 命令                        |
+| 创建会话           | `create_session`             | `CreateSession`（使用 Host 默认模型）→ `WeCodeTaskPort.createTask(v4Create=true)` → V4 `createSession` 命令 |
 | 发送消息           | `send_session_message`       | `SendSessionMessage` → `WeCodeTaskPort.sendPrompt` → V4 `sendText` 命令                                       |
 | 读取会话           | `read_session`               | `ReadSession` → `WeCodeSessionPort.readSession` → `session/readSession`                                       |
 | 停止生成           | `stop_session_generation`    | `StopSessionGeneration` → `WeCodeTaskPort.stopGeneration` → V4 `stop` 命令                                    |

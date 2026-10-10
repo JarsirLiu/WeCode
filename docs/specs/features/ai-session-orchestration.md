@@ -347,9 +347,6 @@ export const CreateSessionInputSchema = z
     // mode 6 值对齐 ZCodeTaskMode（packages/shared/src/zcode-task-types-core.ts）。
     // UI mode picker 只列 4 个（ZCODE_AGENT_MODE_OPTIONS），但类型层是 6 值。
     mode: z.enum(["yolo", "plan", "edit", "auto", "autoEdit", "build"]).optional(),
-    modelSelection: ModelSelectionSchema.optional(),
-    model: z.string().optional(),
-    thoughtLevel: z.string().optional(),
     draftSessionId: z.string().optional(),
     forkedFromTaskId: z.string().optional(),
     automationId: z.string().optional(),
@@ -371,7 +368,7 @@ export type CreateSessionOutput = z.infer<typeof CreateSessionOutputSchema>;
 
 `CreateSession` handler 必须逐字段投影 Host 的 `ZCodeTaskCreateResult` 后再返回工具层；不能把完整 task meta 直接透传，也不能为容纳内部字段而放宽工具输出的 strict schema。创建调用必须传 `v4Create: true`，未指定模式时使用 `yolo`。创建成功后必须使用返回的 `taskId`/`traceId` 调用一次 `sendPrompt(content)`；这条消息走 V4 `sendText`，并使用新的 `messageId` 作为幂等键。发送失败时创建结果不会伪装成成功，工具直接失败并保留 Host 原始错误；已创建会话保留给用户继续处理。
 
-创建生命周期只有一个状态所有者：目标 session runtime 的 V4 `CommandInbox`。事件顺序为 `CreateSession → V4 createSession → V4 sendText(content) → ReadSession`。会话不能由 AI 工具创建为空；标题由首条消息的现有标题逻辑生成。AI 工具只暴露与桌面端一致的 `mode`，创建默认使用 `yolo`，不再暴露第二套 `approvalPolicy`。
+创建生命周期只有一个状态所有者：目标 session runtime 的 V4 `CommandInbox`。事件顺序为 `CreateSession → V4 createSession → V4 sendText(content) → ReadSession`。会话不能由 AI 工具创建为空；标题由首条消息的现有标题逻辑生成。AI 工具只暴露与桌面端一致的 `mode`，创建默认使用 `yolo`，不再暴露第二套 `approvalPolicy`。`CreateSession` 不接受 `modelSelection`、`model` 或 `thoughtLevel`：创建前没有模型目录工具，模型 ID 不应由 AI 猜测；创建使用 Host 默认模型，变更模型必须在创建后调用 `SetSessionModel`。
 
 AI 会话管理与桌面端共享同一套 `mode` 语义：`yolo` 不产生普通审批，其他模式产生目标 runtime 的 pending permission。创建者 AI 与用户一样拥有自己创建目标会话的完整管理权限，包括处理精确的 pending permission；Host 依据持久化 peer relation 的 creator/target/workspace identity 关系授权，不再读取或持久化 `approvalPolicy`。权限审计仍记录 resolver kind/session identity，以便未来按 AI 与用户制定不同策略。
 

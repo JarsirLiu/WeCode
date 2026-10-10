@@ -75,8 +75,6 @@ export function createHostMcpToolHandler(services: ServiceCollection): WeCodeToo
         const result = await task.createTask({
           ...workspace,
           mode: args.mode ?? "yolo",
-          ...(args.modelSelection ? { modelSelection: args.modelSelection } : {}),
-          ...(typeof args.model === "string" ? { model: args.model } : {}),
           v4Create: true,
         });
         await task.sendPrompt({

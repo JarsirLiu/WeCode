@@ -19,8 +19,6 @@ export const McpCreateSessionInputSchema = z
     workspacePath,
     workspaceIdentity: workspaceIdentity.optional(),
     mode: z.enum(["auto", "plan", "build", "edit", "yolo", "autoEdit"]).optional(),
-    model: z.string().trim().min(1).optional(),
-    modelSelection: z.record(z.string(), z.unknown()).optional(),
     message: z.string().min(1),
   })
   .strict();
@@ -88,7 +86,7 @@ export const MCP_SESSION_TOOL_JSON_SCHEMAS = inputJsonSchemas;
 export const MCP_SESSION_TOOL_DESCRIPTIONS: Record<McpSessionToolName, string> = {
   workspace_list: "List workspaces known to the WeCode Host, including local and remote workspaces.",
   list_sessions: "List sessions in a workspace. Use workspacePath from workspace_list; workspaceIdentity may identify a remote workspace.",
-  create_session: "Create a WeCode session in the specified workspace and send its required first message. Returns its sessionId. The session uses yolo mode by default.",
+  create_session: "Create a WeCode session in the specified workspace and send its required first message. Returns its sessionId. The session uses yolo mode and the Host default model by default; use set_session_model after creation to change the model.",
   send_session_message: "Send a message prompt to a session. sessionId is the target returned by create_session; Host resolves its workspace. The admission result is returned before the turn finishes.",
   read_session: "Read a session's authoritative state and history. Host resolves its workspace from sessionId. Use messageLimit and afterSeq to bound or incrementally read history.",
   stop_session_generation: "Stop the current generation in a session. Host resolves its workspace from sessionId.",

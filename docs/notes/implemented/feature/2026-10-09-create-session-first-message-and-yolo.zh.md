@@ -12,6 +12,7 @@ English：[English version](2026-10-09-create-session-first-message-and-yolo.md)
 
 - `CreateSession.content` 必填，创建成功后沿同一 Host task service 立即调用 `sendPrompt`。
 - 未指定模式时使用 `yolo`。
+- `CreateSession` 不接受模型或推理档位；创建使用 Host 默认模型，避免 AI 在没有模型目录工具时猜测无效 ID。需要变更时，创建后调用 `SetSessionModel`。
 - AI 与 MCP 的公开创建契约移除 `initialPrompt` 和 `approvalPolicy`；MCP 使用必填 `message`。
 - 首条消息发送失败时工具失败，但保留已创建会话给用户继续处理。
 - 会话管理授权和目标会话权限审批作为独立问题提案，本次不改变 Host 授权模型。

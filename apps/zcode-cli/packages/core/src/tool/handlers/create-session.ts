@@ -15,7 +15,6 @@ import {
   CoreErrorType,
   createCoreError,
 } from "@zcode/contracts";
-import type { ModelSelection } from "@zcode/shared";
 import type { ToolEntry, ToolHandler } from "../types.js";
 
 const MAX_CREATE_SESSION_BYTES = 50_000;
@@ -50,9 +49,6 @@ const createSessionHandler: ToolHandler = async (input, context) => {
     workspacePath: parsed.data.workspacePath,
     workspaceIdentity: parsed.data.workspaceIdentity,
     mode: parsed.data.mode ?? "yolo",
-    modelSelection: parsed.data.modelSelection as ModelSelection | undefined,
-    model: parsed.data.model,
-    thoughtLevel: parsed.data.thoughtLevel,
     draftSessionId: parsed.data.draftSessionId,
     forkedFromTaskId: parsed.data.forkedFromTaskId,
     automationId: parsed.data.automationId,

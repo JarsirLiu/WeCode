@@ -12,6 +12,7 @@ Allowing an AI-created session without a first message leaves an empty session t
 
 - `CreateSession.content` is required and is submitted through the same Host task service after creation.
 - The default mode is `yolo` when the caller omits `mode`.
+- `CreateSession` does not accept a model or reasoning level. Creation uses the Host default because no model catalog tool is available for the AI to validate guessed IDs; callers can use `SetSessionModel` after creation.
 - Public AI and MCP creation contracts remove `initialPrompt` and `approvalPolicy`; MCP uses required `message`.
 - If first-message submission fails, the tool fails while the created session remains available for the user.
 - Session management authorization and target permission approval are tracked as a separate design problem; this change does not alter the Host authorization model.
