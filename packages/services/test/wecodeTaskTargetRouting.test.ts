@@ -167,7 +167,7 @@ test("Host executor rejects a target without a creator relation", async () => {
   assert.equal(serviceCalled, false);
 });
 
-test("Host executor lets the creator manage a manual-policy session", async () => {
+test("Host executor lets the creator manage a created session", async () => {
   let received: Record<string, unknown> | undefined;
   const executor = createZCodeTaskServiceExecutor({
     readZCodeTaskService: () =>
@@ -192,7 +192,6 @@ test("Host executor lets the creator manage a manual-policy session", async () =
           workspacePath: "D:/target-workspace",
           workspaceIdentity: "target-identity",
           createdBy: "ai",
-          approvalPolicy: "manual",
           createdAt: 1,
         }),
         close: () => undefined,
@@ -211,4 +210,68 @@ test("Host executor lets the creator manage a manual-policy session", async () =
   assert.equal(received?.taskId, "target-session");
   assert.equal(received?.workspacePath, "D:/target-workspace");
   assert.equal(received?.workspaceIdentity, "target-identity");
+});
+
+test("creator AI resolves an exact pending permission without a second policy", async () => {
+  let response: Record<string, unknown> | undefined;
+  const executor = createZCodeTaskServiceExecutor({
+    readZCodeTaskService: () =>
+      ({
+        resolveTaskTarget: async () => ({
+          taskId: "target-session",
+          workspacePath: "D:/target-workspace",
+          workspaceIdentity: "target-identity",
+        }),
+        respondPermission: async (input: Record<string, unknown>) => {
+          response = input;
+          return true;
+        },
+      }) as never,
+    readZCodeSessionService: () =>
+      ({
+        readSession: async () => ({
+          projection: {
+            pendingPermissions: [
+              {
+                requestId: "request-1",
+                options: [{ kind: "allowAlways", optionId: "allow-always-1" }],
+              },
+            ],
+          },
+        }),
+      }) as never,
+    createPeerSessionRelationRepo: () =>
+      ({
+        findCreatedSession: async () => ({
+          creatorSessionId: "caller-session",
+          targetSessionId: "target-session",
+          workspaceKey: "target-identity",
+          workspacePath: "D:/target-workspace",
+          workspaceIdentity: "target-identity",
+          createdBy: "ai",
+          createdAt: 1,
+        }),
+        close: () => undefined,
+      }) as never,
+  });
+
+  const result = await executor.resolveSessionPermission({
+    workspaceKey: "target-identity",
+    workspacePath: "D:/caller-workspace",
+    creatorSessionId: "caller-session",
+    targetSessionId: "target-session",
+    requestId: "request-1",
+    decision: "allow_always",
+  });
+
+  assert.deepEqual(result, {
+    requestId: "request-1",
+    status: "resolved",
+    decision: "allow_always",
+  });
+  assert.equal(response?.optionId, "allow-always-1");
+  assert.deepEqual(response?.resolution, {
+    resolverKind: "ai",
+    resolverSessionId: "caller-session",
+  });
 });

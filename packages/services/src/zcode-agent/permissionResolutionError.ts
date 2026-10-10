@@ -1,11 +1,9 @@
 export type PermissionResolutionErrorCode =
   | "not_authorized"
-  | "manual_policy"
   | "request_not_found"
-  | "allow_always_not_supported"
   | "runtime_unavailable";
 
-/** Stable business classification for delegated approval failures. */
+/** Stable business classification for session permission resolution failures. */
 export class PermissionResolutionError extends Error {
   readonly code: PermissionResolutionErrorCode;
 

@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { PeerSessionRelationRepo } from "../src/session/peerSessionRelationRepo.js";
 
-test("peer session relation persists the first creator and policy", async () => {
+test("peer session relation persists the first creator", async () => {
   const directory = await mkdtemp(join(tmpdir(), "zcode-peer-session-relation-"));
   const path = join(directory, "tasks.sqlite");
   const repo = new PeerSessionRelationRepo(path);
@@ -16,14 +16,12 @@ test("peer session relation persists the first creator and policy", async () => 
       workspacePath: "/workspace/a",
       workspaceIdentity: "ssh://example/workspace/a",
       remoteSessionId: "remote-a",
-      approvalPolicy: "delegated" as const,
       createdAt: 123,
     };
     await repo.recordCreatedSession(relation);
     await repo.recordCreatedSession({
       ...relation,
       creatorSessionId: "creator-b",
-      approvalPolicy: "manual",
       createdAt: 456,
     });
 
@@ -55,7 +53,6 @@ test("peer session relations stay isolated by workspace identity", async () => {
       targetSessionId: "same-target",
       workspacePath: "/same/path",
       workspaceIdentity: "ssh://host-a/same/path",
-      approvalPolicy: "manual",
       createdAt: 1,
     });
     assert.equal(

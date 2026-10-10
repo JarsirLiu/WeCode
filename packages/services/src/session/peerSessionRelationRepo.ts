@@ -16,7 +16,7 @@ type DatabaseSyncInstance = InstanceType<typeof DatabaseSync>;
 /**
  * AI peer-session 创建关系的唯一持久化 owner。
  *
- * 它与 task index 共用同一数据库及迁移账本，但不把审批授权字段塞进 task meta：
+ * 它与 task index 共用同一数据库及迁移账本，但不把创建关系字段塞进 task meta：
  * task meta 是 UI 投影，关系账本则是后续授权与审计的事实来源。
  */
 export class PeerSessionRelationRepo {
@@ -45,7 +45,8 @@ export class PeerSessionRelationRepo {
         input.workspacePath,
         input.workspaceIdentity ?? null,
         input.remoteSessionId ?? null,
-        input.approvalPolicy,
+        // Legacy schema compatibility: approval_policy is no longer an active setting.
+        "manual",
         input.createdAt,
       );
   }
@@ -59,7 +60,7 @@ export class PeerSessionRelationRepo {
     const row = this.getDatabase()
       .prepare(
         `SELECT workspace_key, target_session_id, creator_session_id, workspace_path,
-          workspace_identity, remote_session_id, approval_policy, created_at
+          workspace_identity, remote_session_id, created_at
          FROM peer_session_relations WHERE workspace_key = ? AND target_session_id = ?`,
       )
       .get(resolveWorkspaceKey(input), input.targetSessionId) as
@@ -70,7 +71,6 @@ export class PeerSessionRelationRepo {
           workspace_path: string;
           workspace_identity: string | null;
           remote_session_id: string | null;
-          approval_policy: PeerSessionRelation["approvalPolicy"];
           created_at: number;
         }
       | undefined;
@@ -83,7 +83,6 @@ export class PeerSessionRelationRepo {
       ...(row.workspace_identity ? { workspaceIdentity: row.workspace_identity } : {}),
       ...(row.remote_session_id ? { remoteSessionId: row.remote_session_id } : {}),
       createdBy: "ai",
-      approvalPolicy: row.approval_policy,
       createdAt: row.created_at,
     };
   }
@@ -199,7 +198,7 @@ export class PeerSessionRelationRepo {
 /**
  * 创建关系写入是短事务：不在 task adapter 保留第二个 SQLite 连接或可变状态。
  * createTask 已先持久化 session/task；这里失败时调用方不会获得成功结果，目标会话仍按
- * 没有委托关系的默认 manual 语义保留给用户。
+ * 关系只记录创建者与目标，权限决议由创建者身份校验。
  */
 export async function persistPeerSessionCreation(
   relation: PeerSessionCreation,

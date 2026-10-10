@@ -61,7 +61,7 @@ export const ResolveSessionPermissionOutputJsonSchema = toToolJsonSchema(
   ResolveSessionPermissionOutputSchema,
 );
 export const RESOLVE_SESSION_PERMISSION_DESCRIPTION =
-  "Resolve one exact pending permission for a session you created with delegated approval. Only allow_once and deny are supported; use ReadSession to obtain the requestId.";
+  "Resolve one exact pending permission for a session you created. Use ReadSession to obtain the requestId and choose the same allow or deny decision a user would choose.";
 
 // ============================================================
 // CreateSession

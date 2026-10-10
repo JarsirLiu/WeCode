@@ -10,7 +10,6 @@ import type {
   ZCodeSessionCompactResult,
   ZCodeAiTaskSnapshot,
   ZCodeAiTaskPromptAdmission,
-  PeerSessionApprovalPolicy,
 } from "@zcode/shared";
 
 /**
@@ -45,7 +44,6 @@ export interface ZCodeTaskServiceExecutor {
     deferPersistenceUntilFirstPrompt?: boolean;
     v4Create?: boolean;
     creatorSessionId: string;
-    approvalPolicy?: PeerSessionApprovalPolicy;
   }): Promise<ZCodeTaskCreateResult>;
 
   sendPrompt(input: {

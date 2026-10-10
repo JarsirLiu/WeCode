@@ -1,15 +1,15 @@
 import type { TraceContext } from "../tracing/tracer.js";
-import type { DelegatedPermissionDecision, DelegatedPermissionResolution } from "@zcode/shared";
+import type { SessionPermissionDecision, SessionPermissionResolution } from "@zcode/shared";
 
 /** Host-owned delegated permission boundary; the agent never receives a direct runtime handle. */
 export interface ZCodePermissionPort {
   resolveSessionPermission(params: {
     targetSessionId: string;
     requestId: string;
-    decision: DelegatedPermissionDecision;
+    decision: SessionPermissionDecision;
     reason?: string;
     sessionId: string;
     traceContext?: TraceContext;
     signal?: AbortSignal;
-  }): Promise<DelegatedPermissionResolution>;
+  }): Promise<SessionPermissionResolution>;
 }

@@ -371,9 +371,9 @@ export type CreateSessionOutput = z.infer<typeof CreateSessionOutputSchema>;
 
 `CreateSession` handler 必须逐字段投影 Host 的 `ZCodeTaskCreateResult` 后再返回工具层；不能把完整 task meta 直接透传，也不能为容纳内部字段而放宽工具输出的 strict schema。创建调用必须传 `v4Create: true`，未指定模式时使用 `yolo`。创建成功后必须使用返回的 `taskId`/`traceId` 调用一次 `sendPrompt(content)`；这条消息走 V4 `sendText`，并使用新的 `messageId` 作为幂等键。发送失败时创建结果不会伪装成成功，工具直接失败并保留 Host 原始错误；已创建会话保留给用户继续处理。
 
-创建生命周期只有一个状态所有者：目标 session runtime 的 V4 `CommandInbox`。事件顺序为 `CreateSession → V4 createSession → V4 sendText(content) → ReadSession`。会话不能由 AI 工具创建为空；标题由首条消息的现有标题逻辑生成。AI 工具不暴露权限审批策略，创建默认使用 `yolo`。
+创建生命周期只有一个状态所有者：目标 session runtime 的 V4 `CommandInbox`。事件顺序为 `CreateSession → V4 createSession → V4 sendText(content) → ReadSession`。会话不能由 AI 工具创建为空；标题由首条消息的现有标题逻辑生成。AI 工具只暴露与桌面端一致的 `mode`，创建默认使用 `yolo`，不再暴露第二套 `approvalPolicy`。
 
-AI 会话管理的当前验收范围是 `yolo` 目标会话：创建者可以继续向其创建的目标会话发消息、读取状态、停止生成、切换模型和压缩上下文。Host 只依据持久化 peer relation 的 creator/target/workspace identity 关系授权这些普通操作；`approvalPolicy` 不得阻断会话管理操作。权限请求的人工或 AI 决议策略不属于本阶段验收范围，后续单独设计，不得因此阻塞 yolo 会话的普通管理能力。
+AI 会话管理与桌面端共享同一套 `mode` 语义：`yolo` 不产生普通审批，其他模式产生目标 runtime 的 pending permission。创建者 AI 与用户一样拥有自己创建目标会话的完整管理权限，包括处理精确的 pending permission；Host 依据持久化 peer relation 的 creator/target/workspace identity 关系授权，不再读取或持久化 `approvalPolicy`。权限审计仍记录 resolver kind/session identity，以便未来按 AI 与用户制定不同策略。
 
 `SetSessionModel` 和 `CompactSession` 也必须只写 V4 命令面：
 

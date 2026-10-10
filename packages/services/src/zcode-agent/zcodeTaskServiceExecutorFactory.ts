@@ -52,8 +52,7 @@ export function createZCodeTaskServiceExecutor(options: {
         ...(target.workspaceIdentity ? { workspaceIdentity: target.workspaceIdentity } : {}),
         targetSessionId: input.targetSessionId,
       });
-      // 普通会话管理只校验创建关系；approvalPolicy 属于目标 runtime 的权限决议策略，
-      // 不能阻断 yolo 会话的发消息、读取、停止、切模型或压缩操作。
+      // 普通会话管理只校验创建关系；目标 runtime 的 mode 是唯一权限模式。
       if (!relation || relation.creatorSessionId !== input.callerSessionId) {
         throw new PermissionResolutionError(
           "not_authorized",
@@ -88,7 +87,6 @@ export function createZCodeTaskServiceExecutor(options: {
         ...(input.v4Create !== undefined ? { v4Create: input.v4Create } : {}),
         peerSessionRelation: {
           creatorSessionId: input.creatorSessionId,
-          approvalPolicy: input.approvalPolicy ?? "manual",
           ...(input.remoteSessionId ? { remoteSessionId: input.remoteSessionId } : {}),
         },
       }),
@@ -257,11 +255,6 @@ export function createZCodeTaskServiceExecutor(options: {
       }),
 
     async resolveSessionPermission(input) {
-      if (input.decision === "allow_always")
-        throw new PermissionResolutionError(
-          "allow_always_not_supported",
-          "allow_always is not supported for delegated session permissions",
-        );
       const target = await resolveManagedTarget({
         callerSessionId: input.creatorSessionId,
         targetSessionId: input.targetSessionId,
@@ -282,13 +275,7 @@ export function createZCodeTaskServiceExecutor(options: {
         ) {
           throw new PermissionResolutionError(
             "not_authorized",
-            "delegated permission is not authorized for this session",
-          );
-        }
-        if (relation.approvalPolicy !== "delegated") {
-          throw new PermissionResolutionError(
-            "manual_policy",
-            "target session does not allow delegated permission resolution",
+            "permission resolution is not authorized for this session",
           );
         }
       } finally {
@@ -318,7 +305,12 @@ export function createZCodeTaskServiceExecutor(options: {
               "request_not_found",
               "permission request is not pending",
             );
-          const kind = input.decision === "allow_once" ? "allowOnce" : "deny";
+          const kind =
+            input.decision === "allow_once"
+              ? "allowOnce"
+              : input.decision === "allow_always"
+                ? "allowAlways"
+                : "deny";
           const option = pending.options.find((item) => item.kind === kind);
           if (!option)
             throw new PermissionResolutionError(
